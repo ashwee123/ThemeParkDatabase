@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nightmare Nexus Horror Theme Park</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Cinzel+Decorative:wght@700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- ░░ NAVBAR ░░ -->
+  <nav id="navbar">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <span class="logo-top">NIGHTMARE</span>
+        <span class="logo-bottom">NEXUS</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#zones">Zones</a></li>
+        <li><a href="#attractions">Attractions</a></li>
+        <li><a href="#dining">Dining &amp; Shops</a></li>
+        <li><a href="#plan">Plan Your Visit</a></li>
+      </ul>
+      <button class="btn-signin" id="openLogin">SIGN IN</button>
+    </div>
+  </nav>
+
+  <!-- ░░ HERO ░░ -->
+  <header id="hero">
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <p class="hero-eyebrow">Welcome to</p>
+      <h1 class="hero-title">NIGHTMARE<br/><span>NEXUS</span></h1>
+      <p class="hero-subtitle">Five worlds. Infinite terror. One unforgettable night.</p>
+      <div class="hero-cta">
+        <a href="#zones" class="btn-primary">EXPLORE THE PARK</a>
+        <button class="btn-secondary" id="openLoginHero">BUY TICKETS</button>
+      </div>
+    </div>
+    <div class="hero-scroll-hint">
+      <span>SCROLL</span>
+      <div class="scroll-line"></div>
+    </div>
+  </header>
+
+  <!-- ░░ ZONES MARQUEE STRIP ░░ -->
+  <div class="marquee-strip">
+    <div class="marquee-track">
+      <span>UNCANNY VALLEY</span><span class="sep">✦</span>
+      <span>BLOODMOON VILLAGE</span><span class="sep">✦</span>
+      <span>SPACE STATION X</span><span class="sep">✦</span>
+      <span>CAMP BLACKWOOD</span><span class="sep">✦</span>
+      <span>DEAD END DISTRICT</span><span class="sep">✦</span>
+      <span>UNCANNY VALLEY</span><span class="sep">✦</span>
+      <span>BLOODMOON VILLAGE</span><span class="sep">✦</span>
+      <span>SPACE STATION X</span><span class="sep">✦</span>
+      <span>CAMP BLACKWOOD</span><span class="sep">✦</span>
+      <span>DEAD END DISTRICT</span><span class="sep">✦</span>
+    </div>
+  </div>
+
+  <!-- ░░ ZONES SECTION ░░ -->
+  <section id="zones" class="zones-section">
+    <div class="section-header">
+      <p class="section-label">THE FIVE REALMS</p>
+      <h2>Choose Your Fear</h2>
+    </div>
+
+    <div class="zones-grid">
+
+      <!-- Zone 1: Uncanny Valley -->
+      <article class="zone-card" data-zone="uncanny">
+        <div class="zone-img zone-img--uncanny"></div>
+        <div class="zone-body">
+          <span class="zone-tag">Zone 01</span>
+          <h3>Uncanny Valley</h3>
+          <p>Familiar places and faces — just slightly wrong. Enter a reality that mimics yours but never quite fits.</p>
+          <ul class="zone-list">
+            <li class="type-attraction">🎭 Broadcast Hijack (Show)</li>
+            <li class="type-ride">🎢 Escape the Backrooms (Ride)</li>
+            <li class="type-ride">🎢 Alternate Invasion (Ride)</li>
+            <li class="type-dining">🍽 Artificial Appetite Cafe</li>
+            <li class="type-dining">🍽 Perfect Family Diner</li>
+            <li class="type-shop">🛍 Replica Doll Works</li>
+            <li class="type-shop">🛍 Corner Store</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- Zone 2: Bloodmoon Village -->
+      <article class="zone-card" data-zone="bloodmoon">
+        <div class="zone-img zone-img--bloodmoon"></div>
+        <div class="zone-body">
+          <span class="zone-tag">Zone 02</span>
+          <h3>Bloodmoon Village</h3>
+          <p>The cult awaits. Ancient rituals, satanic ceremony, and things that live in the dark between worlds.</p>
+          <ul class="zone-list">
+            <li class="type-attraction">🎭 Harvest Festival (Show)</li>
+            <li class="type-attraction">🎭 Pastor John's Sermon (Show)</li>
+            <li class="type-dining">🍽 Great Feast Hall</li>
+            <li class="type-dining">🍽 Crimson Tavern</li>
+            <li class="type-dining">🍽 Moonlit Bakery</li>
+            <li class="type-shop">🛍 Ritual Relics &amp; Charms</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- Zone 3: Space Station X -->
+      <article class="zone-card" data-zone="space">
+        <div class="zone-img zone-img--space"></div>
+        <div class="zone-body">
+          <span class="zone-tag">Zone 03</span>
+          <h3>Space Station X</h3>
+          <p>Stranded. Infected. Hunted by something beyond comprehension. No one can hear you scream.</p>
+          <ul class="zone-list">
+            <li class="type-attraction">🕹 Cadet Training (Arcade)</li>
+            <li class="type-attraction">🎭 The Last Transmission (Show)</li>
+            <li class="type-ride">🎢 Containment Breach (Ride)</li>
+            <li class="type-ride">🎢 Zero-Gravity Situation (Ride)</li>
+            <li class="type-dining">🍽 Orbit Mess Hall</li>
+            <li class="type-dining">🍽 Cosmic Fuel Cafe</li>
+            <li class="type-shop">🛍 Supply Depot</li>
+            <li class="type-shop">🛍 Tech Exchange</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- Zone 4: Camp Blackwood -->
+      <article class="zone-card" data-zone="camp">
+        <div class="zone-img zone-img--camp"></div>
+        <div class="zone-body">
+          <span class="zone-tag">Zone 04</span>
+          <h3>Camp Blackwood</h3>
+          <p>Something ancient stalks these woods. The counselors are gone. The creatures are not.</p>
+          <ul class="zone-list">
+            <li class="type-ride">🎢 Watchtower Drop (Ride)</li>
+            <li class="type-ride">🎢 Cryptid Hunt (Ride)</li>
+            <li class="type-ride">🎢 Trail Tour (Ride)</li>
+            <li class="type-attraction">🕹 Activity Grounds (Arcade)</li>
+            <li class="type-attraction">🎭 Camper Safety Orientation (Show)</li>
+            <li class="type-dining">🍽 Dockside Grill</li>
+            <li class="type-dining">🍽 S'mores Stand</li>
+            <li class="type-dining">🍽 Blackwood Lunch Hall</li>
+            <li class="type-shop">🛍 Joe's Trading Post</li>
+            <li class="type-shop">🛍 Camp Essentials</li>
+            <li class="type-shop">🛍 Monster Makeover</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- Zone 5: Dead End District -->
+      <article class="zone-card" data-zone="deadend">
+        <div class="zone-img zone-img--deadend"></div>
+        <div class="zone-body">
+          <span class="zone-tag">Zone 05</span>
+          <h3>Dead End District</h3>
+          <p>The killers here don't hide under masks. They wear your neighbour's face. Watch where you step.</p>
+          <ul class="zone-list">
+            <li class="type-attraction">🎭 Psych Ward Tour (Show)</li>
+            <li class="type-dining">🍽 Freddy Fazbear's Pizzeria</li>
+            <li class="type-dining">🍽 Billy's Butcher Shop</li>
+            <li class="type-shop">🛍 Blackout Records &amp; Apparel</li>
+          </ul>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ░░ PLAN YOUR VISIT ░░ -->
+  <section id="plan" class="plan-section">
+    <div class="plan-inner">
+      <div class="plan-text">
+        <p class="section-label">VISITOR INFORMATION</p>
+        <h2>Plan Your Visit</h2>
+        <p>Whether you're a first-time guest or a seasoned terror-seeker, sign in to access your personalised portal — manage tickets, reservations, staff scheduling, and more.</p>
+        <button class="btn-primary" id="openLoginPlan">ACCESS YOUR PORTAL</button>
+      </div>
+      <div class="plan-cards">
+        <div class="info-card">
+          <span class="info-icon">🕗</span>
+          <h4>Hours</h4>
+          <p>Fri–Sat: 7PM – Midnight<br/>Sun–Thu: 7PM – 10PM</p>
+        </div>
+        <div class="info-card">
+          <span class="info-icon">🎟</span>
+          <h4>Tickets</h4>
+          <p>General Admission &amp; VIP Fast-Pass available online and at the gate.</p>
+        </div>
+        <div class="info-card">
+          <span class="info-icon">⚠️</span>
+          <h4>Age &amp; Health</h4>
+          <p>Not recommended for children under 13. Strobe lights &amp; intense scares throughout.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ░░ FOOTER ░░ -->
+  <footer id="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="logo-top">NIGHTMARE</span>
+        <span class="logo-bottom">NEXUS</span>
+        <p>© 2025 Nightmare Nexus. All rights reserved.</p>
+      </div>
+      <div class="footer-links">
+        <h5>Quick Links</h5>
+        <a href="#zones">Zones</a>
+        <a href="#attractions">Attractions</a>
+        <a href="#plan">Plan Your Visit</a>
+      </div>
+      <div class="footer-contact">
+        <h5>Contact</h5>
+        <p>info@nightmarenexus.com</p>
+        <p>1-800-SCARE-US</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ░░ LOGIN MODAL ░░ -->
+  <div id="loginOverlay" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box" role="dialog" aria-modal="true" aria-label="Sign In">
+      <button class="modal-close" id="closeLogin" aria-label="Close">✕</button>
+
+      <div class="modal-header">
+        <h2>SIGN IN</h2>
+        <p>Enter your credentials to access your portal</p>
+      </div>
+
+      <form class="modal-form" id="loginForm">
+        <div class="form-group">
+          <label for="emailInput">Email Address</label>
+          <input type="email" id="emailInput" placeholder="your@email.com" required autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label for="passwordInput">Password</label>
+          <input type="password" id="passwordInput" placeholder="••••••••" required autocomplete="current-password" />
+          <button type="button" class="toggle-pw" id="togglePw" aria-label="Show password">👁</button>
+        </div>
+
+        <div id="loginError" class="login-error" style="display:none;"></div>
+        <div id="loginLoading" class="login-loading" style="display:none;">Authenticating…</div>
+
+        <button type="submit" class="btn-submit" id="submitLogin">ENTER THE NEXUS</button>
+
+        <div class="modal-footer-links">
+          <a href="#">Forgot Password?</a>
+          <a href="#">Request Access</a>
+        </div>
+      </form>
+
+      <div class="portal-hint">
+        <p>🔐 Your portal is determined by your registered role.</p>
+        <div class="portal-badges">
+          <span>Guest</span><span>Staff</span><span>Admin</span><span>Vendor</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
