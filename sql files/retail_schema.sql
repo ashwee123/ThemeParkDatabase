@@ -208,3 +208,28 @@ CREATE TABLE NotificationLog (
     FOREIGN KEY (ManagerID) REFERENCES RetailManager(ManagerID),
     FOREIGN KEY (ItemID)    REFERENCES RetailItem(ItemID)
 );
+
+-- =============================================================
+--   REMAKE OF TRANSACTION LOG
+-- =============================================================
+
+DROP TABLE IF EXISTS TransactionLog;
+
+CREATE TABLE TransactionLog (
+    TransactionID INT AUTO_INCREMENT PRIMARY KEY,
+    ItemID INT NOT NULL,
+    VisitorID INT NOT NULL,
+    Date DATE NOT NULL,
+    Time TIME NOT NULL,
+    Type ENUM('Normal','Discount','Damaged','Stolen') NOT NULL,
+    Price DECIMAL(10,2) NOT NULL,
+    Quantity INT NOT NULL,
+    TotalCost DECIMAL(10,2) NOT NULL,
+
+    FOREIGN KEY (ItemID) REFERENCES RetailItem(ItemID),
+    FOREIGN KEY (VisitorID) REFERENCES visitor(VisitorID),
+
+    CHECK (Price >= 0),
+    CHECK (Quantity > 0),
+    CHECK (TotalCost >= 0)
+);
