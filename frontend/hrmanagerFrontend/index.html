@@ -1,1 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HR Manager Portal — Theme Park</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <header class="site-header">
+    <h1>HR Manager Portal</h1>
+    <p class="tagline">Theme Park · personnel &amp; assignments</p>
+  </header>
 
+  <nav class="tabs" role="tablist">
+    <button type="button" class="tab active" data-tab="employees">Employees</button>
+    <button type="button" class="tab" data-tab="by-area">By area</button>
+    <button type="button" class="tab" data-tab="assign">Assign manager</button>
+    <button type="button" class="tab" data-tab="maintenance">Maintenance</button>
+    <button type="button" class="tab" data-tab="performance">Performance</button>
+  </nav>
+
+  <main>
+    <section id="panel-employees" class="panel active" role="tabpanel">
+      <div class="toolbar">
+        <h2>All employees</h2>
+        <div class="toolbar-actions">
+          <button type="button" id="btn-report-md" class="btn btn-ghost" title="Download aggregated HR report">Report (.md)</button>
+          <button type="button" id="btn-report-json" class="btn btn-ghost" title="Download report as JSON">Report (.json)</button>
+          <button type="button" id="btn-refresh-employees" class="btn btn-ghost">Refresh</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Name</th><th>Position</th><th>Salary</th><th>Hire date</th>
+              <th>ManagerID</th><th>AreaID</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-employees"></tbody>
+        </table>
+      </div>
+      <section class="card form-card">
+        <h3>Add employee</h3>
+        <form id="form-add-employee" class="grid-form">
+          <label>Name<input name="Name" required /></label>
+          <label>Position<input name="Position" required /></label>
+          <label>Salary<input name="Salary" type="number" step="0.01" min="0" required /></label>
+          <label>Hire date<input name="HireDate" type="date" required /></label>
+          <label>ManagerID<input name="ManagerID" type="number" step="1" placeholder="optional" /></label>
+          <label>AreaID<input name="AreaID" type="number" step="1" placeholder="optional" /></label>
+          <div class="form-actions"><button type="submit" class="btn btn-primary">Add</button></div>
+        </form>
+      </section>
+      <section class="card form-card hidden" id="card-edit-employee">
+        <h3>Edit employee</h3>
+        <form id="form-edit-employee" class="grid-form">
+          <input type="hidden" name="EmployeeID" />
+          <label>Name<input name="Name" required /></label>
+          <label>Position<input name="Position" required /></label>
+          <label>Salary<input name="Salary" type="number" step="0.01" min="0" required /></label>
+          <label>Hire date<input name="HireDate" type="date" required /></label>
+          <label>ManagerID<input name="ManagerID" type="number" step="1" /></label>
+          <label>AreaID<input name="AreaID" type="number" step="1" /></label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" id="btn-cancel-edit" class="btn btn-ghost">Cancel</button>
+          </div>
+        </form>
+      </section>
+    </section>
+
+    <section id="panel-by-area" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Employees by area</h2>
+        <button type="button" id="btn-refresh-by-area" class="btn btn-ghost">Refresh</button>
+      </div>
+      <div id="by-area-content"></div>
+    </section>
+
+    <section id="panel-assign" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Assign employees to managers</h2>
+        <button type="button" id="btn-refresh-assign" class="btn btn-ghost">Refresh</button>
+      </div>
+      <p class="hint">Uses <code>PUT /assign-manager</code> with <code>EmployeeID</code> and <code>ManagerID</code>. Managers from <code>GET /managers</code>.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>EmployeeID</th><th>Name</th><th>Current ManagerID</th>
+              <th>New manager</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-assign"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-maintenance" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Maintenance assignments</h2>
+        <div class="row-inline">
+          <label class="select-label">Status
+            <select id="filter-maint-status">
+              <option value="">All</option>
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </label>
+          <button type="button" id="btn-refresh-maint" class="btn btn-ghost">Refresh</button>
+        </div>
+      </div>
+      <section class="card form-card">
+        <h3>New assignment</h3>
+        <form id="form-maint" class="grid-form">
+          <label>EmployeeID<input name="EmployeeID" type="number" min="1" step="1" required /></label>
+          <label>AreaID<input name="AreaID" type="number" min="1" step="1" placeholder="optional" /></label>
+          <label class="span-2">TaskDescription<input name="TaskDescription" required /></label>
+          <label>Status
+            <select name="Status">
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </label>
+          <label>DueDate<input name="DueDate" type="date" /></label>
+          <div class="form-actions"><button type="submit" class="btn btn-primary">Create</button></div>
+        </form>
+      </section>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Employee</th><th>Area</th><th>Task</th><th>Status</th><th>Due</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-maint"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-performance" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Performance &amp; workload</h2>
+        <button type="button" id="btn-refresh-perf" class="btn btn-ghost">Refresh</button>
+      </div>
+      <h3 class="subheading">Summary per employee</h3>
+      <p class="hint">Built from <code>GET /employees</code>, <code>GET /maintenance</code>, and <code>GET /performance</code>. If you see a database error, start the <strong>MySQL Windows service</strong> (not only Workbench) and restart <code>node server.js</code>. Optional: <code>$env:DB_PORT="3307"</code> if your server is not on 3306.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Employee</th><th>Area</th><th>ManagerID</th>
+              <th>Open maint.</th><th>Done maint.</th><th>Avg score</th><th>Reviews</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-summary"></tbody>
+        </table>
+      </div>
+      <h3 class="subheading">Performance records</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Employee</th><th>ReviewDate</th><th>Score</th><th>WorkloadNotes</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-performance"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
