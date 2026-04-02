@@ -1,6 +1,6 @@
 <?php
 header("Content-Type: application/json");
-include "db.php";
+include($_SERVER['DOCUMENT_ROOT'] . "/ThemeParkDatabase/backend/homepageBackend/php/db.php");
 
 $data = json_decode(file_get_contents("php://input"), true);
 $email = $data["email"] ?? '';

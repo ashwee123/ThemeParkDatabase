@@ -166,6 +166,82 @@ JOIN Visitor v USING(VisitorID)
 JOIN Area a USING(AreaID)
 WHERE r.DateSubmitted >= DATE_SUB(CURDATE(), INTERVAL 30 DAY);
 
+
+-- =========================================================
+-- SECTION 9: Problematic Attractions (high maintenance/accidents)
+-- =========================================================
+
+SELECT 
+    a.AttractionName,
+    COUNT(m.MaintenanceID) AS MaintenanceCount,
+    COUNT(ah.AccidentID) AS AccidentCount
+FROM attraction a
+LEFT JOIN maintenance m ON a.AttractionID = m.AttractionID
+LEFT JOIN accidenthistory ah ON a.AttractionID = ah.AttractionID
+GROUP BY a.AttractionID
+ORDER BY MaintenanceCount DESC, AccidentCount DESC;
+
+-- =========================================================
+-- SECTION 10: Average Repair Time for Attractions
+-- =========================================================
+
+SELECT 
+    a.AttractionName,
+    AVG(DATEDIFF(m.DateEnd, m.DateStart)) AS AvgRepairDays
+FROM maintenance m
+JOIN attraction a ON m.AttractionID = a.AttractionID
+WHERE m.DateEnd IS NOT NULL
+GROUP BY a.AttractionID;
+
+-- =========================================================
+-- SECTION 11: Downtime Report for Attractions
+-- =========================================================
+
+SELECT 
+    a.AttractionName,
+    SUM(DATEDIFF(m.DateEnd, m.DateStart)) AS TotalDowntimeDays
+FROM maintenance m
+JOIN attraction a ON m.AttractionID = a.AttractionID
+GROUP BY a.AttractionID
+ORDER BY TotalDowntimeDays DESC;
+
+-- =========================================================
+-- SECTION 12: Maintenance Per Day
+-- =========================================================
+
+SELECT 
+    DateStart,
+    COUNT(*) AS MaintenanceCount
+FROM maintenance
+GROUP BY DateStart
+ORDER BY DateStart DESC;
+
+
+-- =========================================================
+-- SECTION 13: Attractions Needing Maintenance
+-- =========================================================
+
+SELECT 
+    AttractionName,
+    Status,
+    SeverityLevel
+FROM attraction
+WHERE Status IN ('NeedsMaintenance', 'UnderMaintenance');
+
+-- =========================================================
+-- SECTION 14: Weather Impact
+-- =========================================================
+
+SELECT 
+    w.WeatherDate,
+    w.SeverityLevel,
+    COUNT(a.AttractionID) AS AffectedAttractions
+FROM weather w
+JOIN attraction a 
+ON a.Status = 'ClosedDueToWeather'
+GROUP BY w.WeatherDate, w.SeverityLevel
+ORDER BY w.WeatherDate DESC;
+
 -- =========================================================
 -- END OF FILE
 -- =========================================================

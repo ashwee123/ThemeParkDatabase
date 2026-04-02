@@ -16,13 +16,21 @@
 </header>
 
 <nav class="tabs">
-  <button class="tab active" data-tab="tasks">All Tasks</button>
   <button class="tab" data-tab="schedule">Schedule</button>
+  <button class="tab active" data-tab="tasks">All Tasks</button>
   <button class="tab" data-tab="performance">Performance</button>
+  <button class="tab" data-tab="reports">Reports</button>
+  <button class="tab" data-tab="queries">Queries</button>
   <button class="tab" data-tab="assign">Assign Tasks</button>
 </nav>
 
 <main>
+  
+  <section id="panel-reports" class="panel">
+    <h2>Reports</h2>
+    <div id="reports-container" class="stats-grid"></div>
+  </section>
+
   <!-- ALL TASKS -->
   <section id="panel-tasks" class="panel active">
 
@@ -81,7 +89,7 @@
   <section id="panel-assign" class="panel">
     <h2>Assign Task</h2>
     <p style="color: var(--text-dim); margin-bottom: 25px;">
-      Data Entry Pages
+      Data Entry Page
     </p>
 
     <form id="form-add-task" class="grid-form">
@@ -179,12 +187,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 2. Initial Data Load
-    if (tab.dataset.tab === 'schedule') {
-        renderTables(allTasksData);
-    } else {
-        loadTasks();
-    }
+    // Always load tasks on page start
+    loadTasks();
+
+    // Make Schedule the default tab
+    document.querySelector('[data-tab="schedule"]').click();
+
     // 3. Form Submission (with Safety Check)
     const addTaskForm = document.getElementById('form-add-task');
     if (addTaskForm) {
