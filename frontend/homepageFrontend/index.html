@@ -20,9 +20,9 @@
       </a>
       <ul class="nav-links">
         <li><a href="#zones">Zones</a></li>
-        <li><a href="#attractions">Attractions</a></li>
-        <li><a href="#dining">Dining &amp; Shops</a></li>
+        <li><a href="#tickets">Tickets</a></li>
         <li><a href="#plan">Plan Your Visit</a></li>
+        <li><a href="#about">About Us</a></li>
       </ul>
       <button class="btn-signin" id="openLogin">SIGN IN</button>
     </div>
@@ -46,7 +46,7 @@
     </div>
   </header>
 
-  <!-- ░░ ZONES MARQUEE STRIP ░░ -->
+    <!-- ░░ ZONES MARQUEE STRIP ░░ -->
   <div class="marquee-strip">
     <div class="marquee-track">
       <span>UNCANNY VALLEY</span><span class="sep">✦</span>
@@ -62,6 +62,24 @@
     </div>
   </div>
 
+        <!-- ░░ ZONES MARQUEE STRIP ░░ -->
+  <section class="carousel-section">
+    <div class="carousel-track">
+      <img src="images/photocarousel1.png">
+      <img src="images/photocarousel2.png">
+      <img src="images/photocarousel3.png">
+      <img src="images/photocarousel4.png">
+      <img src="images/photocarousel5.png">
+
+      <!-- duplicate for smooth loop -->
+      <img src="images/photocarousel1.png">
+      <img src="images/photocarousel2.png">
+      <img src="images/photocarousel3.png">
+      <img src="images/photocarousel4.png">
+      <img src="images/photocarousel5.png">
+    </div>
+  </section>
+
   <!-- ░░ ZONES SECTION ░░ -->
   <section id="zones" class="zones-section">
     <div class="section-header">
@@ -73,15 +91,15 @@
 
       <!-- Zone 1: Uncanny Valley -->
       <article class="zone-card" data-zone="uncanny">
-        <div class="zone-img zone-img--uncanny"></div>
+        <img src="images/uncannyvalleyThumbnail.png">
         <div class="zone-body">
           <span class="zone-tag">Zone 01</span>
           <h3>Uncanny Valley</h3>
           <p>Familiar places and faces — just slightly wrong. Enter a reality that mimics yours but never quite fits.</p>
           <ul class="zone-list">
-            <li class="type-attraction">🎭 Broadcast Hijack (Show)</li>
             <li class="type-ride">🎢 Escape the Backrooms (Ride)</li>
             <li class="type-ride">🎢 Alternate Invasion (Ride)</li>
+            <li class="type-attraction">🎭 Broadcast Hijack (Show)</li>
             <li class="type-dining">🍽 Artificial Appetite Cafe</li>
             <li class="type-dining">🍽 Perfect Family Diner</li>
             <li class="type-shop">🛍 Replica Doll Works</li>
@@ -92,12 +110,14 @@
 
       <!-- Zone 2: Bloodmoon Village -->
       <article class="zone-card" data-zone="bloodmoon">
-        <div class="zone-img zone-img--bloodmoon"></div>
+        <img src="images/bloodmoonvillageThumbnail.png">
         <div class="zone-body">
           <span class="zone-tag">Zone 02</span>
           <h3>Bloodmoon Village</h3>
           <p>The cult awaits. Ancient rituals, satanic ceremony, and things that live in the dark between worlds.</p>
           <ul class="zone-list">
+            <li class="type-ride">🎢 The Sacrifice (Ride)</li>
+            <li class="type-ride">🎢 Possession (Ride)</li>
             <li class="type-attraction">🎭 Harvest Festival (Show)</li>
             <li class="type-attraction">🎭 Pastor John's Sermon (Show)</li>
             <li class="type-dining">🍽 Great Feast Hall</li>
@@ -110,16 +130,16 @@
 
       <!-- Zone 3: Space Station X -->
       <article class="zone-card" data-zone="space">
-        <div class="zone-img zone-img--space"></div>
+        <img src="images/spacestationxThumbnail.png">
         <div class="zone-body">
           <span class="zone-tag">Zone 03</span>
           <h3>Space Station X</h3>
           <p>Stranded. Infected. Hunted by something beyond comprehension. No one can hear you scream.</p>
           <ul class="zone-list">
-            <li class="type-attraction">🕹 Cadet Training (Arcade)</li>
-            <li class="type-attraction">🎭 The Last Transmission (Show)</li>
             <li class="type-ride">🎢 Containment Breach (Ride)</li>
             <li class="type-ride">🎢 Zero-Gravity Situation (Ride)</li>
+            <li class="type-attraction">🎭 The Last Transmission (Show)</li>
+            <li class="type-attraction">🕹 Cadet Training (Arcade)</li>
             <li class="type-dining">🍽 Orbit Mess Hall</li>
             <li class="type-dining">🍽 Cosmic Fuel Cafe</li>
             <li class="type-shop">🛍 Supply Depot</li>
@@ -130,7 +150,7 @@
 
       <!-- Zone 4: Camp Blackwood -->
       <article class="zone-card" data-zone="camp">
-        <div class="zone-img zone-img--camp"></div>
+        <img src="images/campblackwoodThumbnail.png">
         <div class="zone-body">
           <span class="zone-tag">Zone 04</span>
           <h3>Camp Blackwood</h3>
@@ -139,8 +159,8 @@
             <li class="type-ride">🎢 Watchtower Drop (Ride)</li>
             <li class="type-ride">🎢 Cryptid Hunt (Ride)</li>
             <li class="type-ride">🎢 Trail Tour (Ride)</li>
-            <li class="type-attraction">🕹 Activity Grounds (Arcade)</li>
             <li class="type-attraction">🎭 Camper Safety Orientation (Show)</li>
+            <li class="type-attraction">🕹 Activity Grounds (Arcade)</li>
             <li class="type-dining">🍽 Dockside Grill</li>
             <li class="type-dining">🍽 S'mores Stand</li>
             <li class="type-dining">🍽 Blackwood Lunch Hall</li>
@@ -153,20 +173,75 @@
 
       <!-- Zone 5: Dead End District -->
       <article class="zone-card" data-zone="deadend">
-        <div class="zone-img zone-img--deadend"></div>
+        <img src="images/deadenddistrictThumbnail.png">
         <div class="zone-body">
           <span class="zone-tag">Zone 05</span>
           <h3>Dead End District</h3>
           <p>The killers here don't hide under masks. They wear your neighbour's face. Watch where you step.</p>
           <ul class="zone-list">
+            <li class="type-ride">🎢 Midnight Stalker (Ride)</li>
+            <li class="type-ride">🎢 Final Girl: The Chase (Ride)</li>
+            <li class="type-ride">🎢 Execution Alley (Ride)</li>
             <li class="type-attraction">🎭 Psych Ward Tour (Show)</li>
+            <li class="type-ride">🕹 Body Count (Arcade)</li>
             <li class="type-dining">🍽 Freddy Fazbear's Pizzeria</li>
             <li class="type-dining">🍽 Billy's Butcher Shop</li>
+            <li class="type-dining">🍽 Midnight Snack Shack</li>
             <li class="type-shop">🛍 Blackout Records &amp; Apparel</li>
+            
           </ul>
         </div>
       </article>
 
+      <!-- Zone 6: Isolation Ward -->
+      <article class="zone-card" data-zone="isolation">
+        <img src="images/isolationwardThumbnail.png">
+        <div class="zone-body">
+          <span class="zone-tag">Zone 06</span>
+          <h3>Isolation Ward</h3>
+          <p>A viral outbreak has consumed this facility. Containment has failed. Survivors are few.</p>
+
+          <ul class="zone-list">
+            <li class="type-ride">🎢 Outbreak: Day Zero</li>
+            <li class="type-ride">🎢 Evacuation Protocol</li>
+            <li class="type-ride">🎢 Containment Collapse</li>
+            <li class="type-ride">🎢 Last Stand Barricade</li>
+            <li class="type-attraction">🎭 Emergency Broadcast Live</li>
+            <li class="type-dining">🍽 Ration Station</li>
+            <li class="type-dining">🍽 Contamination Cafe</li>
+            <li class="type-dining">🍽 Field Medic Kitchen</li>
+            <li class="type-shop">🛍 Apocalypse Outfitters</li>
+            <li class="type-shop">🛍 Black Market Meds</li>
+            <li class="type-shop">🛍 Biohazard Supply Co.</li>
+          </ul>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+      <!-- ░░ TICKETS GRID ░░ -->
+    <section id="tickets" class="tickets-section">
+    <div class="section-header">
+      <p class="section-label">ADMISSION OPTIONS</p>
+      <h2>Choose Your Experience</h2>
+    </div>
+    <div class="tickets-grid">
+      <div class="ticket-card">
+        <h3>Discount Pass</h3>
+        <p>For those who are under 10 years old, veterans, seniors, or those who are disabled.</p>
+        <span>$30</span>
+      </div>
+      <div class="ticket-card">
+        <h3>General Admission</h3>
+        <p>Full park access to all zones.</p>
+        <span>$40</span>
+      </div>
+      <div class="ticket-card vip">
+        <h3>VIP Membership</h3>
+        <p>Skip lines, exclusive zones, priority access.</p>
+        <span>$100</span>
+      </div>
     </div>
   </section>
 
@@ -181,14 +256,14 @@
       </div>
       <div class="plan-cards">
         <div class="info-card">
-          <span class="info-icon">🕗</span>
-          <h4>Hours</h4>
-          <p>Fri–Sat: 7PM – Midnight<br/>Sun–Thu: 7PM – 10PM</p>
-        </div>
-        <div class="info-card">
           <span class="info-icon">🎟</span>
           <h4>Tickets</h4>
           <p>General Admission &amp; VIP Fast-Pass available online and at the gate.</p>
+        </div>
+        <div class="info-card">
+          <span class="info-icon">🕗</span>
+          <h4>Hours</h4>
+          <p>Fri–Sat: 7PM – Midnight<br/>Sun–Thu: 7PM – 10PM</p>
         </div>
         <div class="info-card">
           <span class="info-icon">⚠️</span>
@@ -196,6 +271,42 @@
           <p>Not recommended for children under 13. Strobe lights &amp; intense scares throughout.</p>
         </div>
       </div>
+    </div>
+  </section>
+
+    <!-- ░░ ABOUT SECTION ░░ -->
+  <section id="about" class="about-section">
+    <div class="about-inner">
+
+      <div class="about-text">
+        <p class="section-label">ABOUT THE PARK</p>
+        <h2>Enter the Nightmare</h2>
+        <p>
+          Nightmare Nexus is not just a theme park — it's an immersive horror universe.
+          Each zone is meticulously designed to blur the line between reality and fear,
+          pulling you into stories where you are no longer a visitor, but part of the experience.
+        </p>
+        <p>
+          From cult rituals to deep-space terror, every corner of the park is built to challenge
+          your senses, your courage, and your sanity. Whether you survive… is up to you.
+        </p>
+      </div>
+
+      <div class="about-stats">
+        <div class="stat-card">
+          <h3>6</h3>
+          <p>Immersive Zones</p>
+        </div>
+        <div class="stat-card">
+          <h3>20+</h3>
+          <p>Attractions & Experiences</p>
+        </div>
+        <div class="stat-card">
+          <h3>100%</h3>
+          <p>Fear Guaranteed</p>
+        </div>
+      </div>
+
     </div>
   </section>
 
@@ -210,8 +321,9 @@
       <div class="footer-links">
         <h5>Quick Links</h5>
         <a href="#zones">Zones</a>
-        <a href="#attractions">Attractions</a>
+        <a href="#tickets">Tickets</a>
         <a href="#plan">Plan Your Visit</a>
+        <a href="#about">About Us</a>
       </div>
       <div class="footer-contact">
         <h5>Contact</h5>
@@ -263,5 +375,6 @@
   </div>
 
   <script src="../../backend/homepageBackend/main.js"></script>
+
 </body>
 </html>

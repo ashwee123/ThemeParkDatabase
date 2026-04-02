@@ -199,15 +199,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   justify-content: center;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(139,0,0,0.18) 0%, transparent 70%),
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 3px,
-      rgba(0,0,0,0.04) 3px,
-      rgba(0,0,0,0.04) 4px
-    ),
-    linear-gradient(180deg, #0A0806 0%, #110906 40%, #0D0704 100%);
+    linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.9)),
+    url('images/nightmarenexus.png') center/cover no-repeat;
 }
 /* Animated static texture overlay */
 #hero::before {
@@ -325,7 +318,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
    ZONES SECTION
 ═══════════════════════════════════════════════════════════════ */
 .zones-section {
-  padding: 100px 40px;
+  padding: 100px 40px 50px;
   max-width: 1400px;
   margin: 0 auto;
 }
@@ -361,11 +354,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 /* Zone image thematic gradients (replace with real images) */
-.zone-img--uncanny  { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%); }
-.zone-img--bloodmoon{ background: linear-gradient(135deg, #1a0000 0%, #3d0000 50%, #6b0000 100%); }
-.zone-img--space    { background: linear-gradient(135deg, #000010 0%, #001030 50%, #000a20 100%); }
-.zone-img--camp     { background: linear-gradient(135deg, #0a1a05 0%, #1a2e0a 50%, #0d200a 100%); }
-.zone-img--deadend  { background: linear-gradient(135deg, #111111 0%, #1c1c1c 50%, #2a2a2a 100%); }
+.zone-img--uncanny   { background: url('images/uncannyvalleyThumbnail.png') center/cover no-repeat;}
+.zone-img--bloodmoon { background: url('images/bloodmoonvillageThumbnail.png') center/cover no-repeat;}
+.zone-img--space     { background: url('images/spacestationxThumbnail.png') center/cover no-repeat;}
+.zone-img--camp      { background: url('images/campblackwoodThumbnail.png') center/cover no-repeat;}
+.zone-img--deadend   { background: url('images/deadenddistrictThumbnail.png') center/cover no-repeat;}
+.zone-img--isolation { background: url('images/isolationwardThumbnail.png') center/cover no-repeat;}
 
 .zone-body { padding: 28px; }
 .zone-tag {
@@ -725,6 +719,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   .plan-cards { grid-template-columns: 1fr; }
   .plan-cards .info-card:first-child { grid-column: auto; }
   .footer-inner { grid-template-columns: 1fr; gap: 36px; }
+  .about-inner { grid-template-columns: 1fr; gap: 40px; }
 }
 @media (max-width: 600px) {
   .zones-section, .plan-section, #footer { padding: 60px 20px; }
@@ -779,3 +774,185 @@ section {
 .login-loading {
   cursor: progress;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   TICKETS SECTION (FIXED)
+═══════════════════════════════════════════════════════════════ */
+.tickets-section {
+  padding: 50px 40px 100px;
+}
+
+.tickets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 28px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.ticket-card {
+  background: var(--dark-card);
+  border: 1px solid rgba(139,0,0,0.2);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  text-align: center;
+  transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+
+.ticket-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--blood);
+}
+
+.ticket-card h3 {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: var(--bone);
+  margin-bottom: 10px;
+}
+
+.ticket-card p {
+  font-size: 0.95rem;
+  color: var(--ash);
+  margin-bottom: 16px;
+}
+
+.ticket-card span {
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 12px rgba(139,0,0,0.6);
+}
+
+/* VIP standout */
+.ticket-card.vip {
+  border: 2px solid var(--blood);
+  box-shadow: 0 0 25px rgba(139,0,0,0.4);
+}
+
+.zone-img {
+  height: 200px;
+  background-size: cover;
+  background-position: center;
+}
+
+/* Add these */
+.zone-img--uncanny {
+  background-image: url("images/uncannyvalleyThumbnail.png");
+}
+
+.zone-img--bloodmoon {
+  background-image: url("images/bloodmoonvillageThumbnail.png");
+}
+
+.zone-img--space {
+  background-image: url("images/spacestationxThumbnail.png");
+}
+
+.zone-img--camp {
+  background-image: url("images/campblackwoodThumbnail.png");
+}
+
+.zone-img--deadend {
+  background-image: url("images/deadenddistrictThumbnail.png");
+}
+
+.zone-img--isolation {
+  background-image: url("images/isolationwardThumbnail.png");
+}
+
+/* ===== CLEAN WORKING CAROUSEL ===== */
+
+.carousel-section {
+  overflow: hidden;
+  width: 100%;
+  height: 250px;
+  background: #000;
+}
+
+.carousel-track {
+  display: flex;                 /* 🔥 THIS FIXES STACKING */
+  flex-direction: row;
+  width: max-content;
+  animation: scrollCarousel 20s linear infinite;
+}
+
+.carousel-track img {
+  height: 250px;
+  width: 400px;                 /* all images same width */
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+/* smooth infinite scroll */
+@keyframes scrollCarousel {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ABOUT SECTION
+═══════════════════════════════════════════════════════════════ */
+.about-section {
+  padding: 100px 40px;
+  background: var(--dark);
+  border-top: 1px solid rgba(139,0,0,0.2);
+}
+
+.about-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 80px;
+  align-items: center;
+}
+
+.about-text h2 {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  color: var(--bone);
+  margin-bottom: 20px;
+}
+
+.about-text p {
+  color: var(--ash);
+  font-size: 1.05rem;
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+
+/* stats */
+.about-stats {
+  display: grid;
+  gap: 20px;
+}
+
+.stat-card {
+  background: var(--dark-card);
+  border: 1px solid rgba(139,0,0,0.2);
+  padding: 28px;
+  text-align: center;
+  border-radius: var(--radius);
+  transition: transform var(--transition), border-color var(--transition);
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--blood);
+}
+
+.stat-card h3 {
+  font-family: var(--font-accent);
+  font-size: 2.5rem;
+  color: var(--blood-light);
+}
+
+.stat-card p {
+  font-size: 0.9rem;
+  color: var(--ash);
+  margin-top: 6px;
+}
+
