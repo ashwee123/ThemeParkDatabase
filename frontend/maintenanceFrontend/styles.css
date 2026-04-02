@@ -1,0 +1,840 @@
+@import url("https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Crimson+Text:wght@400;600;700&family=Creepster&display=swap");
+
+:root {
+  --blood: #8b0000;
+  --blood-light: #c0392b;
+  --ember: #d4580a;
+  --gold: #c9a84c;
+  --bone: #e8dcc8;
+  --ash: #b0a898;
+  --dark: #0a0806;
+  --dark-mid: #120e0a;
+  --dark-surface: #1c1510;
+  --dark-card: #211a14;
+  --text-main: #d6cdb8;
+  --text-dim: #8a7f72;
+  --radius: 4px;
+  --transition: 0.3s ease;
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* GLOBAL FONT FIX */
+body {
+  font-family: 'Crimson Text', serif;
+  color: #f5f5f5; /* optional if you're using dark theme */
+}
+
+/* Base font (everything) */
+body {
+  font-family: 'Crimson Text', serif;
+}
+
+/* Headers */
+h1, h2, h3 {
+  font-family: 'Cinzel Decorative', serif;
+}
+
+/* Special horror accents */
+.site-header h1 {
+  font-family: 'Creepster', cursive;
+}
+
+body {
+  background: var(--dark);
+  color: var(--text-main);
+  font-family: "Crimson Text", serif;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+.noise {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+}
+
+.site-header {
+  position: relative;
+  z-index: 1;
+  padding: 2rem 1.5rem 1rem;
+  border-bottom: 1px solid rgba(139, 0, 0, 0.25);
+  background: linear-gradient(180deg, rgba(10, 8, 6, 0.97) 0%, rgba(10, 8, 6, 0.8) 100%);
+}
+
+.site-header h1 {
+  font-family: "Creepster", cursive;
+  font-size: clamp(2.2rem, 5vw, 3.4rem);
+  letter-spacing: 0.05em;
+  color: var(--bone);
+  text-shadow: 0 0 20px rgba(139, 0, 0, 0.4);
+  animation: flickerGlow 3s infinite alternate;
+}
+
+.tagline {
+  color: var(--ash);
+  font-style: italic;
+}
+
+.tabs {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 0 1.5rem;
+  border-bottom: 1px solid rgba(139, 0, 0, 0.25);
+  background: var(--dark-mid);
+}
+
+.tab {
+  font-family: "Cinzel Decorative", serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ash);
+  padding: 0.9rem 1.25rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  cursor: pointer;
+}
+
+.tab:hover { color: var(--bone); }
+.tab.active { color: var(--bone); border-bottom-color: var(--blood-light); }
+
+main {
+  position: relative;
+  z-index: 1;
+  max-width: 1220px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.toolbar h2, .subheading {
+  font-family: "Cinzel Decorative", serif;
+  color: var(--bone);
+}
+
+.subheading { margin: 1.25rem 0 0.5rem; font-size: 1rem; }
+
+.hint { color: var(--text-dim); margin-bottom: 1rem; }
+code { color: var(--gold); }
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid rgba(139, 0, 0, 0.2);
+  border-radius: var(--radius);
+  background: var(--dark-card);
+  margin-bottom: 1.25rem;
+}
+
+.card {
+  background: var(--dark-card);
+  border: 1px solid rgba(139, 0, 0, 0.2);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem;
+  margin-bottom: 1.25rem;
+}
+
+.form-card h3 {
+  font-family: "Cinzel Decorative", serif;
+  font-size: 0.9rem;
+  margin-bottom: 0.8rem;
+  color: var(--gold);
+}
+
+/* FORM GRID */
+.grid-form {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+
+/* Make description span full width */
+.grid-form .span-2 {
+  grid-column: 1 / -1;
+}
+
+/* Button alignment */
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.span-2 { grid-column: 1 / -1; }
+label { color: var(--ash); font-size: 0.82rem; display: flex; flex-direction: column; gap: 0.32rem; }
+
+input, select, textarea {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(139, 0, 0, 0.3);
+  border-radius: var(--radius);
+  color: var(--bone);
+  padding: 0.55rem 0.65rem;
+  font-family: "Crimson Text", serif;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--blood);
+  box-shadow: 0 0 0 3px rgba(139, 0, 0, 0.15);
+}
+
+.form-actions { grid-column: 1 / -1; display: flex; gap: 0.6rem; }
+
+.btn {
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(139, 0, 0, 0.35);
+  font-family: "Cinzel Decorative", serif;
+  font-size: 0.66rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.btn-primary {
+  background: var(--blood);
+  color: var(--bone);
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary:hover {
+  background: var(--blood-light);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(139, 0, 0, 0.45);
+}
+.btn-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255, 0, 0, 0.25), transparent 70%);
+  opacity: 0;
+  transition: opacity .3s;
+}
+.btn-primary:hover::after { opacity: 1; }
+
+.btn-ghost { background: transparent; color: var(--ash); }
+.btn-ghost:hover { color: var(--bone); border-color: var(--gold); }
+.btn-danger { background: transparent; color: #ff8f8f; }
+.btn-small { padding: 0.35rem 0.6rem; font-size: 0.6rem; }
+
+.row-inline { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+.select-label { display: flex; flex-direction: column; gap: 0.35rem; color: var(--ash); }
+.area-block { margin-bottom: 1.2rem; }
+.area-block h3 { color: var(--bone); margin-bottom: 0.45rem; }
+
+.hidden { display: none !important; }
+
+.toast {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 20;
+  max-width: 360px;
+  padding: 0.6rem 0.8rem;
+  background: var(--dark-card);
+  color: var(--bone);
+  border: 1px solid var(--blood);
+  border-radius: var(--radius);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .25s ease, transform .25s ease;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.error { border-color: var(--blood-light); color: #ffb4b4; }
+
+@keyframes flickerGlow {
+  0% { text-shadow: 0 0 20px rgba(139, 0, 0, 0.4); }
+  50% { text-shadow: 0 0 80px rgba(139, 0, 0, 0.7); }
+  100% { text-shadow: 0 0 40px rgba(139, 0, 0, 0.5); }
+}
+
+@media (max-width: 700px) {
+  main { padding: 1rem; }
+  .tabs { padding: 0 0.7rem; }
+  .site-header { padding: 1.2rem 1rem 0.8rem; }
+}
+
+/* =========================
+   MAINTENANCE STATUS COLORS
+   ========================= */
+
+.status {
+  font-weight: 600;
+  padding: 0.2rem 0.45rem;
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.status-pending {
+  background: rgba(212, 88, 10, 0.2);
+  color: var(--ember);
+}
+
+.status-progress {
+  background: rgba(201, 168, 76, 0.2);
+  color: var(--gold);
+}
+
+.status-completed {
+  background: rgba(0, 128, 0, 0.2);
+  color: #7CFC00;
+}
+
+.table-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.btn-danger:hover {
+  color: #ff4d4d;
+  border-color: #ff4d4d;
+}
+
+/* Maintenance Alerts (from trigger) */
+.alert-critical {
+  border-left: 3px solid red;
+  background: rgba(255, 0, 0, 0.08);
+}
+
+.alert-warning {
+  border-left: 3px solid var(--ember);
+  background: rgba(212, 88, 10, 0.08);
+}
+
+.weather-alert {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--blood);
+  background: rgba(139, 0, 0, 0.2);
+  color: var(--bone);
+  font-size: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+#btn-login-maintenance {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+/* =========================
+   LOGOUT BUTTON (FIXED)
+   ========================= */
+.site-header {
+  position: relative;
+}
+
+#btn-logout {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+/* =========================
+   FORM LAYOUT (CLEAN FIX)
+   ========================= */
+.grid-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem; /* Increased spacing for a cleaner look */
+  margin-top: 2rem;
+  width: 100%; /* Ensures form hits the edges */
+}
+
+/* The row with 4 inputs */
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+/* Forces the description area to take up 100% width */
+.form-description {
+  width: 100%;
+}
+
+.form-description label {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure all inputs and textareas actually fill their containers */
+.grid-form input, 
+.grid-form select, 
+.grid-form textarea {
+  width: 100%; 
+  display: block;
+}
+
+.grid-form textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+/* Button alignment */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+/* =========================
+   DROPDOWN VISIBILITY FIX
+   ========================= */
+
+/* This targets the main box and the actual list items */
+select, 
+select option {
+  background-color: var(--dark-card) !important; /* Forces dark background */
+  color: var(--bone) !important;               /* Forces light text */
+  font-family: "Crimson Text", serif;
+}
+
+/* Specific styling for the 'Status' dropdown to make it pop */
+select[name="Status"] {
+  cursor: pointer;
+  border: 1px solid var(--blood);
+  background-image: linear-gradient(to bottom, rgba(139, 0, 0, 0.1), transparent);
+}
+
+/* Optional: Subtle hover effect for the select box itself */
+select:hover {
+  border-color: var(--blood-light);
+  background-color: var(--dark-surface);
+}
+
+.section-blurb {
+    color: #666;
+    font-style: italic;
+    margin-bottom: 20px;
+    font-size: 0.95rem;
+    border-left: 3px solid #0078d4; /* Adds a nice vertical accent line */
+    padding-left: 15px;
+}
+
+.status-pending { color: #d97706; font-weight: bold; background: #fef3c7; padding: 4px 8px; border-radius: 4px; }
+.status-inprogress { color: #2563eb; font-weight: bold; background: #dbeafe; padding: 4px 8px; border-radius: 4px; }
+.status-completed { color: #059669; font-weight: bold; background: #d1fae5; padding: 4px 8px; border-radius: 4px; }
+
+/* Performance / Status Badges */
+.status-open { color: #059669; background: #d1fae5; border-radius: 4px; padding: 2px 6px; }
+.status-undermaintenance { color: #d97706; background: #fef3c7; border-radius: 4px; padding: 2px 6px; }
+.status-closedduetoweather { color: #dc2626; background: #fee2e2; border-radius: 4px; padding: 2px 6px; }
+.status-needsmaintenance { color: #7c3aed; background: #f3e8ff; border-radius: 4px; padding: 2px 6px; }
+
+/* Status Colors for the Performance Tab */
+.status-open { color: #2ecc71; font-weight: bold; }
+.status-undermaintenance { color: #f1c40f; font-weight: bold; }
+.status-closedduetoweather { color: #e74c3c; font-weight: bold; }
+.status-needsmaintenance { color: #9b59b6; font-weight: bold; }
+
+/* Dashboard Header Layout */
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 10px 0;
+    border-bottom: 2px solid #333;
+}
+
+/* Search Bar Styling */
+.search-container {
+    position: relative;
+    width: 400px;
+}
+
+#main-search {
+    width: 100%;
+    padding: 12px 15px 12px 40px;
+    background-color: #1a1a1a; /* Dark background */
+    border: 1px solid #444;
+    border-radius: 25px;
+    color: #eee;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+#main-search:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.4);
+    background-color: #222;
+}
+
+.search-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #888;
+}
+
+/* Performance Cards for that tab */
+.perf-card {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    display: inline-block;
+    width: calc(33% - 20px);
+    margin-right: 15px;
+    vertical-align: top;
+}
+
+/* The 'Slide' or 'Indicator' effect */
+.sort-indicator::after {
+    content: ' ⏷'; /* Default down arrow */
+    font-size: 10px;
+    opacity: 0.3;
+    margin-left: 5px;
+    transition: all 0.3s ease;
+}
+
+/* Status colors from the earlier version */
+.status-pending { color: #d97706; font-weight: bold; }
+.status-inprogress { color: #2563eb; font-weight: bold; }
+.status-completed { color: #059669; font-weight: bold; }
+
+/* Visual feedback for the active toggle */
+.active-sort {
+    background-color: #e9ecef !important;
+    color: #000 !important;
+    text-decoration: underline;
+}
+
+.btn-reset:hover {
+    background-color: #cf0000; /* Lighter red on hover */
+}
+
+/* THE RED RESET BUTTON - Using your --blood colors */
+.btn-reset {
+    background-color: var(--blood);
+    color: var(--bone);
+    border: 1px solid var(--blood-light);
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    
+    /* Font Fixes */
+    font-family: inherit; 
+    font-size: 14px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    
+    transition: var(--transition);
+}
+
+.btn-reset:hover {
+    background-color: var(--blood-light);
+    box-shadow: 0 0 10px rgba(139, 0, 0, 0.5);
+}
+
+/* The Active Toggle Underline */
+.active-sort {
+    border-bottom: 2px solid var(--ember) !important;
+    color: var(--ember) !important;
+}
+
+/* 1. Header Title - Matching your other titles */
+.panel h2 {
+    color: var(--blood-light); /* Matching your established title color */
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    border-bottom: 1px solid var(--dark-surface);
+    padding-bottom: 10px;
+}
+
+/* When a category is 'Turned On' */
+.active-sort {
+    background-color: var(--dark-mid) !important; /* Prevents white background */
+    color: var(--gold) !important; /* Selected text is Yellow */
+    border-bottom: 2px solid var(--gold) !important;
+    text-shadow: 0 0 5px rgba(201, 168, 76, 0.3);
+}
+
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 9999;
+}
+
+/* Horror Terminal Content */
+.modal-content {
+    background: #0f0f0f;
+    border: 2px solid #8b0000; /* Dark Blood Red */
+    box-shadow: 0 0 20px rgba(139, 0, 0, 0.5);
+    padding: 2rem; width: 90%; max-width: 500px;
+    color: #e0e0e0; font-family: 'Courier New', Courier, monospace;
+}
+
+.modal-header { display: flex; justify-content: space-between; border-bottom: 1px solid #444; margin-bottom: 1rem; }
+.close-modal { font-size: 2rem; cursor: pointer; color: #8b0000; }
+.status-label { color: #8b0000; font-weight: bold; margin-bottom: 5px; }
+.typewriter-text { line-height: 1.6; border-left: 3px solid #8b0000; padding-left: 15px; }
+
+/* Match the database ENUM values exactly */
+.status-open { color: #2ecc71; } /* Green */
+.status-undermaintenance { color: #f1c40f; } /* Yellow */
+.status-needsmaintenance { color: #e67e22; } /* Orange */
+.status-closedduetoweather { color: #3498db; } /* Blue */
+.status-restricted { color: #9b59b6; } /* Purple */
+.status-closed { color: #e74c3c; } /* Red */
+
+.status-open { color: #27ae60; }
+.status-undermaintenance { color: #f1c40f; }
+.status-closedduetoweather { color: #3498db; }
+.status-closed { color: #c0392b; }
+.status-restricted { color: #8e44ad; }
+
+/* =========================
+   PANEL VISIBILITY FIX
+   ========================= */
+
+.panel {
+  display: none;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+
+  background-color: var(--dark-mid);
+  padding: 30px;
+  border-radius: var(--radius);
+  border: 1px solid var(--dark-surface);
+}
+
+.panel.active {
+  display: block;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 3. Status Badge Overrides (Fixing the background color issue) */
+/* This ensures the text color from your database matches the horror theme */
+.status-pending { color: var(--ember); background: rgba(212, 88, 10, 0.1); border: 1px solid rgba(212, 88, 10, 0.3); }
+.status-inprogress { color: var(--gold); background: rgba(201, 168, 76, 0.1); border: 1px solid rgba(201, 168, 76, 0.3); }
+.status-completed { color: #2ecc71; background: rgba(46, 204, 113, 0.1); border: 1px solid rgba(46, 204, 113, 0.3); }
+
+.close-modal {
+    font-size: 28px;
+    cursor: pointer;
+    color: var(--blood-light);
+    transition: 0.3s ease;
+}
+
+.close-modal:hover {
+    color: #ff4d4d;
+    transform: scale(1.2);
+}
+
+.data-table th {
+    background-color: var(--dark-card);
+    color: var(--blood-light);
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative;
+}
+
+/* 🔥 Hover effect */
+.data-table th:hover {
+    background-color: var(--dark-mid);
+    color: var(--gold);
+}
+
+/* ✅ Active sorted column */
+.data-table th.active-sort {
+    color: var(--gold);
+    border-bottom: 2px solid var(--gold);
+}
+
+.data-table th.active-sort.asc::after {
+    content: ' ⏶';
+}
+
+.data-table th.active-sort.desc::after {
+    content: ' ⏷';
+}
+
+/* =========================
+   🔥 HORROR TABLE REDESIGN
+   ========================= */
+
+.table-wrap {
+  border: 1px solid rgba(139, 0, 0, 0.25);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--dark-card);
+  box-shadow: 0 0 25px rgba(139, 0, 0, 0.15);
+}
+
+/* TABLE BASE */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 0.95rem;
+}
+
+/* HEADER */
+.data-table th {
+  background: linear-gradient(180deg, #1a1410, #120e0a);
+  color: var(--gold);
+  font-family: "Cinzel Decorative", serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  padding: 14px;
+  border-bottom: 1px solid rgba(139, 0, 0, 0.3);
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+}
+
+/* 🔥 Hover glow */
+.data-table th:hover {
+  color: var(--bone);
+  background: var(--dark-mid);
+  text-shadow: 0 0 6px rgba(201, 168, 76, 0.4);
+}
+
+/* ACTIVE SORT */
+.data-table th.active-sort {
+  color: var(--bone);
+  border-bottom: 2px solid var(--blood-light);
+  text-shadow: 0 0 8px rgba(139, 0, 0, 0.6);
+}
+
+/* SORT ARROWS */
+.data-table th.active-sort.asc::after {
+  content: " ⏶";
+  font-size: 10px;
+}
+
+.data-table th.active-sort.desc::after {
+  content: " ⏷";
+  font-size: 10px;
+}
+
+/* ROWS */
+.data-table td {
+  padding: 12px;
+  border-bottom: 1px solid rgba(139, 0, 0, 0.15);
+  color: var(--text-main);
+}
+
+/* 🩸 Row hover (THIS is what you were missing) */
+.data-table tbody tr {
+  transition: var(--transition);
+}
+
+.data-table tbody tr:hover {
+  background: rgba(139, 0, 0, 0.08);
+  transform: scale(1.01);
+  box-shadow: inset 0 0 10px rgba(139, 0, 0, 0.2);
+}
+
+/* CLICKABLE ROW FEEL */
+.data-table tbody tr:active {
+  transform: scale(0.995);
+}
+
+/* =========================
+   🔥 TOOLBAR IMPROVEMENT
+   ========================= */
+
+.toolbar {
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(139, 0, 0, 0.2);
+}
+
+.toolbar h2 {
+  color: var(--blood-light);
+  letter-spacing: 2px;
+}
+
+/* Reset Button - better styling */
+.btn-reset {
+  background: transparent;
+  color: var(--blood-light);
+  border: 1px solid var(--blood-light);
+  padding: 6px 14px;
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  transition: var(--transition);
+}
+
+.btn-reset:hover {
+  background: var(--blood-light);
+  color: var(--bone);
+  box-shadow: 0 0 12px rgba(139, 0, 0, 0.6);
+}
+
+.data-table tbody tr:hover td {
+  color: var(--bone);
+}
+
+.toolbar {
+  margin-bottom: 20px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto; /* 🔥 IMPORTANT FIX */
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--dark-mid);
+  vertical-align: top; /* keeps rows aligned cleanly */
+}
+
+/* Allow description to wrap instead of breaking layout */
+.data-table td:nth-child(4) {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Keep other columns clean */
+.data-table td:not(:nth-child(4)) {
+  white-space: nowrap;
+}
+
+.data-table th {
+  user-select: none;
+}

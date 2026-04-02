@@ -30,7 +30,7 @@ CREATE TABLE `accidenthistory` (
   PRIMARY KEY (`AccidentID`),
   KEY `AttractionID` (`AttractionID`),
   CONSTRAINT `accidenthistory_ibfk_1` FOREIGN KEY (`AttractionID`) REFERENCES `attraction` (`AttractionID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -69,7 +69,7 @@ CREATE TABLE `area` (
   `AreaID` int NOT NULL,
   `AreaName` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`AreaID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -100,7 +100,7 @@ CREATE TABLE `attraction` (
   PRIMARY KEY (`AttractionID`),
   KEY `AreaID` (`AreaID`),
   CONSTRAINT `attraction_ibfk_1` FOREIGN KEY (`AreaID`) REFERENCES `area` (`AreaID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -116,7 +116,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
 /*!50003 SET character_set_client  = utf8mb4 */ ;
 /*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
+/*!50003 SET collation_connection  = utf8mb4_general_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO' */ ;
 DELIMITER ;;
@@ -161,7 +161,7 @@ CREATE TABLE `child` (
   KEY `fk_child_guardian` (`GuardianID`),
   CONSTRAINT `fk_child_guardian` FOREIGN KEY (`GuardianID`) REFERENCES `visitor` (`VisitorID`) ON DELETE CASCADE,
   CONSTRAINT `child_chk_1` CHECK (((`Age` >= 0) and (`Age` <= 17)))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -189,7 +189,7 @@ CREATE TABLE `employee` (
   `ManagerID` int DEFAULT NULL,
   `AreaID` int DEFAULT NULL,
   PRIMARY KEY (`EmployeeID`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -219,7 +219,7 @@ CREATE TABLE `employeeperformance` (
   KEY `idx_perf_employee` (`EmployeeID`),
   KEY `idx_perf_date` (`ReviewDate`),
   CONSTRAINT `fk_perf_employee` FOREIGN KEY (`EmployeeID`) REFERENCES `employee` (`EmployeeID`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -247,7 +247,7 @@ CREATE TABLE `hrmanager` (
   CONSTRAINT `fk_hrmanager_manager` FOREIGN KEY (`ManagerID`) REFERENCES `manager` (`ManagerID`),
   CONSTRAINT `hrmanager_ibfk_1` FOREIGN KEY (`ManagerID`) REFERENCES `manager` (`ManagerID`),
   CONSTRAINT `hrmanager_ibfk_2` FOREIGN KEY (`AreaID`) REFERENCES `area` (`AreaID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -278,7 +278,7 @@ CREATE TABLE `incidentreport` (
   PRIMARY KEY (`ReportID`),
   KEY `EmployeeID` (`EmployeeID`),
   CONSTRAINT `incidentreport_ibfk_1` FOREIGN KEY (`EmployeeID`) REFERENCES `employee` (`EmployeeID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -310,7 +310,7 @@ CREATE TABLE `maintenance` (
   KEY `EmployeeID` (`EmployeeID`),
   CONSTRAINT `maintenance_ibfk_1` FOREIGN KEY (`AttractionID`) REFERENCES `attraction` (`AttractionID`),
   CONSTRAINT `maintenance_ibfk_2` FOREIGN KEY (`EmployeeID`) REFERENCES `employee` (`EmployeeID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -338,7 +338,7 @@ CREATE TABLE `maintenancealert` (
   PRIMARY KEY (`AlertID`),
   KEY `AttractionID` (`AttractionID`),
   CONSTRAINT `maintenancealert_ibfk_1` FOREIGN KEY (`AttractionID`) REFERENCES `attraction` (`AttractionID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -371,7 +371,7 @@ CREATE TABLE `maintenanceassignment` (
   KEY `idx_maint_status` (`Status`),
   CONSTRAINT `fk_maint_area` FOREIGN KEY (`AreaID`) REFERENCES `area` (`AreaID`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_maint_employee` FOREIGN KEY (`EmployeeID`) REFERENCES `employee` (`EmployeeID`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -397,7 +397,7 @@ CREATE TABLE `maintenancemanager` (
   KEY `AreaID` (`AreaID`),
   CONSTRAINT `maintenancemanager_ibfk_1` FOREIGN KEY (`ManagerID`) REFERENCES `manager` (`ManagerID`),
   CONSTRAINT `maintenancemanager_ibfk_2` FOREIGN KEY (`AreaID`) REFERENCES `area` (`AreaID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -420,7 +420,7 @@ CREATE TABLE `manager` (
   `ManagerID` int NOT NULL,
   `ManagerName` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`ManagerID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -451,7 +451,7 @@ CREATE TABLE `notificationlog` (
   KEY `ItemID` (`ItemID`),
   CONSTRAINT `notificationlog_ibfk_1` FOREIGN KEY (`ManagerID`) REFERENCES `retailmanager` (`ManagerID`),
   CONSTRAINT `notificationlog_ibfk_2` FOREIGN KEY (`ItemID`) REFERENCES `retailitem` (`ItemID`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -481,7 +481,7 @@ CREATE TABLE `restocklog` (
   CONSTRAINT `restocklog_ibfk_1` FOREIGN KEY (`ItemID`) REFERENCES `retailitem` (`ItemID`),
   CONSTRAINT `restocklog_chk_1` CHECK ((`Quantity` > 0)),
   CONSTRAINT `restocklog_chk_2` CHECK ((`Cost` > 0))
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -498,7 +498,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
 /*!50003 SET character_set_client  = utf8mb4 */ ;
 /*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
+/*!50003 SET collation_connection  = utf8mb4_general_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO' */ ;
 DELIMITER ;;
@@ -521,7 +521,7 @@ DELIMITER ;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
 /*!50003 SET character_set_client  = utf8mb4 */ ;
 /*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
+/*!50003 SET collation_connection  = utf8mb4_general_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO' */ ;
 DELIMITER ;;
@@ -561,7 +561,7 @@ CREATE TABLE `retailitem` (
   CONSTRAINT `retailitem_chk_3` CHECK (((`DiscountPrice` is null) or ((`DiscountPrice` > 0) and (`DiscountPrice` < `SellPrice`)))),
   CONSTRAINT `retailitem_chk_4` CHECK ((`Quantity` >= 0)),
   CONSTRAINT `retailitem_chk_5` CHECK ((`LowStockThreshold` > 0))
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -578,7 +578,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
 /*!50003 SET character_set_client  = utf8mb4 */ ;
 /*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
+/*!50003 SET collation_connection  = utf8mb4_general_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO' */ ;
 DELIMITER ;;
@@ -615,7 +615,7 @@ CREATE TABLE `retailmanager` (
   KEY `AreaID` (`AreaID`),
   CONSTRAINT `retailmanager_ibfk_1` FOREIGN KEY (`ManagerID`) REFERENCES `manager` (`ManagerID`),
   CONSTRAINT `retailmanager_ibfk_2` FOREIGN KEY (`AreaID`) REFERENCES `area` (`AreaID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -643,7 +643,7 @@ CREATE TABLE `retailplace` (
   UNIQUE KEY `RetailName` (`RetailName`),
   KEY `AreaID` (`AreaID`),
   CONSTRAINT `retailplace_ibfk_1` FOREIGN KEY (`AreaID`) REFERENCES `area` (`AreaID`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -700,7 +700,7 @@ CREATE TABLE `review` (
   CONSTRAINT `fk_review_area` FOREIGN KEY (`AreaID`) REFERENCES `area` (`AreaID`),
   CONSTRAINT `fk_review_visitor` FOREIGN KEY (`VisitorID`) REFERENCES `visitor` (`VisitorID`) ON DELETE CASCADE,
   CONSTRAINT `review_chk_1` CHECK ((`Feedback` between 1 and 10))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -728,7 +728,7 @@ CREATE TABLE `shift` (
   PRIMARY KEY (`ShiftID`),
   KEY `EmployeeID` (`EmployeeID`),
   CONSTRAINT `shift_ibfk_1` FOREIGN KEY (`EmployeeID`) REFERENCES `employee` (`EmployeeID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -760,7 +760,7 @@ CREATE TABLE `ticket` (
   CONSTRAINT `fk_ticket_visitor` FOREIGN KEY (`VisitorID`) REFERENCES `visitor` (`VisitorID`) ON DELETE CASCADE,
   CONSTRAINT `chk_ticket_dates` CHECK ((`ExpiryDate` >= `IssueDate`)),
   CONSTRAINT `ticket_chk_1` CHECK ((`Price` >= 0))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -788,7 +788,7 @@ CREATE TABLE `timelog` (
   PRIMARY KEY (`LogID`),
   KEY `EmployeeID` (`EmployeeID`),
   CONSTRAINT `timelog_ibfk_1` FOREIGN KEY (`EmployeeID`) REFERENCES `employee` (`EmployeeID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -825,7 +825,7 @@ CREATE TABLE `transactionlog` (
   CONSTRAINT `transactionlog_chk_1` CHECK ((`Price` >= 0)),
   CONSTRAINT `transactionlog_chk_2` CHECK ((`Quantity` > 0)),
   CONSTRAINT `transactionlog_chk_3` CHECK ((`TotalCost` >= 0))
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -857,7 +857,7 @@ CREATE TABLE `visitor` (
   PRIMARY KEY (`VisitorID`),
   UNIQUE KEY `Email` (`Email`),
   CONSTRAINT `visitor_chk_1` CHECK (((`Age` >= 0) and (`Age` <= 120)))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -884,7 +884,7 @@ CREATE TABLE `weather` (
   `SeverityLevel` enum('Low','Medium','High') DEFAULT NULL,
   `AttractionOperationStatus` enum('Open','Closed','Restricted') DEFAULT NULL,
   PRIMARY KEY (`WeatherID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -900,7 +900,7 @@ UNLOCK TABLES;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
 /*!50003 SET character_set_client  = utf8mb4 */ ;
 /*!50003 SET character_set_results = utf8mb4 */ ;
-/*!50003 SET collation_connection  = utf8mb4_0900_ai_ci */ ;
+/*!50003 SET collation_connection  = utf8mb4_general_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO' */ ;
 DELIMITER ;;
@@ -943,7 +943,7 @@ DELIMITER ;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
 /*!50001 SET character_set_client      = utf8mb4 */;
 /*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 SET collation_connection      = utf8mb4_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`admin1`@`%` SQL SECURITY DEFINER */
 /*!50001 VIEW `activemaintenancealerts` AS select `ma`.`AlertID` AS `AlertID`,`a`.`AttractionName` AS `AttractionName`,`a`.`SeverityLevel` AS `SeverityLevel`,`ma`.`AlertMessage` AS `AlertMessage`,`ma`.`CreatedAt` AS `CreatedAt` from (`maintenancealert` `ma` join `attraction` `a` on((`ma`.`AttractionID` = `a`.`AttractionID`))) where (`ma`.`Handled` = 'No') */;
@@ -961,7 +961,7 @@ DELIMITER ;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
 /*!50001 SET character_set_client      = utf8mb4 */;
 /*!50001 SET character_set_results     = utf8mb4 */;
-/*!50001 SET collation_connection      = utf8mb4_0900_ai_ci */;
+/*!50001 SET collation_connection      = utf8mb4_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`admin1`@`%` SQL SECURITY DEFINER */
 /*!50001 VIEW `retailprofitreport` AS select `rp`.`RetailName` AS `RetailName`,`ri`.`ItemName` AS `ItemName`,`tl`.`Date` AS `Date`,sum(`tl`.`Quantity`) AS `UnitsSold`,sum(`tl`.`TotalCost`) AS `Revenue`,sum((`tl`.`Quantity` * `ri`.`BuyPrice`)) AS `COGS`,(sum(`tl`.`TotalCost`) - sum((`tl`.`Quantity` * `ri`.`BuyPrice`))) AS `GrossProfit`,round((((sum(`tl`.`TotalCost`) - sum((`tl`.`Quantity` * `ri`.`BuyPrice`))) / sum(`tl`.`TotalCost`)) * 100),2) AS `GrossMarginPct`,count((case when (`tl`.`Type` = 'Discount') then 1 end)) AS `DiscountTransactions`,count((case when (`tl`.`Type` = 'Damaged') then 1 end)) AS `DamagedCount`,count((case when (`tl`.`Type` = 'Stolen') then 1 end)) AS `StolenCount`,`rp`.`AreaID` AS `AreaID` from ((`transactionlog` `tl` join `retailitem` `ri` on((`tl`.`ItemID` = `ri`.`ItemID`))) join `retailplace` `rp` on((`ri`.`RetailID` = `rp`.`RetailID`))) where (`tl`.`Type` in ('Normal','Discount')) group by `rp`.`RetailName`,`ri`.`ItemID`,`ri`.`ItemName`,`rp`.`AreaID`,`tl`.`Date` order by `GrossProfit` desc */;

@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Maintenance Manager Portal</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+
+<header class="site-header">
+  <h1>Maintenance Manager Portal</h1>
+  <p class="tagline">Theme Park · Maintenance Operations</p>
+  <button id="btn-logout" class="btn btn-primary logout-btn">Logout</button>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="tasks">All Tasks</button>
+  <button class="tab" data-tab="schedule">Schedule</button>
+  <button class="tab" data-tab="performance">Performance</button>
+  <button class="tab" data-tab="assign">Assign Tasks</button>
+</nav>
+
+<main>
+  <!-- ALL TASKS -->
+  <section id="panel-tasks" class="panel active">
+
+    <div class="toolbar">
+        <h2>All Tasks</h2>
+        <div class="toolbar-actions">
+        <button class="btn-reset" onclick="resetTable()">Reset Filters</button>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th onclick="toggleSort('MaintenanceAssignmentID')">ID</th>
+            <th onclick="toggleSort('EmployeeName')">Employee</th>
+            <th onclick="toggleSort('AreaName')">Area</th>
+            <th onclick="toggleSort('TaskDescription')">Description</th>
+            <th onclick="toggleSort('Status')">Status</th>
+            <th onclick="toggleSort('DueDate')">Due Date</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-tasks"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SCHEDULE -->
+  <section id="panel-schedule" class="panel">
+
+    <div class="toolbar">
+        <h2>Active Schedule</h2>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th onclick="toggleSort('MaintenanceAssignmentID')">ID</th>
+            <th onclick="toggleSort('EmployeeName')">Employee</th>
+            <th onclick="toggleSort('AreaName')">Area</th>
+            <th onclick="toggleSort('TaskDescription')">Description</th>
+            <th onclick="toggleSort('Status')">Status</th>
+            <th onclick="toggleSort('DueDate')">Due Date</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-active-schedule"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ASSIGN TASK -->
+  <section id="panel-assign" class="panel">
+    <h2>Assign Task</h2>
+
+    <form id="form-add-task" class="grid-form">
+      
+      <div class="form-row">
+        <label>Employee ID
+          <input type="number" name="EmployeeID" required>
+        </label>
+
+        <label>Area ID
+          <input type="number" name="AreaID">
+        </label>
+
+        <label>Status
+          <select name="Status">
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+          </select>
+        </label>
+
+        <label>Due Date
+          <input type="date" name="DueDate">
+        </label>
+      </div>
+
+      <div class="form-description">
+        <label>Task Description
+          <textarea name="TaskDescription" required></textarea>
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Assign Task</button>
+      </div>
+
+    </form>
+  </section>
+
+  <!-- PERFORMANCE (already exists) -->
+  <section id="panel-performance" class="panel" hidden>
+    <div class="dashboard-header">
+        <h2>Zone Performance</h2>
+    </div>
+    <p style="color: var(--text-dim); margin-bottom: 25px;">
+      Live overview of horror zone readiness.
+    </p>
+    <div id="performance-reports" class="stats-grid">
+      Loading system diagnostics...
+    </div> 
+  </section>
+
+</main>
+
+<div id="task-modal" class="modal-overlay" style="display:none;" onclick="closeModal()">
+    <div class="modal-content horror-border" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2 id="modal-employee">PERSONNEL FILE</h2>
+            <span class="close-modal" onclick="closeModal()">×</span>
+        </div>
+        <div class="modal-body">
+            <p class="status-label">ASSIGNED TASK:</p>
+            <p id="modal-description" class="typewriter-text"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+let allTasksData = [];
+let currentSortCol = '';
+let isAscending = true;
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Tab Switching Logic
+    const tabs = document.querySelectorAll('.tab');
+    const panels = document.querySelectorAll('.panel');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+
+            tabs.forEach(t => t.classList.remove('active'));
+            panels.forEach(p => p.classList.remove('active'));
+
+            tab.classList.add('active');
+
+            const panel = document.getElementById('panel-' + tab.dataset.tab);
+            if (panel) {
+                panel.classList.add('active');
+
+                if (tab.dataset.tab === 'performance') {
+                    loadPerformance();
+                } else {
+                    loadTasks();
+                }
+            }
+        });
+    });
+
+    // 2. Initial Data Load
+    if (tab.dataset.tab === 'schedule') {
+        renderTables(allTasksData);
+    } else {
+        loadTasks();
+    }
+    // 3. Form Submission (with Safety Check)
+    const addTaskForm = document.getElementById('form-add-task');
+    if (addTaskForm) {
+        addTaskForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            try {
+                await fetch('../../backend/maintenanceBackend/addTask.php', { 
+                    method: 'POST', 
+                    body: formData 
+                });
+                alert("Task assigned successfully!");
+                e.target.reset();
+                loadTasks(); // Refresh the list
+            } catch (err) {
+                console.error("Form submission failed:", err);
+            }
+        });
+    }
+});
+
+// --- FETCHING DATA ---
+
+async function loadTasks() {
+    try {
+        const res = await fetch('../../backend/maintenanceBackend/getTasks.php');
+        if (!res.ok) throw new Error("Task data unreachable");
+        allTasksData = await res.json();
+        renderTables(allTasksData);
+    } catch (err) {
+        console.error("Load Tasks failed:", err);
+    }
+}
+
+async function loadPerformance() {
+    const container = document.getElementById('performance-reports');
+    if (!container) return;
+
+    try {
+        const res = await fetch('../../backend/maintenanceBackend/attractionData.php');
+        const attractions = await res.json();
+        
+        container.innerHTML = ''; 
+        attractions.forEach(att => {
+            const statusClass = `status-${att.Status.toLowerCase().replace(/\s+/g, '')}`;
+            container.innerHTML += `
+                <div class="perf-card" style="border: 1px solid #444; background: #1a1a1a; padding: 15px; border-radius: 4px; margin-bottom:10px;">
+                    <h3 style="color: #8b0000; margin-top: 0; font-family: 'Courier New', monospace;">${att.AttractionName}</h3>
+                    <p style="margin-bottom: 0;">System Status: <span class="${statusClass}" style="font-weight: bold;">${att.Status}</span></p>
+                </div>`;
+        });
+    } catch (err) {
+        console.error("Performance Load Error:", err);
+    }
+}
+
+// --- RENDERING TABLES ---
+
+function renderTables(dataList) {
+    const tbodyHistory = document.getElementById('tbody-tasks');
+    const tbodySchedule = document.getElementById('tbody-active-schedule');
+    
+    // Clear tables safely
+    if (tbodyHistory) tbodyHistory.innerHTML = '';
+    if (tbodySchedule) tbodySchedule.innerHTML = '';
+
+    dataList.forEach(task => {
+        const statusClass = `status-${task.Status.replace(/\s+/g, '').toLowerCase()}`;
+        const cleanDesc = task.TaskDescription.replace(/'/g, "\\'");
+        
+        const rowHTML = `
+            <tr onclick="showTaskDetails('${task.EmployeeName}', '${cleanDesc}')" style="cursor:pointer;">
+                <td>${task.MaintenanceAssignmentID}</td>
+                <td><strong>${task.EmployeeName}</strong></td>
+                <td>${task.AreaName || ''}</td>
+                <td>${task.TaskDescription.substring(0, 40)}...</td>
+                <td><span class="${statusClass}">${task.Status}</span></td>
+                <td>${task.DueDate || ''}</td>
+            </tr>`;
+
+        if (tbodyHistory) tbodyHistory.innerHTML += rowHTML;
+
+        // Schedule only shows Pending or In Progress
+        if (tbodySchedule && task.Status !== 'Completed') {
+            tbodySchedule.innerHTML += rowHTML;
+        }
+    });
+}
+
+// --- UI HELPERS ---
+
+function showTaskDetails(employee, description) {
+    const modal = document.getElementById('task-modal');
+    if (modal) {
+        document.getElementById('modal-employee').innerText = `DATA FILE: ${employee.toUpperCase()}`;
+        document.getElementById('modal-description').innerText = description;
+        modal.style.display = 'flex';
+    }
+}
+
+function closeModal() {
+    const modal = document.getElementById('task-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function toggleSort(column) {
+
+    const activePanel = document.querySelector('.panel.active');
+    const headers = activePanel.querySelectorAll('.data-table th');
+
+    headers.forEach(th => {
+        th.classList.remove('active-sort', 'asc', 'desc');
+    });
+
+    const clickedHeader = Array.from(headers).find(th =>
+        th.innerText.toLowerCase().includes(column.toLowerCase())
+    );
+
+    if (currentSortCol === column) {
+        isAscending = !isAscending;
+    } else {
+        currentSortCol = column;
+        isAscending = true;
+    }
+
+    if (clickedHeader) {
+        clickedHeader.classList.add('active-sort');
+        clickedHeader.classList.add(isAscending ? 'asc' : 'desc');
+    }
+
+    const sortedData = [...allTasksData].sort((a, b) => {
+        let valA = (a[column] || '').toString().toLowerCase();
+        let valB = (b[column] || '').toString().toLowerCase();
+
+        if (column === 'MaintenanceAssignmentID') {
+            return isAscending ? a[column] - b[column] : b[column] - a[column];
+        }
+
+        return isAscending
+            ? valA.localeCompare(valB)
+            : valB.localeCompare(valA);
+    });
+
+    renderTables(sortedData);
+}
+
+function resetTable() {
+    currentSortCol = '';
+    isAscending = true;
+
+    // Remove active highlight from all headers
+    document.querySelectorAll('.data-table th').forEach(th => {
+        th.classList.remove('active-sort');
+    });
+
+    renderTables(allTasksData);
+}
+
+// This targets the logout button
+const logoutBtn = document.getElementById("btn-logout");
+
+if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+        // This sends the user back to the main landing page
+        window.location.href = "../homepageFrontend/index.html";
+    });
+}
+</script>
+</body>
+</html>
