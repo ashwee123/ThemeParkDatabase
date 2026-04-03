@@ -18,7 +18,8 @@ Run:
 It creates:
 - `v_visitor_expired_tickets`
 - `v_area_avg_ratings`
-- triggers to auto-flag expired tickets and auto-set review dates
+
+Note: this portal does **not** use MySQL triggers. Expired-ticket “auto-flagging” is handled in the Node backend based on `ExpiryDate`.
 
 ## 2) Install dependencies
 

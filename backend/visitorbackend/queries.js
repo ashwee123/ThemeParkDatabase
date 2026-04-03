@@ -1,5 +1,21 @@
 const pool = require("./db");
 
+function toISODate(d) {
+  // Returns YYYY-MM-DD in local time (good enough for portal date inputs).
+  const dt = d instanceof Date ? d : new Date(d);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function computeIsActiveFromExpiryDate(expiryDateStr) {
+  if (!expiryDateStr) return 1;
+  // expiryDateStr comes from <input type="date"> => "YYYY-MM-DD"
+  const today = toISODate(new Date());
+  return String(expiryDateStr) >= today ? 1 : 0;
+}
+
 async function createVisitor({ Name, Phone, Email, PasswordHash, Gender, Age }) {
   const [result] = await pool.execute(
     `INSERT INTO visitor (Name, Phone, Email, PasswordHash, Gender, Age)
@@ -48,10 +64,11 @@ async function listTicketsForVisitor(VisitorID, { ticketType, includeInactive } 
 }
 
 async function createTicket(VisitorID, { TicketType, Price, ExpiryDate }) {
+  const isActive = computeIsActiveFromExpiryDate(ExpiryDate);
   const [result] = await pool.execute(
     `INSERT INTO ticket (TicketType, Price, ExpiryDate, VisitorID, IsActive)
-     VALUES (?, ?, ?, ?, 1)`,
-    [TicketType, Price, ExpiryDate, VisitorID]
+     VALUES (?, ?, ?, ?, ?)`,
+    [TicketType, Price, ExpiryDate, VisitorID, isActive]
   );
 
   // MySQL doesn't always reliably return computed defaults across drivers;
@@ -66,11 +83,13 @@ async function createTicket(VisitorID, { TicketType, Price, ExpiryDate }) {
 }
 
 async function updateTicketForVisitor(VisitorID, TicketNumber, { TicketType, Price, ExpiryDate, IsActive }) {
+  // Enforce "active" based on expiry date (no DB triggers).
+  const computedIsActive = computeIsActiveFromExpiryDate(ExpiryDate);
   const [result] = await pool.execute(
     `UPDATE ticket
      SET TicketType = ?, Price = ?, ExpiryDate = ?, IsActive = ?
      WHERE TicketNumber = ? AND VisitorID = ?`,
-    [TicketType, Price, ExpiryDate, IsActive ? 1 : 0, TicketNumber, VisitorID]
+    [TicketType, Price, ExpiryDate, computedIsActive, TicketNumber, VisitorID]
   );
   return result.affectedRows > 0;
 }
