@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visitor Portal — Theme Park</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+    <style>
+      .container {
+        max-width: 1100px;
+        margin: 24px auto;
+        padding: 0 16px;
+      }
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+      .two-col {
+        grid-template-columns: 1fr 1fr;
+      }
+      .panel {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 16px;
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.15);
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .hidden {
+        display: none !important;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        padding: 10px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        color: rgba(255, 255, 255, 0.9);
+        font-weight: 700;
+      }
+      .btn {
+        cursor: pointer;
+        padding: 10px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(0, 0, 0, 0.25);
+        color: #fff;
+      }
+      .btn-primary {
+        background: rgba(160, 90, 255, 0.25);
+        border-color: rgba(160, 90, 255, 0.55);
+      }
+      .btn-danger {
+        background: rgba(255, 60, 60, 0.18);
+        border-color: rgba(255, 60, 60, 0.45);
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+      }
+      label {
+        display: grid;
+        gap: 6px;
+        min-width: 180px;
+      }
+      .tabs {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 14px 0 18px;
+      }
+      .tab-btn.active {
+        background: rgba(160, 90, 255, 0.25);
+        border-color: rgba(160, 90, 255, 0.55);
+      }
+      .badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .badge-expired {
+        background: rgba(255, 60, 60, 0.18);
+        border-color: rgba(255, 60, 60, 0.45);
+      }
+      .hint {
+        color: rgba(255, 255, 255, 0.7);
+        line-height: 1.45;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <header class="panel">
+        <div class="row" style="justify-content: space-between;">
+          <div>
+            <h1 style="margin: 0 0 6px;">Visitor Portal</h1>
+            <p class="hint" style="margin: 0;">
+              Manage tickets, reviews, children linked to your account, and view reports.
+            </p>
+          </div>
+          <div class="row">
+            <div id="visitorBadge" class="badge hidden"></div>
+            <button id="btnLogout" class="btn btn-danger hidden" type="button">Logout</button>
+          </div>
+        </div>
+      </header>
+
+      <section id="authSection" class="panel" style="margin-top: 16px;">
+        <div class="two-col grid">
+          <div>
+            <h2 style="margin-top: 0;">Login</h2>
+            <form id="loginForm" class="grid" style="gap: 10px;">
+              <label>
+                Email
+                <input name="email" type="email" required />
+              </label>
+              <label>
+                Password
+                <input name="password" type="password" required />
+              </label>
+              <div class="row">
+                <button class="btn btn-primary" type="submit">Login</button>
+              </div>
+              <p id="loginError" class="hint" style="color: rgba(255, 80, 80, 0.95); display:none;"></p>
+            </form>
+          </div>
+
+          <div>
+            <h2 style="margin-top: 0;">Register</h2>
+            <form id="registerForm" class="grid" style="gap: 10px;">
+              <label>
+                Name
+                <input name="name" type="text" required />
+              </label>
+              <label>
+                Phone (optional)
+                <input name="phone" type="text" />
+              </label>
+              <label>
+                Email
+                <input name="email" type="email" required />
+              </label>
+              <label>
+                Password
+                <input name="password" type="password" required />
+              </label>
+              <label>
+                Gender (optional)
+                <select name="gender">
+                  <option value="">Prefer not to say</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+              <label>
+                Age (optional)
+                <input name="age" type="number" min="0" max="120" step="1" />
+              </label>
+              <div class="row">
+                <button class="btn btn-primary" type="submit">Create account</button>
+              </div>
+              <p id="registerError" class="hint" style="color: rgba(255, 80, 80, 0.95); display:none;"></p>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section id="appSection" class="panel hidden" style="margin-top: 16px;">
+        <div class="tabs" role="tablist">
+          <button class="tab-btn btn active" data-tab="tickets" type="button">Tickets</button>
+          <button class="tab-btn btn" data-tab="reviews" type="button">Reviews</button>
+          <button class="tab-btn btn" data-tab="children" type="button">Children</button>
+          <button class="tab-btn btn" data-tab="reports" type="button">Reports</button>
+          <button class="tab-btn btn" data-tab="queries" type="button">Queries</button>
+        </div>
+
+        <section id="tab-tickets" class="tab-panel">
+          <div class="hint" style="margin-bottom: 10px;">
+            Ticket types in the database are stored as <code>General</code>, <code>VIP</code>, and <code>Discount</code>.
+            <br />
+            Your UI can map “Basic”, “Membership”, and “Discount (kids/seniors/veterans)” onto those enum values.
+          </div>
+
+          <h2 style="margin-top: 0;">Your tickets</h2>
+          <div class="two-col grid">
+            <div>
+              <h3>Add ticket</h3>
+              <form id="ticketCreateForm" class="grid" style="gap: 10px;">
+                <label>
+                  Ticket type
+                  <select name="TicketType" required>
+                    <option value="General">Basic / General</option>
+                    <option value="VIP">Membership / VIP</option>
+                    <option value="Discount">Discount (kids/seniors/veterans)</option>
+                  </select>
+                </label>
+                <label>
+                  Price
+                  <input name="Price" type="number" min="0" step="0.01" required />
+                </label>
+                <label>
+                  Expiry date
+                  <input name="ExpiryDate" type="date" required />
+                </label>
+                <button class="btn btn-primary" type="submit">Add ticket</button>
+              </form>
+            </div>
+
+            <div>
+              <div id="ticketEditCard" class="panel hidden">
+                <h3>Edit ticket</h3>
+                <form id="ticketEditForm" class="grid" style="gap: 10px;">
+                  <input type="hidden" name="TicketNumber" />
+                  <label>
+                    Ticket type
+                    <select name="TicketType" required>
+                      <option value="General">Basic / General</option>
+                      <option value="VIP">Membership / VIP</option>
+                      <option value="Discount">Discount</option>
+                    </select>
+                  </label>
+                  <label>
+                    Price
+                    <input name="Price" type="number" min="0" step="0.01" required />
+                  </label>
+                  <label>
+                    Expiry date
+                    <input name="ExpiryDate" type="date" required />
+                  </label>
+                  <label>
+                    Active
+                    <select name="IsActive">
+                      <option value="1">Yes</option>
+                      <option value="0">No</option>
+                    </select>
+                  </label>
+                  <div class="row">
+                    <button class="btn btn-primary" type="submit">Save</button>
+                    <button id="ticketCancelEdit" class="btn" type="button">Cancel</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <h3 style="margin-top: 18px;">Ticket list</h3>
+          <div style="overflow:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>Price</th>
+                  <th>Issue</th>
+                  <th>Expiry</th>
+                  <th>Status</th>
+                  <th style="width: 220px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="ticketsTbody"></tbody>
+            </table>
+          </div>
+
+          <h3 style="margin-top: 18px;">Expired tickets (auto-flagged)</h3>
+          <div style="overflow:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>Price</th>
+                  <th>Expiry</th>
+                </tr>
+              </thead>
+              <tbody id="expiredTicketsTbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="tab-reviews" class="hidden tab-panel">
+          <h2 style="margin-top: 0;">Your reviews</h2>
+          <div class="two-col grid">
+            <div>
+              <h3>Add review</h3>
+              <form id="reviewCreateForm" class="grid" style="gap: 10px;">
+                <label>
+                  Area
+                  <select name="AreaID" id="reviewAreaSelect" required></select>
+                </label>
+                <label>
+                  Rating (1-10)
+                  <input name="Feedback" type="number" min="1" max="10" step="1" required />
+                </label>
+                <label>
+                  Comment (optional)
+                  <textarea name="Comment" rows="3"></textarea>
+                </label>
+                <button class="btn btn-primary" type="submit">Add review</button>
+              </form>
+            </div>
+            <div>
+              <div id="reviewEditCard" class="panel hidden">
+                <h3>Edit review</h3>
+                <form id="reviewEditForm" class="grid" style="gap: 10px;">
+                  <input type="hidden" name="ReviewID" />
+                  <label>
+                    Area
+                    <select name="AreaID" id="reviewEditAreaSelect" required></select>
+                  </label>
+                  <label>
+                    Rating (1-10)
+                    <input name="Feedback" type="number" min="1" max="10" step="1" required />
+                  </label>
+                  <label>
+                    Comment
+                    <textarea name="Comment" rows="3"></textarea>
+                  </label>
+                  <label>
+                    Active
+                    <select name="IsActive">
+                      <option value="1">Yes</option>
+                      <option value="0">No</option>
+                    </select>
+                  </label>
+                  <div class="row">
+                    <button class="btn btn-primary" type="submit">Save</button>
+                    <button id="reviewCancelEdit" class="btn" type="button">Cancel</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <h3 style="margin-top: 18px;">Review list</h3>
+          <div style="overflow:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Area</th>
+                  <th>Rating</th>
+                  <th>Date</th>
+                  <th>Comment</th>
+                  <th style="width: 220px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="reviewsTbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="tab-children" class="hidden tab-panel">
+          <h2 style="margin-top: 0;">Children linked to you</h2>
+          <div class="two-col grid">
+            <div>
+              <h3>Add child</h3>
+              <form id="childCreateForm" class="grid" style="gap: 10px;">
+                <label>
+                  Name
+                  <input name="Name" type="text" required />
+                </label>
+                <label>
+                  Age
+                  <input name="Age" type="number" min="0" max="17" step="1" />
+                </label>
+                <label>
+                  Gender
+                  <select name="Gender">
+                    <option value="">—</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+                <button class="btn btn-primary" type="submit">Add child</button>
+              </form>
+            </div>
+          </div>
+
+          <h3 style="margin-top: 18px;">Children list</h3>
+          <div style="overflow:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Name</th>
+                  <th>Age</th>
+                  <th>Gender</th>
+                  <th style="width: 220px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="childrenTbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="tab-reports" class="hidden tab-panel">
+          <h2 style="margin-top: 0;">Reports</h2>
+          <div class="hint" style="margin-bottom: 12px;">
+            Reports show example queries grouped from the visitor portal data.
+          </div>
+          <div class="two-col grid">
+            <div class="panel">
+              <h3>Ticket sales summary (your active tickets)</h3>
+              <button id="btnReportTickets" class="btn btn-primary" type="button">Load summary</button>
+              <pre id="reportTickets" style="white-space: pre-wrap;"></pre>
+            </div>
+            <div class="panel">
+              <h3>Average ratings per area</h3>
+              <button id="btnReportRatings" class="btn btn-primary" type="button">Load ratings</button>
+              <pre id="reportRatings" style="white-space: pre-wrap;"></pre>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top: 16px;">
+            <h3>Visitor demographics (global)</h3>
+            <button id="btnReportDemographics" class="btn btn-primary" type="button">Load demographics</button>
+            <pre id="reportDemographics" style="white-space: pre-wrap;"></pre>
+          </div>
+        </section>
+
+        <section id="tab-queries" class="hidden tab-panel">
+          <h2 style="margin-top: 0;">Queries</h2>
+
+          <div class="panel">
+            <h3>1) Expired tickets for you</h3>
+            <button id="btnQueryExpired" class="btn btn-primary" type="button">Run query</button>
+          </div>
+
+          <div class="panel" style="margin-top: 16px;">
+            <h3>2) Search tickets by type</h3>
+            <div class="row">
+              <label style="min-width: 220px;">
+                Type
+                <select id="ticketTypeQuery">
+                  <option value="General">General / Basic</option>
+                  <option value="VIP">VIP / Membership</option>
+                  <option value="Discount">Discount</option>
+                </select>
+              </label>
+              <button id="btnQueryTicketsByType" class="btn btn-primary" type="button">Search</button>
+            </div>
+            <pre id="queryTicketsByType" style="white-space: pre-wrap;"></pre>
+          </div>
+
+          <div class="panel" style="margin-top: 16px;">
+            <h3>3) Filter reviews by area + rating</h3>
+            <div class="row">
+              <label>
+                Area
+                <select id="reviewAreaQuery"></select>
+              </label>
+              <label>
+                Min rating
+                <input id="minRatingQuery" type="number" min="1" max="10" step="1" />
+              </label>
+              <label>
+                Max rating
+                <input id="maxRatingQuery" type="number" min="1" max="10" step="1" />
+              </label>
+              <button id="btnQueryReviewsFiltered" class="btn btn-primary" type="button">Filter</button>
+            </div>
+            <pre id="queryReviewsFiltered" style="white-space: pre-wrap;"></pre>
+          </div>
+        </section>
+      </section>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
+
