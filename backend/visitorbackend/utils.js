@@ -32,11 +32,20 @@ async function readJson(req) {
 
 function normalizeEnumTicketType(t) {
   const s = String(t || "").trim();
-  if (s === "General" || s === "VIP" || s === "Discount") return s;
-  // Allow friendly aliases from UI
-  if (s.toLowerCase() === "basic") return "General";
-  if (s.toLowerCase() === "membership") return "VIP";
+  if (s === "Basic" || s === "Membership" || s === "Discount") return s;
+  // Backward compatibility aliases
+  if (s === "General") return "Basic";
+  if (s === "VIP") return "Membership";
+  if (s.toLowerCase() === "basic") return "Basic";
+  if (s.toLowerCase() === "membership") return "Membership";
   if (s.toLowerCase() === "discount") return "Discount";
+  return null;
+}
+
+function normalizeDiscountFor(v) {
+  const s = String(v || "").trim();
+  if (!s || s.toLowerCase() === "none") return "None";
+  if (s === "Child" || s === "Senior" || s === "Veteran") return s;
   return null;
 }
 
@@ -45,5 +54,6 @@ module.exports = {
   sendText,
   readJson,
   normalizeEnumTicketType,
+  normalizeDiscountFor,
 };
 

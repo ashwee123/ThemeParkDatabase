@@ -54,7 +54,7 @@ async function listTicketsForVisitor(VisitorID, { ticketType, includeInactive } 
   if (!includeInactive) where.push(`IsActive = 1`);
 
   const [rows] = await pool.execute(
-    `SELECT TicketNumber, TicketType, Price, IssueDate, ExpiryDate, IsActive
+    `SELECT TicketNumber, TicketType, DiscountFor, Price, IssueDate, ExpiryDate, IsActive
      FROM ticket
      WHERE ${where.join(" AND ")}
      ORDER BY ExpiryDate DESC, TicketNumber DESC`,
@@ -63,18 +63,18 @@ async function listTicketsForVisitor(VisitorID, { ticketType, includeInactive } 
   return rows;
 }
 
-async function createTicket(VisitorID, { TicketType, Price, ExpiryDate }) {
+async function createTicket(VisitorID, { TicketType, DiscountFor, Price, ExpiryDate }) {
   const isActive = computeIsActiveFromExpiryDate(ExpiryDate);
   const [result] = await pool.execute(
-    `INSERT INTO ticket (TicketType, Price, ExpiryDate, VisitorID, IsActive)
-     VALUES (?, ?, ?, ?, ?)`,
-    [TicketType, Price, ExpiryDate, VisitorID, isActive]
+    `INSERT INTO ticket (TicketType, DiscountFor, Price, ExpiryDate, VisitorID, IsActive)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [TicketType, DiscountFor, Price, ExpiryDate, VisitorID, isActive]
   );
 
   // MySQL doesn't always reliably return computed defaults across drivers;
   // fetch the row back so the frontend gets consistent fields.
   const [rows] = await pool.execute(
-    `SELECT TicketNumber, TicketType, Price, IssueDate, ExpiryDate, IsActive
+    `SELECT TicketNumber, TicketType, DiscountFor, Price, IssueDate, ExpiryDate, IsActive
      FROM ticket
      WHERE TicketNumber = ? AND VisitorID = ?`,
     [result.insertId, VisitorID]
@@ -82,14 +82,14 @@ async function createTicket(VisitorID, { TicketType, Price, ExpiryDate }) {
   return rows[0] || null;
 }
 
-async function updateTicketForVisitor(VisitorID, TicketNumber, { TicketType, Price, ExpiryDate, IsActive }) {
+async function updateTicketForVisitor(VisitorID, TicketNumber, { TicketType, DiscountFor, Price, ExpiryDate }) {
   // Enforce "active" based on expiry date (no DB triggers).
   const computedIsActive = computeIsActiveFromExpiryDate(ExpiryDate);
   const [result] = await pool.execute(
     `UPDATE ticket
-     SET TicketType = ?, Price = ?, ExpiryDate = ?, IsActive = ?
+     SET TicketType = ?, DiscountFor = ?, Price = ?, ExpiryDate = ?, IsActive = ?
      WHERE TicketNumber = ? AND VisitorID = ?`,
-    [TicketType, Price, ExpiryDate, computedIsActive, TicketNumber, VisitorID]
+    [TicketType, DiscountFor, Price, ExpiryDate, computedIsActive, TicketNumber, VisitorID]
   );
   return result.affectedRows > 0;
 }

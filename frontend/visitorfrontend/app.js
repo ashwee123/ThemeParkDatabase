@@ -196,6 +196,7 @@ async function loadTickets() {
     tr.innerHTML = `
       <td>${escapeHtml(t.TicketNumber)}</td>
       <td>${escapeHtml(t.TicketType)}</td>
+      <td>${escapeHtml(t.DiscountFor || "None")}</td>
       <td>${Number(t.Price).toFixed(2)}</td>
       <td>${escapeHtml(t.IssueDate)}</td>
       <td>${escapeHtml(t.ExpiryDate)}</td>
@@ -220,6 +221,7 @@ async function loadExpiredTickets() {
     tr.innerHTML = `
       <td>${escapeHtml(t.TicketNumber)}</td>
       <td>${escapeHtml(t.TicketType)}</td>
+      <td>${escapeHtml(t.DiscountFor || "None")}</td>
       <td>${Number(t.Price).toFixed(2)}</td>
       <td>${escapeHtml(t.ExpiryDate)}</td>
     `;
@@ -254,6 +256,7 @@ function bindTicketActions() {
     const form = $("ticketEditForm");
     form.TicketNumber.value = ticket.TicketNumber;
     form.TicketType.value = ticket.TicketType;
+    form.DiscountFor.value = ticket.DiscountFor || "None";
     form.Price.value = Number(ticket.Price);
     form.ExpiryDate.value = ticket.ExpiryDate;
     form.IsActive.value = ticket.IsActive ? "1" : "0";
@@ -267,6 +270,7 @@ function bindTicketForms() {
     const token = getToken();
     const body = {
       TicketType: f.TicketType.value,
+      DiscountFor: f.DiscountFor.value,
       Price: Number(f.Price.value),
       ExpiryDate: f.ExpiryDate.value,
     };
@@ -286,6 +290,7 @@ function bindTicketForms() {
     const TicketNumber = f.TicketNumber.value;
     const body = {
       TicketType: f.TicketType.value,
+      DiscountFor: f.DiscountFor.value,
       Price: Number(f.Price.value),
       ExpiryDate: f.ExpiryDate.value,
       IsActive: f.IsActive.value,

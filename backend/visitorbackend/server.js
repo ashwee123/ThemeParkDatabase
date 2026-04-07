@@ -15,6 +15,7 @@ const {
   sendText,
   readJson,
   normalizeEnumTicketType,
+  normalizeDiscountFor,
 } = require("./utils");
 const q = require("./queries");
 
@@ -187,13 +188,26 @@ async function handleApi(req, res, method, pathname, query) {
   if (pathname === "/api/tickets" && method === "POST") {
     const body = await readJson(req);
     const ticketType = normalizeEnumTicketType(body && body.TicketType);
+    const discountFor = normalizeDiscountFor(body && body.DiscountFor);
     if (!ticketType || body.Price == null || !body.ExpiryDate) {
       sendJson(res, 400, { error: "TicketType, Price, ExpiryDate are required" });
       return true;
     }
+    if (discountFor == null) return sendJson(res, 400, { error: "DiscountFor must be None, Child, Senior, or Veteran" });
+    if (ticketType !== "Discount" && discountFor !== "None") {
+      return sendJson(res, 400, { error: "DiscountFor applies only when TicketType is Discount" });
+    }
+    if (ticketType === "Discount" && discountFor === "None") {
+      return sendJson(res, 400, { error: "Discount ticket requires DiscountFor: Child, Senior, or Veteran" });
+    }
     const Price = Number(body.Price);
     const ExpiryDate = String(body.ExpiryDate);
-    const created = await q.createTicket(visitor.VisitorID, { TicketType: ticketType, Price, ExpiryDate });
+    const created = await q.createTicket(visitor.VisitorID, {
+      TicketType: ticketType,
+      DiscountFor: discountFor,
+      Price,
+      ExpiryDate,
+    });
     sendJson(res, 201, created);
     return true;
   }
@@ -204,15 +218,23 @@ async function handleApi(req, res, method, pathname, query) {
     if (method === "PUT") {
       const body = await readJson(req);
       const ticketType = normalizeEnumTicketType(body && body.TicketType);
+      const discountFor = normalizeDiscountFor(body && body.DiscountFor);
       const Price = Number(body.Price);
       const ExpiryDate = String(body.ExpiryDate);
-      const IsActive = body.IsActive == null ? 1 : Boolean(Number(body.IsActive));
+      if (!ticketType) return sendJson(res, 400, { error: "TicketType is required" });
+      if (discountFor == null) return sendJson(res, 400, { error: "DiscountFor must be None, Child, Senior, or Veteran" });
+      if (ticketType !== "Discount" && discountFor !== "None") {
+        return sendJson(res, 400, { error: "DiscountFor applies only when TicketType is Discount" });
+      }
+      if (ticketType === "Discount" && discountFor === "None") {
+        return sendJson(res, 400, { error: "Discount ticket requires DiscountFor: Child, Senior, or Veteran" });
+      }
 
       const ok = await q.updateTicketForVisitor(visitor.VisitorID, TicketNumber, {
-        TicketType: ticketType || "General",
+        TicketType: ticketType,
+        DiscountFor: discountFor,
         Price,
         ExpiryDate,
-        IsActive,
       });
       if (!ok) return sendJson(res, 404, { error: "Ticket not found" });
       sendJson(res, 200, { ok: true });
@@ -333,7 +355,7 @@ async function handleApi(req, res, method, pathname, query) {
 
   if (pathname === "/api/queries/tickets-by-type" && method === "GET") {
     const type = normalizeEnumTicketType(query.get("type"));
-    if (!type) return sendJson(res, 400, { error: "type must be General, VIP, or Discount" });
+    if (!type) return sendJson(res, 400, { error: "type must be Basic, Membership, or Discount" });
     const tickets = await q.listTicketsForVisitor(visitor.VisitorID, { ticketType: type, includeInactive: true });
     sendJson(res, 200, tickets);
     return true;

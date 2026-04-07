@@ -191,9 +191,8 @@
 
         <section id="tab-tickets" class="tab-panel">
           <div class="hint" style="margin-bottom: 10px;">
-            Ticket types in the database are stored as <code>General</code>, <code>VIP</code>, and <code>Discount</code>.
-            <br />
-            Your UI can map “Basic”, “Membership”, and “Discount (kids/seniors/veterans)” onto those enum values.
+            Ticket types: <code>Basic</code>, <code>Membership</code>, and <code>Discount</code>.
+            For discount tickets, you must choose <code>Child</code>, <code>Senior</code>, or <code>Veteran</code>.
           </div>
 
           <h2 style="margin-top: 0;">Your tickets</h2>
@@ -204,9 +203,18 @@
                 <label>
                   Ticket type
                   <select name="TicketType" required>
-                    <option value="General">Basic / General</option>
-                    <option value="VIP">Membership / VIP</option>
+                    <option value="Basic">Basic</option>
+                    <option value="Membership">Membership</option>
                     <option value="Discount">Discount (kids/seniors/veterans)</option>
+                  </select>
+                </label>
+                <label>
+                  Discount for
+                  <select name="DiscountFor" required>
+                    <option value="None">None</option>
+                    <option value="Child">Child</option>
+                    <option value="Senior">Senior</option>
+                    <option value="Veteran">Veteran</option>
                   </select>
                 </label>
                 <label>
@@ -229,9 +237,18 @@
                   <label>
                     Ticket type
                     <select name="TicketType" required>
-                      <option value="General">Basic / General</option>
-                      <option value="VIP">Membership / VIP</option>
+                      <option value="Basic">Basic</option>
+                      <option value="Membership">Membership</option>
                       <option value="Discount">Discount</option>
+                    </select>
+                  </label>
+                  <label>
+                    Discount for
+                    <select name="DiscountFor" required>
+                      <option value="None">None</option>
+                      <option value="Child">Child</option>
+                      <option value="Senior">Senior</option>
+                      <option value="Veteran">Veteran</option>
                     </select>
                   </label>
                   <label>
@@ -265,6 +282,7 @@
                 <tr>
                   <th>ID</th>
                   <th>Type</th>
+                  <th>Discount For</th>
                   <th>Price</th>
                   <th>Issue</th>
                   <th>Expiry</th>
@@ -283,6 +301,7 @@
                 <tr>
                   <th>ID</th>
                   <th>Type</th>
+                  <th>Discount For</th>
                   <th>Price</th>
                   <th>Expiry</th>
                 </tr>
