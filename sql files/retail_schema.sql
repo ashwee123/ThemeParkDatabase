@@ -233,3 +233,13 @@ CREATE TABLE TransactionLog (
     CHECK (Quantity > 0),
     CHECK (TotalCost >= 0)
 );
+-- ==================================================
+-- Adding log in info to manegers
+-- ==================================================
+ALTER TABLE Manager
+MODIFY COLUMN ManagerName VARCHAR(100) NOT NULL,
+MODIFY COLUMN ManagerEmail VARCHAR(100) NOT NULL,
+MODIFY COLUMN ManagerUsername VARCHAR(50) NOT NULL,
+MODIFY COLUMN ManagerPassword VARCHAR(255) NOT NULL,
+ADD UNIQUE (ManagerEmail),
+ADD UNIQUE (ManagerUsername);
