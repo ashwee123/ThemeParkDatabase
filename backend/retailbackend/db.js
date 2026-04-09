@@ -1,11 +1,11 @@
 const mysql = require("mysql2");
 
 const db = mysql.createConnection({
-    host:     "themepark6.mysql.database.azure.com",
+    host:     process.env.DB_HOST,
     port:     3306,
-    user:     "admin1",
-    password: "uma1uma2uma!",
-    database: "newthemepark",
+    user:     process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
     ssl: {
         rejectUnauthorized: false
     }
