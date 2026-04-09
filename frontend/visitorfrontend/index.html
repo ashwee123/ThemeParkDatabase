@@ -185,8 +185,8 @@
           <button class="tab-btn btn active" data-tab="tickets" type="button">Tickets</button>
           <button class="tab-btn btn" data-tab="reviews" type="button">Reviews</button>
           <button class="tab-btn btn" data-tab="children" type="button">Children</button>
-          <button class="tab-btn btn" data-tab="reports" type="button">Reports</button>
-          <button class="tab-btn btn" data-tab="queries" type="button">Queries</button>
+          <button class="tab-btn btn" data-tab="reports" type="button">Analytics Reports</button>
+          <button class="tab-btn btn" data-tab="queries" type="button">Search &amp; Filters</button>
         </div>
 
         <section id="tab-tickets" class="tab-panel">
@@ -429,9 +429,9 @@
         </section>
 
         <section id="tab-reports" class="hidden tab-panel">
-          <h2 style="margin-top: 0;">Reports</h2>
+          <h2 style="margin-top: 0;">Analytics Reports</h2>
           <div class="hint" style="margin-bottom: 12px;">
-            Reports show example queries grouped from the visitor portal data.
+            Aggregated analytics across tickets, ratings, popularity, demographics, and spending.
           </div>
           <div class="two-col grid">
             <div class="panel">
@@ -451,10 +451,26 @@
             <button id="btnReportDemographics" class="btn btn-primary" type="button">Load demographics</button>
             <pre id="reportDemographics" style="white-space: pre-wrap;"></pre>
           </div>
+
+          <div class="two-col grid" style="margin-top: 16px;">
+            <div class="panel">
+              <h3>Most popular areas (by reviews)</h3>
+              <button id="btnReportPopularAreas" class="btn btn-primary" type="button">Load popular areas</button>
+              <pre id="reportPopularAreas" style="white-space: pre-wrap;"></pre>
+            </div>
+            <div class="panel">
+              <h3>Visitor total spent</h3>
+              <button id="btnReportTotalSpent" class="btn btn-primary" type="button">Load spend report</button>
+              <pre id="reportTotalSpent" style="white-space: pre-wrap;"></pre>
+            </div>
+          </div>
         </section>
 
         <section id="tab-queries" class="hidden tab-panel">
-          <h2 style="margin-top: 0;">Queries</h2>
+          <h2 style="margin-top: 0;">Search &amp; Filters</h2>
+          <div class="hint" style="margin-bottom: 12px;">
+            Operational lookups for day-to-day filtering and retrieval.
+          </div>
 
           <div class="panel">
             <h3>1) Expired tickets for you</h3>
@@ -467,8 +483,8 @@
               <label style="min-width: 220px;">
                 Type
                 <select id="ticketTypeQuery">
-                  <option value="General">General / Basic</option>
-                  <option value="VIP">VIP / Membership</option>
+                  <option value="Basic">Basic</option>
+                  <option value="Membership">Membership</option>
                   <option value="Discount">Discount</option>
                 </select>
               </label>

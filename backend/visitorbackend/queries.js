@@ -300,6 +300,50 @@ async function visitorDemographicsGlobal() {
   return { byGender, byAgeGroup };
 }
 
+async function mostPopularAreasByReviews() {
+  const [rows] = await pool.execute(
+    `SELECT
+        a.AreaID,
+        a.AreaName,
+        COUNT(r.ReviewID) AS ReviewCount,
+        ROUND(AVG(r.Feedback), 2) AS AvgRating
+     FROM area a
+     LEFT JOIN review r
+       ON r.AreaID = a.AreaID
+       AND r.IsActive = 1
+     GROUP BY a.AreaID, a.AreaName
+     ORDER BY ReviewCount DESC, AvgRating DESC, a.AreaID`
+  );
+  return rows;
+}
+
+async function visitorTotalSpentReport(VisitorID) {
+  const [mineRows] = await pool.execute(
+    `SELECT
+        ? AS VisitorID,
+        COUNT(*) AS TicketCount,
+        COALESCE(SUM(Price), 0) AS TotalSpent,
+        ROUND(COALESCE(AVG(Price), 0), 2) AS AvgTicketPrice
+     FROM ticket
+     WHERE VisitorID = ? AND IsActive = 1`,
+    [VisitorID, VisitorID]
+  );
+
+  const [globalRows] = await pool.execute(
+    `SELECT
+        COUNT(DISTINCT VisitorID) AS TotalVisitorsWithTickets,
+        COUNT(*) AS TotalActiveTickets,
+        COALESCE(SUM(Price), 0) AS GlobalTotalSpent
+     FROM ticket
+     WHERE IsActive = 1`
+  );
+
+  return {
+    mine: mineRows[0] || { VisitorID, TicketCount: 0, TotalSpent: 0, AvgTicketPrice: 0 },
+    global: globalRows[0] || { TotalVisitorsWithTickets: 0, TotalActiveTickets: 0, GlobalTotalSpent: 0 },
+  };
+}
+
 module.exports = {
   createVisitor,
   getVisitorByEmail,
@@ -325,5 +369,7 @@ module.exports = {
   ticketSalesSummaryForVisitor,
   averageRatingsPerAreaGlobal,
   visitorDemographicsGlobal,
+  mostPopularAreasByReviews,
+  visitorTotalSpentReport,
 };
 

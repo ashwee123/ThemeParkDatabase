@@ -499,6 +499,16 @@ function bindReports() {
     const rows = await api("/api/reports/visitor-demographics", { token: getToken() });
     $("reportDemographics").textContent = JSON.stringify(rows, null, 2);
   });
+
+  $("btnReportPopularAreas").addEventListener("click", async () => {
+    const rows = await api("/api/reports/most-popular-areas", { token: getToken() });
+    $("reportPopularAreas").textContent = JSON.stringify(rows, null, 2);
+  });
+
+  $("btnReportTotalSpent").addEventListener("click", async () => {
+    const rows = await api("/api/reports/visitor-total-spent", { token: getToken() });
+    $("reportTotalSpent").textContent = JSON.stringify(rows, null, 2);
+  });
 }
 
 // =========================

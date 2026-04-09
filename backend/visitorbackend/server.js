@@ -23,9 +23,13 @@ const repoRoot = path.resolve(__dirname, "..", "..");
 const visitorFrontendDir = path.join(repoRoot, "frontend", "visitorfrontend");
 const assetsDir = path.join(repoRoot, "assets");
 
-const PORT = process.env.VISITOR_PORT ? Number(process.env.VISITOR_PORT) : 3002;
+const PORT = process.env.PORT
+  ? Number(process.env.PORT)
+  : process.env.VISITOR_PORT
+  ? Number(process.env.VISITOR_PORT)
+  : 3002;
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
-const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
+const ALLOWED_ORIGIN = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || "*";
 
 function getContentType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -389,17 +393,33 @@ async function handleApi(req, res, method, pathname, query) {
     return true;
   }
 
+  if (pathname === "/api/reports/most-popular-areas" && method === "GET") {
+    const rows = await q.mostPopularAreasByReviews();
+    sendJson(res, 200, rows);
+    return true;
+  }
+
+  if (pathname === "/api/reports/visitor-total-spent" && method === "GET") {
+    const rows = await q.visitorTotalSpentReport(visitor.VisitorID);
+    sendJson(res, 200, rows);
+    return true;
+  }
+
   sendJson(res, 404, { error: "Not found" });
   return true;
 }
 
 const server = http.createServer(async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
+  res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
 
   if (req.method === "OPTIONS") {
-    res.writeHead(204);
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+      "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type,Authorization",
+    });
     res.end();
     return;
   }
