@@ -1,22 +1,16 @@
+// maintenanceBackend/server.js
 const http = require("http");
 const url = require("url");
-const db = require("./db");
+const db = require("./db"); // make sure maintenanceBackend/db.js exists
 
-// helper to read POST data (JSON only)
+// helper to read POST JSON
 function getBody(req) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     let body = "";
-
-    req.on("data", chunk => {
-      body += chunk.toString();
-    });
-
+    req.on("data", chunk => body += chunk.toString());
     req.on("end", () => {
-      try {
-        resolve(JSON.parse(body || "{}"));
-      } catch {
-        resolve({});
-      }
+      try { resolve(JSON.parse(body || "{}")); } 
+      catch { resolve({}); }
     });
   });
 }
@@ -35,7 +29,6 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-
     // =========================
     // GET TASKS
     // =========================
@@ -53,7 +46,6 @@ const server = http.createServer(async (req, res) => {
         LEFT JOIN area a ON m.AreaID = a.AreaID
         ORDER BY m.CreatedAt DESC
       `);
-
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify(rows));
     }
@@ -63,10 +55,8 @@ const server = http.createServer(async (req, res) => {
     // =========================
     else if (parsedUrl.pathname === "/addTask" && req.method === "POST") {
       const body = await getBody(req);
-
       await db.query(`
-        INSERT INTO maintenanceassignment 
-        (EmployeeID, AreaID, TaskDescription, Status, DueDate)
+        INSERT INTO maintenanceassignment (EmployeeID, AreaID, TaskDescription, Status, DueDate)
         VALUES (?, ?, ?, ?, ?)
       `, [
         body.EmployeeID,
@@ -85,7 +75,6 @@ const server = http.createServer(async (req, res) => {
     // =========================
     else if (parsedUrl.pathname === "/updateTask" && req.method === "POST") {
       const body = await getBody(req);
-
       await db.query(`
         UPDATE maintenanceassignment 
         SET Status = ? 
@@ -100,10 +89,7 @@ const server = http.createServer(async (req, res) => {
     // GET ATTRACTIONS
     // =========================
     else if (parsedUrl.pathname === "/attractions" && req.method === "GET") {
-      const [rows] = await db.query(`
-        SELECT AttractionID, AttractionName, Status FROM attraction
-      `);
-
+      const [rows] = await db.query(`SELECT AttractionID, AttractionName, Status FROM attraction`);
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify(rows));
     }
@@ -113,59 +99,29 @@ const server = http.createServer(async (req, res) => {
     // =========================
     else if (parsedUrl.pathname === "/employees" && req.method === "GET") {
       const [rows] = await db.query(`SELECT * FROM employee`);
-
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify(rows));
     }
 
     // =========================
-    // REPORTS (IMPORTANT FOR PROJECT)
+    // REPORTS
     // =========================
     else if (parsedUrl.pathname === "/reports" && req.method === "GET") {
-
-      const [taskStats] = await db.query(`
-        SELECT Status, COUNT(*) as count
-        FROM maintenanceassignment
-        GROUP BY Status
-      `);
-
-      const [overdue] = await db.query(`
-        SELECT COUNT(*) as overdueTasks
-        FROM maintenanceassignment
-        WHERE DueDate < CURDATE() AND Status != 'Completed'
-      `);
-
-      const [areaLoad] = await db.query(`
-        SELECT a.AreaName, COUNT(*) as totalTasks
-        FROM maintenanceassignment m
-        JOIN area a ON m.AreaID = a.AreaID
-        GROUP BY a.AreaName
-      `);
-
-      // 🔥 BUSINESS LOGIC (GRADING GOLD)
+      const [taskStats] = await db.query(`SELECT Status, COUNT(*) as count FROM maintenanceassignment GROUP BY Status`);
+      const [overdue] = await db.query(`SELECT COUNT(*) as overdueTasks FROM maintenanceassignment WHERE DueDate < CURDATE() AND Status != 'Completed'`);
+      const [areaLoad] = await db.query(`SELECT a.AreaName, COUNT(*) as totalTasks FROM maintenanceassignment m JOIN area a ON m.AreaID = a.AreaID GROUP BY a.AreaName`);
+      
       const advice = [];
-
-      if (overdue[0].overdueTasks > 3) {
-        advice.push("⚠️ Too many overdue tasks — increase staffing.");
-      }
-
+      if (overdue[0].overdueTasks > 3) advice.push("⚠️ Too many overdue tasks — increase staffing.");
       if (areaLoad.length > 0) {
         const busiest = [...areaLoad].sort((a,b)=>b.totalTasks-a.totalTasks)[0];
         advice.push(`📍 ${busiest.AreaName} has the highest workload.`);
       }
 
       res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify({
-        taskStats,
-        overdue,
-        areaLoad,
-        advice
-      }));
+      return res.end(JSON.stringify({ taskStats, overdue, areaLoad, advice }));
     }
 
-    // =========================
-    // DEFAULT
-    // =========================
     else {
       res.writeHead(404);
       return res.end("Route not found");
@@ -179,6 +135,4 @@ const server = http.createServer(async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
-});
+server.listen(PORT, () => console.log("Maintenance server running on port " + PORT));
