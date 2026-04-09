@@ -2,7 +2,7 @@
 // CONFIG
 // =============================================================
 
-const API = "http://localhost:3001";
+const API = "https://themeparkdatabase-9hfy.onrender.com";
 const AREA_ID = 1; // placeholder until login is implemented
 
 // =============================================================
