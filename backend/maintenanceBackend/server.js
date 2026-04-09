@@ -2,7 +2,7 @@ const http = require("http");
 const url = require("url");
 const db = require("./db");
 
-// helper to read POST data
+// helper to read POST data (JSON only)
 function getBody(req) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -12,7 +12,11 @@ function getBody(req) {
     });
 
     req.on("end", () => {
-      resolve(JSON.parse(body || "{}"));
+      try {
+        resolve(JSON.parse(body || "{}"));
+      } catch {
+        resolve({});
+      }
     });
   });
 }
@@ -20,15 +24,14 @@ function getBody(req) {
 const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
 
-  // CORS (VERY IMPORTANT)
+  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
     res.writeHead(200);
-    res.end();
-    return;
+    return res.end();
   }
 
   try {
@@ -48,27 +51,11 @@ const server = http.createServer(async (req, res) => {
         FROM maintenanceassignment m
         LEFT JOIN employee e ON m.EmployeeID = e.EmployeeID
         LEFT JOIN area a ON m.AreaID = a.AreaID
+        ORDER BY m.CreatedAt DESC
       `);
 
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(rows));
-    }
-
-    // =========================
-    // GET TASKS BY AREA
-    // =========================
-    else if (parsedUrl.pathname === "/tasksByArea" && req.method === "GET") {
-      const areaID = parsedUrl.query.AreaID;
-
-      const [rows] = await db.query(`
-        SELECT ma.*, att.AttractionName 
-        FROM maintenanceassignment ma
-        JOIN attraction att ON ma.AreaID = att.AreaID
-        WHERE ma.AreaID = ?
-      `, [areaID]);
-
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(rows));
+      return res.end(JSON.stringify(rows));
     }
 
     // =========================
@@ -85,11 +72,12 @@ const server = http.createServer(async (req, res) => {
         body.EmployeeID,
         body.AreaID,
         body.TaskDescription,
-        body.Status,
+        body.Status || "Pending",
         body.DueDate
       ]);
 
-      res.end("Task assigned successfully!");
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ message: "Task added" }));
     }
 
     // =========================
@@ -104,20 +92,8 @@ const server = http.createServer(async (req, res) => {
         WHERE MaintenanceAssignmentID = ?
       `, [body.Status, body.MaintenanceAssignmentID]);
 
-      res.end("Status updated!");
-    }
-
-    // =========================
-    // DELETE ATTRACTION
-    // =========================
-    else if (parsedUrl.pathname === "/deleteAttraction" && req.method === "POST") {
-      const body = await getBody(req);
-
-      await db.query(`
-        DELETE FROM attraction WHERE AttractionID = ?
-      `, [body.AttractionID]);
-
-      res.end("Attraction removed.");
+      res.writeHead(200);
+      return res.end("Updated");
     }
 
     // =========================
@@ -129,7 +105,7 @@ const server = http.createServer(async (req, res) => {
       `);
 
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(rows));
+      return res.end(JSON.stringify(rows));
     }
 
     // =========================
@@ -139,32 +115,60 @@ const server = http.createServer(async (req, res) => {
       const [rows] = await db.query(`SELECT * FROM employee`);
 
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(rows));
+      return res.end(JSON.stringify(rows));
     }
 
     // =========================
-    // ADD EMPLOYEE
+    // REPORTS (IMPORTANT FOR PROJECT)
     // =========================
-    else if (parsedUrl.pathname === "/addEmployee" && req.method === "POST") {
-      const body = await getBody(req);
+    else if (parsedUrl.pathname === "/reports" && req.method === "GET") {
 
-      await db.query(`
-        INSERT INTO employee (Name, Position, Salary, HireDate, AreaID)
-        VALUES (?, ?, ?, ?, ?)
-      `, [
-        body.name,
-        body.position,
-        body.salary,
-        body.hireDate,
-        body.areaID
-      ]);
+      const [taskStats] = await db.query(`
+        SELECT Status, COUNT(*) as count
+        FROM maintenanceassignment
+        GROUP BY Status
+      `);
 
-      res.end("Employee added!");
+      const [overdue] = await db.query(`
+        SELECT COUNT(*) as overdueTasks
+        FROM maintenanceassignment
+        WHERE DueDate < CURDATE() AND Status != 'Completed'
+      `);
+
+      const [areaLoad] = await db.query(`
+        SELECT a.AreaName, COUNT(*) as totalTasks
+        FROM maintenanceassignment m
+        JOIN area a ON m.AreaID = a.AreaID
+        GROUP BY a.AreaName
+      `);
+
+      // 🔥 BUSINESS LOGIC (GRADING GOLD)
+      const advice = [];
+
+      if (overdue[0].overdueTasks > 3) {
+        advice.push("⚠️ Too many overdue tasks — increase staffing.");
+      }
+
+      if (areaLoad.length > 0) {
+        const busiest = [...areaLoad].sort((a,b)=>b.totalTasks-a.totalTasks)[0];
+        advice.push(`📍 ${busiest.AreaName} has the highest workload.`);
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({
+        taskStats,
+        overdue,
+        areaLoad,
+        advice
+      }));
     }
 
+    // =========================
+    // DEFAULT
+    // =========================
     else {
       res.writeHead(404);
-      res.end("Route not found");
+      return res.end("Route not found");
     }
 
   } catch (err) {

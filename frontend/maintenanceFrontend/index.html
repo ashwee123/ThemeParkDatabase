@@ -156,6 +156,7 @@
 </div>
 
 <script>
+const API_BASE = "https://your-render-app.onrender.com";
 let allTasksData = [];
 let currentSortCol = '';
 let isAscending = true;
@@ -179,7 +180,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (tab.dataset.tab === 'performance') {
                     loadPerformance();
-                } else {
+                } 
+                else if (tab.dataset.tab === 'reports') {
+                    loadReports();
+                }
+                else {
                     loadTasks();
                 }
             }
@@ -196,20 +201,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const addTaskForm = document.getElementById('form-add-task');
     if (addTaskForm) {
         addTaskForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            try {
-                await fetch('../../backend/maintenanceBackend/addTask.php', { 
-                    method: 'POST', 
-                    body: formData 
-                });
-                alert("Task assigned successfully!");
-                e.target.reset();
-                loadTasks(); // Refresh the list
-            } catch (err) {
-                console.error("Form submission failed:", err);
-            }
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+
+        const body = {
+            EmployeeID: formData.get("EmployeeID"),
+            AreaID: formData.get("AreaID"),
+            TaskDescription: formData.get("TaskDescription"),
+            Status: formData.get("Status"),
+            DueDate: formData.get("DueDate")
+        };
+
+        await fetch(`${API_BASE}/addTask`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
         });
+
+        alert("Task assigned!");
+        e.target.reset();
+        loadTasks();
+    });
     }
 });
 
@@ -217,21 +232,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadTasks() {
     try {
-        const res = await fetch('../../backend/maintenanceBackend/getTasks.php');
-        if (!res.ok) throw new Error("Task data unreachable");
+        const res = await fetch(`${API_BASE}/tasks`);
         allTasksData = await res.json();
         renderTables(allTasksData);
     } catch (err) {
-        console.error("Load Tasks failed:", err);
+        console.error(err);
     }
 }
 
 async function loadPerformance() {
-    const container = document.getElementById('performance-reports');
+    const res = await fetch(`${API_BASE}/attractions`);
     if (!container) return;
 
     try {
-        const res = await fetch('../../backend/maintenanceBackend/attractionData.php');
+        const res = await fetch(`${API_BASE}/attractionData`);
         const attractions = await res.json();
         
         container.innerHTML = ''; 
@@ -359,6 +373,35 @@ if (logoutBtn) {
         window.location.href = "/frontend/homepageFrontend/index.html";
     });
 }
+
+async function loadReports() {
+    const container = document.getElementById('reports-container');
+
+    try {
+        const res = await fetch(`${API_BASE}/reports`);
+        const data = await res.json();
+
+        container.innerHTML = `
+            <div class="perf-card">
+                <h3>Overdue Tasks</h3>
+                <p>${data.overdue[0].overdueTasks}</p>
+            </div>
+
+            <div class="perf-card">
+                <h3>Task Breakdown</h3>
+                ${data.taskStats.map(s => `<p>${s.Status}: ${s.count}</p>`).join("")}
+            </div>
+
+            <div class="perf-card">
+                <h3>Business Insights</h3>
+                ${data.advice.map(a => `<p>${a}</p>`).join("")}
+            </div>
+        `;
+    } catch (err) {
+        console.error(err);
+    }
+}
+
 </script>
 </body>
 </html>

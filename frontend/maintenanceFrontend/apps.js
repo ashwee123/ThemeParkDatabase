@@ -1,7 +1,7 @@
 // frontend/maintenancePortal/app.js
 
 async function fetchEmployees() {
-    const res = await fetch('/api/employees');
+    const res = await fetch(`${API_BASE}/tasks/employees`);
     const data = await res.json();
 
     const tbody = document.getElementById('tbody-employees');
@@ -23,7 +23,7 @@ async function fetchEmployees() {
 }
 
 async function loadMaintenance() {
-    const res = await fetch('/api/maintenance');
+    const res = await fetch(`${API_BASE}/maintenance`);
     const data = await res.json();
 
     const tbody = document.getElementById('tbody-maint');
@@ -49,7 +49,7 @@ document.getElementById('form-add-task').addEventListener('submit', async (e) =>
 
   const formData = new FormData(e.target);
 
-  await fetch('addTask.php', {
+  await fetch(`${API_BASE}/addTasks`, {
     method: 'POST',
     body: formData
   });
