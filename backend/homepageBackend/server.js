@@ -17,27 +17,40 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.url === "/login" && req.method === "POST") {
       let body = "";
+
       req.on("data", chunk => body += chunk.toString());
 
       req.on("end", async () => {
-        const { email, password } = JSON.parse(body);
+        try {
+          const { email, password } = JSON.parse(body);
 
-        const [rows] = await db.query(
-          "SELECT * FROM users WHERE Email = ?",
-          [email]
-        );
+          console.log("EMAIL RECEIVED:", email);
+          console.log("PASSWORD RECEIVED:", password);
 
-        if (rows.length && rows[0].Password === password) {
-          const token = generateToken({
-            id: rows[0].UserID,
-            role: rows[0].Role
-          });
+          const [rows] = await db.query(
+            "SELECT * FROM users WHERE Email = ?",
+            [email]
+          );
 
-          res.writeHead(200, { "Content-Type": "application/json" });
-          return res.end(JSON.stringify({ token }));
-        } else {
-          res.writeHead(401);
-          return res.end(JSON.stringify({ error: "Invalid credentials" }));
+          console.log("DB ROWS:", rows);
+
+          if (!rows.length) {
+            res.writeHead(401);
+            return res.end(JSON.stringify({ error: "No user found" }));
+          }
+
+          if (rows[0].Password !== password) {
+            res.writeHead(401);
+            return res.end(JSON.stringify({ error: "Wrong password" }));
+          }
+
+          res.writeHead(200);
+          return res.end(JSON.stringify({ message: "LOGIN SUCCESS" }));
+
+        } catch (err) {
+          console.error(err);
+          res.writeHead(500);
+          return res.end(JSON.stringify({ error: "Server error" }));
         }
       });
     }
