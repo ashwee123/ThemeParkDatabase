@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Employee Portal — Theme Park</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+
+  <div id="loginView" class="login-screen hidden">
+    <header class="site-header" style="width:100%;max-width:420px;border:1px solid rgba(139,0,0,0.2);border-radius:4px;margin-bottom:1rem;">
+      <h1>Staff Crypt</h1>
+      <p class="tagline">Employee self-service — sign in with your ID and name as on payroll.</p>
+    </header>
+    <div class="card login-card form-card">
+      <h3>Sign in</h3>
+      <form id="loginForm" class="grid-form">
+        <label>
+          Employee ID
+          <input type="number" name="employeeId" min="1" required autocomplete="username" />
+        </label>
+        <label class="span-2">
+          Full name
+          <input type="text" name="name" required autocomplete="name" />
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Enter</button>
+        </div>
+      </form>
+      <p class="hint" style="margin-top:1rem;">Example from sample data: ID <code>1</code>, name <code>sam</code>.</p>
+    </div>
+  </div>
+
+  <div id="appView" class="hidden">
+    <header class="site-header">
+      <h1>Staff Crypt</h1>
+      <p class="tagline" id="welcomeLine">Employee portal</p>
+    </header>
+    <nav class="tabs" role="tablist" aria-label="Portal sections">
+      <button type="button" class="tab active" data-panel="dashboard" role="tab" aria-selected="true">Dashboard</button>
+      <button type="button" class="tab" data-panel="shifts" role="tab">Shifts</button>
+      <button type="button" class="tab" data-panel="timelog" role="tab">Time log</button>
+      <button type="button" class="tab" data-panel="performance" role="tab">Performance</button>
+      <button type="button" class="tab" data-panel="maintenance" role="tab">Tasks</button>
+      <button type="button" class="tab" data-panel="incidents" role="tab">Incidents</button>
+    </nav>
+    <main>
+      <section id="panel-dashboard" class="panel active" role="tabpanel">
+        <div class="toolbar">
+          <h2>Your profile</h2>
+          <div class="toolbar-actions">
+            <button type="button" class="btn btn-ghost" id="btnLogout">Sign out</button>
+          </div>
+        </div>
+        <div id="profileCard" class="card"></div>
+      </section>
+
+      <section id="panel-shifts" class="panel" role="tabpanel">
+        <div class="toolbar"><h2>Scheduled shifts</h2></div>
+        <p class="hint">Rows from the <code>shift</code> table for your <code>EmployeeID</code>.</p>
+        <div class="table-wrap">
+          <table class="data-table" id="shiftsTable">
+            <thead>
+              <tr>
+                <th>Shift ID</th>
+                <th>Date</th>
+                <th>Start</th>
+                <th>End</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="panel-timelog" class="panel" role="tabpanel">
+        <div class="toolbar"><h2>Time log</h2></div>
+        <p class="hint">Clock in/out history from <code>timelog</code>.</p>
+        <div class="table-wrap">
+          <table class="data-table" id="timelogTable">
+            <thead>
+              <tr>
+                <th>Log ID</th>
+                <th>Clock in</th>
+                <th>Clock out</th>
+                <th>Hours</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="panel-performance" class="panel" role="tabpanel">
+        <div class="toolbar"><h2>Performance reviews</h2></div>
+        <p class="hint">Records from <code>employeeperformance</code>.</p>
+        <div class="table-wrap">
+          <table class="data-table" id="perfTable">
+            <thead>
+              <tr>
+                <th>Review date</th>
+                <th>Score</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="panel-maintenance" class="panel" role="tabpanel">
+        <div class="toolbar"><h2>Maintenance assignments</h2></div>
+        <p class="hint">Your tasks from <code>maintenanceassignment</code>.</p>
+        <div class="table-wrap">
+          <table class="data-table" id="maintTable">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Area</th>
+                <th>Status</th>
+                <th>Due</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="panel-incidents" class="panel" role="tabpanel">
+        <div class="toolbar"><h2>Incident reports</h2></div>
+        <div class="card form-card">
+          <h3>File a report</h3>
+          <form id="incidentForm" class="grid-form">
+            <label>
+              Type
+              <select name="reportType" required>
+                <option value="">Choose…</option>
+                <option value="Broken Attraction">Broken attraction</option>
+                <option value="Stolen Item">Stolen item</option>
+              </select>
+            </label>
+            <label>
+              Attraction (optional)
+              <select name="attractionId" id="attractionSelect">
+                <option value="">—</option>
+              </select>
+            </label>
+            <label>
+              Retail item (optional)
+              <select name="itemId" id="itemSelect">
+                <option value="">—</option>
+              </select>
+            </label>
+            <label class="span-2">
+              Description
+              <textarea name="description" rows="3" required></textarea>
+            </label>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Submit report</button>
+            </div>
+          </form>
+        </div>
+        <h3 class="subheading">Your past reports</h3>
+        <div class="table-wrap">
+          <table class="data-table" id="incidentsTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th>Attraction</th>
+                <th>Item</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/js/app.js"></script>
+</body>
+</html>
