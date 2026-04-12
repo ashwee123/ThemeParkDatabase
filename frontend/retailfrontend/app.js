@@ -1,9 +1,16 @@
-// =============================================================
-// CONFIG
-// =============================================================
+const API = "https://retail-portal-backend-pg0i.onrender.com";
 
-const API = "https://themeparkdatabase-9hfy.onrender.com";
-const AREA_ID = 1; // placeholder until login is implemented
+// Redirect to login if no session
+if (!sessionStorage.getItem("areaID")) {
+    window.location.href = "login.html";
+}
+
+const AREA_ID      = sessionStorage.getItem("areaID");
+const AREA_NAME    = sessionStorage.getItem("areaName");
+const MANAGER_NAME = sessionStorage.getItem("managerName");
+
+// Set portal title
+document.getElementById("portal-title").textContent = `${AREA_NAME} Retail`;
 
 // =============================================================
 // TABS
