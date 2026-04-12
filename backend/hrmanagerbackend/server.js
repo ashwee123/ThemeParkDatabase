@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import { handleApi } from "./api.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PUBLIC_DIR = path.join(__dirname, "public");
+const PUBLIC_DIR = path.join(__dirname, "public/frontend");
 const PORT = Number(process.env.PORT) || 3001;
 
 const MIME = {
