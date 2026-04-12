@@ -16,6 +16,7 @@ function getBody(req) {
 }
 
 const server = http.createServer(async (req, res) => {
+  console.log("REQUEST:", req.method, req.url);
   const parsedUrl = url.parse(req.url, true);
 
   // CORS
@@ -32,6 +33,17 @@ const server = http.createServer(async (req, res) => {
     // =========================
     // GET TASKS
     // =========================
+    if (parsedUrl.pathname === "/favicon.ico") {
+      res.writeHead(204);
+      return res.end();
+    }
+    if (parsedUrl.pathname === "/" && req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({
+        service: "maintenanceBackend",
+        status: "OK"
+      }));
+    }
     if (parsedUrl.pathname === "/tasks" && req.method === "GET") {
       const [rows] = await db.query(`
         SELECT 
