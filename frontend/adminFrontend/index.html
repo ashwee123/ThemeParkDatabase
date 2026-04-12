@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Portal — Theme Park</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <header class="site-header">
+    <h1>Admin Portal</h1>
+    <p class="tagline">Theme Park · operations overview (from your MySQL schema)</p>
+  </header>
+  <nav class="tabs" role="tablist">
+    <button type="button" class="tab active" data-tab="dash">Dashboard</button>
+    <button type="button" class="tab" data-tab="attractions">Attractions</button>
+    <button type="button" class="tab" data-tab="staff">Staff</button>
+    <button type="button" class="tab" data-tab="maint">Maintenance</button>
+    <button type="button" class="tab" data-tab="retail">Retail</button>
+    <button type="button" class="tab" data-tab="incidents">Incidents</button>
+    <button type="button" class="tab" data-tab="weather">Weather</button>
+  </nav>
+  <main>
+    <section id="panel-dash" class="panel active" role="tabpanel">
+      <div class="toolbar">
+        <h2>Dashboard</h2>
+        <button type="button" id="btn-refresh-dash" class="btn btn-ghost">Refresh</button>
+      </div>
+      <p class="hint">Counts from <code>employee</code>, <code>visitor</code>, <code>attraction</code>, <code>maintenancealert</code>, <code>maintenanceassignment</code>, <code>retailitem</code>, <code>incidentreport</code>.</p>
+      <div id="stat-grid" class="stat-grid"></div>
+    </section>
+    <section id="panel-attractions" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Attractions</h2>
+        <button type="button" id="btn-refresh-att" class="btn btn-ghost">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Name</th><th>Type</th><th>Area</th><th>Status</th><th>Queue</th><th>Severity</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-att"></tbody>
+        </table>
+      </div>
+    </section>
+    <section id="panel-staff" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Employees</h2>
+        <button type="button" id="btn-refresh-staff" class="btn btn-ghost">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Name</th><th>Position</th><th>Salary</th><th>Hire</th><th>Mgr</th><th>Area</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-staff"></tbody>
+        </table>
+      </div>
+    </section>
+    <section id="panel-maint" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Maintenance alerts &amp; tasks</h2>
+        <button type="button" id="btn-refresh-maint" class="btn btn-ghost">Refresh</button>
+      </div>
+      <h3 class="subheading">Open alerts (<code>maintenancealert</code>)</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Alert ID</th><th>Attraction</th><th>Severity</th><th>Message</th><th>Created</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-alerts"></tbody>
+        </table>
+      </div>
+      <h3 class="subheading">Assignments (<code>maintenanceassignment</code>)</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Employee</th><th>Area</th><th>Task</th><th>Status</th><th>Due</th><th>Created</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-assign"></tbody>
+        </table>
+      </div>
+    </section>
+    <section id="panel-retail" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Retail inventory</h2>
+        <button type="button" id="btn-refresh-retail" class="btn btn-ghost">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Item</th><th>Shop</th><th>Area</th><th>Qty</th><th>Low at</th><th>Buy</th><th>Sell</th><th>Discount</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-retail"></tbody>
+        </table>
+      </div>
+    </section>
+    <section id="panel-incidents" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Incident reports</h2>
+        <button type="button" id="btn-refresh-inc" class="btn btn-ghost">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Employee</th><th>Type</th><th>Attr</th><th>Item</th><th>When</th><th>Description</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-inc"></tbody>
+        </table>
+      </div>
+    </section>
+    <section id="panel-weather" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Weather log</h2>
+        <button type="button" id="btn-refresh-weather" class="btn btn-ghost">Refresh</button>
+      </div>
+      <p class="hint">Inserts here run trigger <code>trg_weather_shutdown</code> on your DB (ride / park status).</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Date</th><th>High</th><th>Low</th><th>Severity</th><th>Ops status</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-weather"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
