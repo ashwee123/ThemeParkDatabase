@@ -1,5 +1,28 @@
 const db = require("./db");
 
+// LOGIN
+const loginManager = (username, password, callback) => {
+    const sql = `
+        SELECT 
+            m.ManagerID,
+            m.ManagerName,
+            m.ManagerUsername,
+            rm.AreaID,
+            a.AreaName
+        FROM Manager m
+        JOIN RetailManager rm ON m.ManagerID = rm.ManagerID
+        JOIN Area a           ON rm.AreaID   = a.AreaID
+        WHERE m.ManagerUsername = ?
+        AND m.ManagerPassword = ?
+    `;
+    db.query(sql, [username, password], (err, results) => {
+        if (err) return callback(err);
+        if (results.length === 0) return callback(null, null);
+        callback(null, results[0]);
+    });
+};
+
+
 // -------------------------------------------------------
 // REPORTS
 // -------------------------------------------------------
@@ -230,6 +253,7 @@ const getNotifications = (areaID, callback) => {
 };
 
 module.exports = {
+    loginManager,
     getProfitReport,
     getDamagedStolenReport,
     getInventory,
