@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Retail Portal</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div class="noise"></div>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <h1 id="portal-title">Retail Portal</h1>
+    <p class="tagline">Area Manager Dashboard</p>
+  </header>
+
+  <!-- TABS -->
+  <nav class="tabs">
+    <button class="tab active" data-tab="dashboard">Dashboard</button>
+    <button class="tab" data-tab="inventory">Inventory</button>
+    <button class="tab" data-tab="transactions">Transactions</button>
+    <button class="tab" data-tab="restock">Restock</button>
+    <button class="tab" data-tab="reports">Reports</button>
+    <button class="tab" data-tab="stores">Stores</button>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main>
+
+    <!-- DASHBOARD -->
+    <section class="panel active" id="tab-dashboard">
+      <div class="toolbar">
+        <h2>Dashboard</h2>
+      </div>
+
+      <h3 class="subheading">Low Stock Notifications</h3>
+      <div class="table-wrap">
+        <table class="data-table" id="tbl-notifications">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Message</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <h3 class="subheading">Current Stock Levels</h3>
+      <div class="table-wrap">
+        <table class="data-table" id="tbl-inventory">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Store</th>
+              <th>Quantity</th>
+              <th>Threshold</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- INVENTORY -->
+    <section class="panel" id="tab-inventory">
+      <div class="toolbar">
+        <h2>Inventory</h2>
+      </div>
+
+      <!-- Add Item Form -->
+      <div class="card form-card">
+        <h3>Add Item to Store</h3>
+        <div class="grid-form">
+          <label>Item Name
+            <input type="text" id="new-item-name" placeholder="Item name" />
+          </label>
+          <label>Buy Price
+            <input type="number" id="new-item-buy" placeholder="0.00" step="0.01" />
+          </label>
+          <label>Sell Price
+            <input type="number" id="new-item-sell" placeholder="0.00" step="0.01" />
+          </label>
+          <label>Discount Price
+            <input type="number" id="new-item-discount" placeholder="Optional" step="0.01" />
+          </label>
+          <label>Quantity
+            <input type="number" id="new-item-qty" placeholder="0" />
+          </label>
+          <label>Low Stock Threshold
+            <input type="number" id="new-item-threshold" placeholder="10" />
+          </label>
+          <label>Store
+            <select id="new-item-store"></select>
+          </label>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="btn-add-item">Add Item</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Inventory Table -->
+      <div class="table-wrap">
+        <table class="data-table" id="tbl-inventory-full">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Store</th>
+              <th>Buy Price</th>
+              <th>Sell Price</th>
+              <th>Discount Price</th>
+              <th>Quantity</th>
+              <th>Threshold</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- TRANSACTIONS -->
+    <section class="panel" id="tab-transactions">
+      <div class="toolbar">
+        <h2>Transactions</h2>
+      </div>
+
+      <!-- Log Transaction Form -->
+      <div class="card form-card">
+        <h3>Log Transaction</h3>
+        <div class="grid-form">
+          <label>Item
+            <select id="txn-item"></select>
+          </label>
+          <label>Type
+            <select id="txn-type">
+              <option value="Normal">Normal</option>
+              <option value="Discount">Discount</option>
+              <option value="Damaged">Damaged</option>
+              <option value="Stolen">Stolen</option>
+            </select>
+          </label>
+          <label>Quantity
+            <input type="number" id="txn-qty" placeholder="1" min="1" />
+          </label>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="btn-log-txn">Log Transaction</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transaction History -->
+      <h3 class="subheading">Transaction History</h3>
+      <div class="table-wrap">
+        <table class="data-table" id="tbl-transactions">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Type</th>
+              <th>Quantity</th>
+              <th>Price</th>
+              <th>Total</th>
+              <th>Date</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- RESTOCK -->
+    <section class="panel" id="tab-restock">
+      <div class="toolbar">
+        <h2>Restock</h2>
+      </div>
+
+      <!-- Restock Form -->
+      <div class="card form-card">
+        <h3>Log Restock Order</h3>
+        <div class="grid-form">
+          <label>Item
+            <select id="restock-item"></select>
+          </label>
+          <label>Quantity
+            <input type="number" id="restock-qty" placeholder="1" min="1" />
+          </label>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="btn-log-restock">Submit Restock</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Restock History -->
+      <h3 class="subheading">Restock History</h3>
+      <div class="table-wrap">
+        <table class="data-table" id="tbl-restock">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Quantity</th>
+              <th>Cost</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- REPORTS -->
+    <section class="panel" id="tab-reports">
+      <div class="toolbar">
+        <h2>Reports</h2>
+      </div>
+
+      <!-- Date Range -->
+      <div class="card form-card">
+        <h3>Profit Report</h3>
+        <div class="grid-form">
+          <label>Start Date
+            <input type="date" id="report-start" />
+          </label>
+          <label>End Date
+            <input type="date" id="report-end" />
+          </label>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="btn-run-report">Generate Report</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profit Table -->
+      <div class="table-wrap">
+        <table class="data-table" id="tbl-report">
+          <thead>
+            <tr>
+              <th>Store</th>
+              <th>Item</th>
+              <th>Units Sold</th>
+              <th>Revenue</th>
+              <th>COGS</th>
+              <th>Gross Profit</th>
+              <th>Margin %</th>
+              <th>Discounts</th>
+              <th>Damaged</th>
+              <th>Stolen</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- Damaged / Stolen Report -->
+      <h3 class="subheading">Damaged / Stolen Report</h3>
+      <div class="table-wrap">
+        <table class="data-table" id="tbl-damaged">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Type</th>
+              <th>Quantity</th>
+              <th>Date</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- STORES -->
+    <section class="panel" id="tab-stores">
+      <div class="toolbar">
+        <h2>Stores</h2>
+      </div>
+
+      <!-- Add Store Form -->
+      <div class="card form-card">
+        <h3>Add Store</h3>
+        <div class="grid-form">
+          <label>Store Name
+            <input type="text" id="new-store-name" placeholder="Store name" />
+          </label>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="btn-add-store">Add Store</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stores Table -->
+      <div class="table-wrap">
+        <table class="data-table" id="tbl-stores">
+          <thead>
+            <tr>
+              <th>Store ID</th>
+              <th>Store Name</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
