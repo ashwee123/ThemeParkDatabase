@@ -333,3 +333,19 @@ input:focus, select:focus, textarea:focus {
   .site-header { padding: 1.2rem 1rem 0.8rem; }
   .grid-form { grid-template-columns: 1fr 1fr; }
 }
+
+.login-wrap {
+  max-width: 420px;
+  margin: 5rem auto;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.login-form .form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
