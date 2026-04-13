@@ -59,18 +59,27 @@ if (form) {
     });
 
     const data = await res.json();
-    loginLoading.style.display = "none";
+    // 🔐 SAVE TOKEN
+    localStorage.setItem("token", data.token);
 
-    if (data.message === "LOGIN SUCCESS") {
-
-      // 🔐 SAVE JWT TOKEN
-      localStorage.setItem("token", data.token);
-
-      // redirect (for now default user flow)
-      window.location.href = "/visitorFrontend/";
-
-    } else {
-      showError(data.error || data.message || "Invalid email or password.");
+    // ✅ SIMPLE ROLE DETECTION (for now via email)
+    if (email === "maintenance@nightmarenexus.com") {
+      window.location.href = "/maintenance";
+    } 
+    else if (email.includes("admin")) {
+      window.location.href = "/admin";
+    }
+    else if (email.includes("employee")) {
+      window.location.href = "/employee";
+    }
+    else if (email.includes("retail")) {
+      window.location.href = "/retail";
+    }
+    else if (email.includes("hr")) {
+      window.location.href = "/hr";
+    }
+    else {
+      window.location.href = "/visitor";
     }
 
   } catch (err) {
