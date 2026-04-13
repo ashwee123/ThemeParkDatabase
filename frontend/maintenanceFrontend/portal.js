@@ -1,7 +1,16 @@
 // frontend/maintenancePortal/app.js
+const token = localStorage.getItem("token");
+
+if (!token) {
+  window.location.href = "index.html";
+}
 
 async function fetchEmployees() {
-    const res = await fetch(`${API_BASE}/tasks/employees`);
+    const res = await fetch(`${API_BASE}/employees`, {
+    headers: {
+        "Authorization": `Bearer ${localStorage.getItem("token")}`
+    }
+    });
     const data = await res.json();
 
     const tbody = document.getElementById('tbody-employees');
@@ -22,8 +31,12 @@ async function fetchEmployees() {
     });
 }
 
-async function loadMaintenance() {
-    const res = await fetch(`${API_BASE}/maintenance`);
+async function loadTasks() {
+    const res = await fetch(`${API_BASE}/tasks`, {
+    headers: {
+        "Authorization": `Bearer ${localStorage.getItem("token")}`
+    }
+    });
     const data = await res.json();
 
     const tbody = document.getElementById('tbody-maint');
@@ -49,17 +62,43 @@ document.getElementById('form-add-task').addEventListener('submit', async (e) =>
 
   const formData = new FormData(e.target);
 
-  await fetch(`${API_BASE}/addTasks`, {
+    const data = {
+    EmployeeID: formData.get("EmployeeID"),
+    AreaID: formData.get("AreaID"),
+    TaskDescription: formData.get("TaskDescription"),
+    Status: formData.get("Status"),
+    DueDate: formData.get("DueDate")
+    };
+
+    await fetch(`${API_BASE}/addTask`, {
     method: 'POST',
-    body: formData
+    headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem("token")}`
+    },
+    body: JSON.stringify(data)
+});});
+
+const API_BASE = "https://maintenance-4i7r.onrender.com";
+
+async function login() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+
+  const res = await fetch(`${API}/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ email, password })
   });
 
-  // 1. Refresh the data
-  loadTasks();
-  
-  // 2. Clear the form
-  e.target.reset();
+  const data = await res.json();
 
-  // 3. OPTIONAL: Switch back to the "All Tasks" tab automatically
-  document.querySelector('[data-tab="tasks"]').click(); 
-});
+  if (res.ok) {
+    localStorage.setItem("token", data.token);
+    window.location.href = "portal.html";
+  } else {
+    alert("Login failed");
+  }
+}
