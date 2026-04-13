@@ -1,3 +1,7 @@
+/**
+ * HTTP handlers for /api/* — imported by server.js
+ * Path: theme-park-admin-portal/admin-api.js (same folder as server.js)
+ */
 import {
   getSummary,
   listActiveAlerts,
@@ -27,11 +31,6 @@ const cors = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-/**
- * @param {import("http").IncomingMessage} req
- * @param {import("http").ServerResponse} res
- * @param {URL} url
- */
 export async function handleAdminApi(req, res, url) {
   const pathname = url.pathname;
   const method = req.method || "GET";
