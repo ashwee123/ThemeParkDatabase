@@ -67,7 +67,7 @@ if (form) {
       localStorage.setItem("token", data.token);
 
       // redirect (for now default user flow)
-      window.location.href = "/frontend/visitorFrontend/index.html";
+      window.location.href = "/visitorFrontend/";
 
     } else {
       showError(data.error || data.message || "Invalid email or password.");
