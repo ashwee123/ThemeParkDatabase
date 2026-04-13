@@ -3,7 +3,7 @@ const http = require("http");
 const url = require("url");
 const db = require("./db"); // make sure maintenanceBackend/db.js exists
 const jwt = require("jsonwebtoken");
-const SECRET = "supersecretkey";
+const SECRET = process.env.JWT_SECRET;
 
 // =========================
 // LOGIN

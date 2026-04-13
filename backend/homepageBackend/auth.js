@@ -1,7 +1,7 @@
 // backend/auth.js
 const jwt = require("jsonwebtoken");
 
-const SECRET_KEY = process.env.JWT_SECRET || "supersecret";
+const SECRET_KEY = process.env.JWT_SECRET;
 
 // Generate token
 function generateToken(user) {

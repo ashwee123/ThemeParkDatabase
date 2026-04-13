@@ -32,28 +32,27 @@ async function fetchEmployees() {
 }
 
 async function loadTasks() {
-    const res = await fetch(`${API_BASE}/tasks`, {
-    headers: {
-        "Authorization": `Bearer ${localStorage.getItem("token")}`
+    try {
+        const res = await fetch(`${API_BASE}/tasks`, {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
+
+        if (!res.ok) {
+            console.error("Unauthorized or error");
+            localStorage.removeItem("token");
+            window.location.href = "/";
+            return;
+        }
+
+        const data = await res.json();
+        allTasksData = data;
+        renderTables(allTasksData);
+
+    } catch (err) {
+        console.error(err);
     }
-    });
-    const data = await res.json();
-
-    const tbody = document.getElementById('tbody-maint');
-    tbody.innerHTML = '';
-
-    data.forEach(task => {
-        tbody.innerHTML += `
-            <tr>
-                <td>${task.MaintenanceAssignmentID}</td>
-                <td>${task.EmployeeName}</td>
-                <td>${task.AreaName || ''}</td>
-                <td>${task.TaskDescription}</td>
-                <td>${task.Status}</td>
-                <td>${task.DueDate || ''}</td>
-            </tr>
-        `;
-    });
 }
 
 // ✅ FORM SUBMIT
@@ -95,10 +94,12 @@ async function login() {
 
   const data = await res.json();
 
-  if (res.ok) {
+    loginLoading.style.display = "none";
+
+    if (!res.ok) {
+        showError(data.error || "Login failed");
+        return;
+    }
+
     localStorage.setItem("token", data.token);
-    window.location.href = "portal.html";
-  } else {
-    alert("Login failed");
-  }
 }
