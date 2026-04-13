@@ -36,7 +36,9 @@ export async function getSummary() {
        WHERE Status IN ('Pending','In Progress','In progress')`
     ),
     p.execute("SELECT COUNT(*) AS retailItems FROM retailitem WHERE IsActive = 1"),
-    p.execute("SELECT COUNT(*) AS lowStock FROM retailitem WHERE IsActive = 1 AND Quantity <= LowStockThreshold"),
+    p.execute(
+      "SELECT COUNT(*) AS lowStock FROM retailitem WHERE IsActive = 1 AND Quantity <= LowStockThreshold"
+    ),
     p.execute(
       "SELECT COUNT(*) AS incidents30d FROM incidentreport WHERE ReportDate >= (CURRENT_DATE - INTERVAL 30 DAY)"
     ),
@@ -55,9 +57,7 @@ export async function getSummary() {
 }
 
 export async function listAreas() {
-  const [rows] = await getPool().execute(
-    "SELECT AreaID, AreaName FROM area ORDER BY AreaID"
-  );
+  const [rows] = await getPool().execute("SELECT AreaID, AreaName FROM area ORDER BY AreaID");
   return rows;
 }
 
