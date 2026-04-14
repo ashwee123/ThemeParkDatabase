@@ -156,7 +156,12 @@
 </div>
 
 <script>
-const API_BASE = "https://your-render-app.onrender.com";
+const token = localStorage.getItem("token");
+
+if (!token) {
+  window.location.href = "/";
+}
+const API_BASE = "https://maintenance-4i7r.onrender.com";
 let allTasksData = [];
 let currentSortCol = '';
 let isAscending = true;
@@ -216,7 +221,8 @@ document.addEventListener('DOMContentLoaded', () => {
         await fetch(`${API_BASE}/addTask`, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
             },
             body: JSON.stringify(body)
         });
@@ -229,10 +235,13 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- FETCHING DATA ---
-
 async function loadTasks() {
     try {
-        const res = await fetch(`${API_BASE}/tasks`);
+        const res = await fetch(`${API_BASE}/tasks`, {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
         allTasksData = await res.json();
         renderTables(allTasksData);
     } catch (err) {
@@ -241,22 +250,28 @@ async function loadTasks() {
 }
 
 async function loadPerformance() {
-    const res = await fetch(`${API_BASE}/attractions`);
+    const container = document.getElementById('performance-reports');
     if (!container) return;
 
     try {
-        const res = await fetch(`${API_BASE}/attractionData`);
+        const res = await fetch(`${API_BASE}/attractions`, {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
+
         const attractions = await res.json();
-        
+
         container.innerHTML = ''; 
         attractions.forEach(att => {
             const statusClass = `status-${att.Status.toLowerCase().replace(/\s+/g, '')}`;
             container.innerHTML += `
-                <div class="perf-card" style="border: 1px solid #444; background: #1a1a1a; padding: 15px; border-radius: 4px; margin-bottom:10px;">
-                    <h3 style="color: #8b0000; margin-top: 0; font-family: 'Courier New', monospace;">${att.AttractionName}</h3>
-                    <p style="margin-bottom: 0;">System Status: <span class="${statusClass}" style="font-weight: bold;">${att.Status}</span></p>
+                <div class="perf-card">
+                    <h3>${att.AttractionName}</h3>
+                    <p>Status: <span class="${statusClass}">${att.Status}</span></p>
                 </div>`;
         });
+
     } catch (err) {
         console.error("Performance Load Error:", err);
     }
@@ -370,7 +385,7 @@ const logoutBtn = document.getElementById("btn-logout");
 if (logoutBtn) {
     logoutBtn.addEventListener("click", () => {
         // This sends the user back to the main landing page
-        window.location.href = "/frontend/homepageFrontend/index.html";
+        window.location.href = "/";
     });
 }
 
@@ -378,7 +393,11 @@ async function loadReports() {
     const container = document.getElementById('reports-container');
 
     try {
-        const res = await fetch(`${API_BASE}/reports`);
+        const res = await fetch(`${API_BASE}/reports`, {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
         const data = await res.json();
 
         container.innerHTML = `

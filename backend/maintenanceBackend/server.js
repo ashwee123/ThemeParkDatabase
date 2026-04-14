@@ -2,6 +2,39 @@
 const http = require("http");
 const url = require("url");
 const db = require("./db"); // make sure maintenanceBackend/db.js exists
+const jwt = require("jsonwebtoken");
+const SECRET = "supersecretkey";
+
+// =========================
+// LOGIN
+// =========================
+if (parsedUrl.pathname === "/login" && req.method === "POST") {
+  const body = await getBody(req);
+  const { email, password } = body;
+
+  if (email === "maintenance@nightmarenexus.com" && password === "1234") {
+    const token = jwt.sign({ email }, SECRET, { expiresIn: "1h" });
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    return res.end(JSON.stringify({ token }));
+  }
+
+  res.writeHead(401);
+  return res.end(JSON.stringify({ error: "Invalid login" }));
+}
+
+function verifyToken(req) {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader) return null;
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    return jwt.verify(token, SECRET);
+  } catch {
+    return null;
+  }
+}
 
 // helper to read POST JSON
 function getBody(req) {
@@ -16,12 +49,13 @@ function getBody(req) {
 }
 
 const server = http.createServer(async (req, res) => {
+  console.log("REQUEST:", req.method, req.url);
   const parsedUrl = url.parse(req.url, true);
 
   // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
     res.writeHead(200);
@@ -32,7 +66,25 @@ const server = http.createServer(async (req, res) => {
     // =========================
     // GET TASKS
     // =========================
+    if (parsedUrl.pathname === "/favicon.ico") {
+      res.writeHead(204);
+      return res.end();
+    }
+    if (parsedUrl.pathname === "/" && req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({
+        service: "maintenanceBackend",
+        status: "OK"
+      }));
+    }
     if (parsedUrl.pathname === "/tasks" && req.method === "GET") {
+
+      const user = verifyToken(req);
+      if (!user) {
+        res.writeHead(401);
+        return res.end("Unauthorized");
+      }
+
       const [rows] = await db.query(`
         SELECT 
           m.MaintenanceAssignmentID, 
@@ -46,6 +98,7 @@ const server = http.createServer(async (req, res) => {
         LEFT JOIN area a ON m.AreaID = a.AreaID
         ORDER BY m.CreatedAt DESC
       `);
+
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify(rows));
     }
@@ -98,6 +151,13 @@ const server = http.createServer(async (req, res) => {
     // GET EMPLOYEES
     // =========================
     else if (parsedUrl.pathname === "/employees" && req.method === "GET") {
+
+      const user = verifyToken(req);
+      if (!user) {
+        res.writeHead(401);
+        return res.end("Unauthorized");
+      }
+
       const [rows] = await db.query(`SELECT * FROM employee`);
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify(rows));
@@ -134,5 +194,5 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3003;
 server.listen(PORT, () => console.log("Maintenance server running on port " + PORT));

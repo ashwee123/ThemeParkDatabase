@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employee Portal — Theme Park</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <h1>Employee Portal</h1>
+    <p class="tagline" id="header-tagline">Theme Park · sign in to view your schedule and tasks</p>
+  </header>
+
+  <nav class="tabs" role="tablist" id="main-tabs" aria-label="Employee sections">
+    <button type="button" class="tab active" data-tab="session" role="tab" aria-selected="true">Sign in</button>
+    <button type="button" class="tab" data-tab="profile" role="tab" aria-selected="false" disabled>Profile</button>
+    <button type="button" class="tab" data-tab="shifts" role="tab" aria-selected="false" disabled>Shifts</button>
+    <button type="button" class="tab" data-tab="time" role="tab" aria-selected="false" disabled>Time clock</button>
+    <button type="button" class="tab" data-tab="performance" role="tab" aria-selected="false" disabled>Performance</button>
+    <button type="button" class="tab" data-tab="tasks" role="tab" aria-selected="false" disabled>My tasks</button>
+    <button type="button" class="tab" data-tab="incident" role="tab" aria-selected="false" disabled>Report incident</button>
+  </nav>
+
+  <main>
+    <section id="panel-session" class="panel active" role="tabpanel" aria-labelledby="tab-session">
+      <div class="toolbar">
+        <h2>Sign in</h2>
+      </div>
+      <p class="hint">Choose your employee record. Demo data matches the <code>employee</code> rows in your database dump. When you add a Node API, the app will load the same views from the server.</p>
+      <div class="card form-card">
+        <h3>Employee</h3>
+        <div class="row-inline">
+          <label class="select-label">
+            Employee ID
+            <select id="select-employee-id">
+              <option value="">— Select —</option>
+            </select>
+          </label>
+          <div class="form-actions" style="align-self: flex-end;">
+            <button type="button" id="btn-sign-in" class="btn btn-primary">Enter portal</button>
+            <button type="button" id="btn-sign-out" class="btn btn-ghost hidden">Sign out</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="panel-profile" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>My profile</h2>
+        <button type="button" id="btn-refresh-profile" class="btn btn-ghost">Refresh</button>
+      </div>
+      <div class="card" id="profile-card">
+        <dl class="profile-grid" id="profile-dl"></dl>
+      </div>
+    </section>
+
+    <section id="panel-shifts" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>My shifts</h2>
+        <button type="button" id="btn-refresh-shifts" class="btn btn-ghost">Refresh</button>
+      </div>
+      <p class="hint">From table <code>shift</code>: date, start, and end for your <code>EmployeeID</code>.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Shift ID</th>
+              <th>Date</th>
+              <th>Start</th>
+              <th>End</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-shifts"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-time" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Time clock</h2>
+      </div>
+      <p class="hint">Mirrors <code>timelog</code> (clock in / clock out). Local demo keeps an open punch in <code>sessionStorage</code> until you wire the API.</p>
+      <div class="clock-banner" id="clock-banner">
+        <span class="status" id="clock-status">Not clocked in</span>
+        <div class="row-inline">
+          <button type="button" id="btn-clock-in" class="btn btn-primary">Clock in</button>
+          <button type="button" id="btn-clock-out" class="btn btn-ghost" disabled>Clock out</button>
+        </div>
+      </div>
+      <h3 class="subheading">Recent punches</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Log ID</th>
+              <th>Clock in</th>
+              <th>Clock out</th>
+              <th>Hours</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-timelog"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-performance" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Performance reviews</h2>
+        <button type="button" id="btn-refresh-performance" class="btn btn-ghost">Refresh</button>
+      </div>
+      <p class="hint">From <code>employeeperformance</code> for your employee.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Review ID</th>
+              <th>Date</th>
+              <th>Score</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-performance"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-tasks" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Maintenance assignments</h2>
+        <button type="button" id="btn-refresh-tasks" class="btn btn-ghost">Refresh</button>
+      </div>
+      <p class="hint">From <code>maintenanceassignment</code> where <code>EmployeeID</code> is you.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Assignment ID</th>
+              <th>Area</th>
+              <th>Task</th>
+              <th>Status</th>
+              <th>Due</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-tasks"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-incident" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Report an incident</h2>
+      </div>
+      <p class="hint">Inserts into <code>incidentreport</code> once the API exists. For now, submission is validated locally and shown in a toast.</p>
+      <section class="card form-card">
+        <h3>New report</h3>
+        <form id="form-incident" class="grid-form">
+          <label>
+            Report type
+            <select name="ReportType" required>
+              <option value="Broken Attraction">Broken attraction</option>
+              <option value="Stolen Item">Stolen item</option>
+            </select>
+          </label>
+          <label>
+            Attraction ID <span class="hint" style="display:inline;">(optional)</span>
+            <input name="AttractionID" type="number" min="1" step="1" placeholder="e.g. 101" />
+          </label>
+          <label>
+            Item ID <span class="hint" style="display:inline;">(optional)</span>
+            <input name="ItemID" type="number" min="1" step="1" placeholder="retail item" />
+          </label>
+          <label class="span-2">
+            Description
+            <textarea name="Description" rows="4" required placeholder="What happened?"></textarea>
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Submit report</button>
+          </div>
+        </form>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>

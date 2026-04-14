@@ -41,45 +41,53 @@ if (togglePw && passwordInput) {
 const form = document.getElementById("loginForm");
 if (form) {
   form.addEventListener("submit", async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    const email = document.getElementById("emailInput").value;
-    const password = document.getElementById("passwordInput").value;
+  const email = document.getElementById("emailInput").value;
+  const password = document.getElementById("passwordInput").value;
 
-    const loginLoading = document.getElementById("loginLoading");
-    loginLoading.style.display = "block";
+  const loginLoading = document.getElementById("loginLoading");
+  loginLoading.style.display = "block";
 
-    try {
-      const API_BASE = "https://themeparkdatabase-w2b6.onrender.com"; // Replace with actual URL
+  try {
+    const API_BASE = "https://themeparkdatabase-w2b6.onrender.com";
 
-      const res = await fetch(`${API_BASE}/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
-      });
+    const res = await fetch(`${API_BASE}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
 
-      const data = await res.json();
-      loginLoading.style.display = "none";
+    const data = await res.json();
+    // 🔐 SAVE TOKEN
+    localStorage.setItem("token", data.token);
 
-      if (data.success) {
-        switch (data.role) {
-          case "Maintenance Manager":
-            window.location.href = "/frontend/maintenanceFrontend/index.html";
-            break;
-          case "Admin":
-            alert("Admin portal is under construction!");
-            break;
-          default:
-            window.location.href = "/frontend/visitorFrontend/index.html";
-        }
-      } else {
-        showError(data.message || "Invalid email or password.");
-      }
-    } catch (err) {
-      console.error(err);
-      showError("Server error. Try again.");
+    // ✅ SIMPLE ROLE DETECTION (for now via email)
+    if (email === "maintenance@nightmarenexus.com") {
+      window.location.href = "/maintenance";
+    } 
+    else if (email.includes("admin")) {
+      window.location.href = "/admin";
     }
-  });
+    else if (email.includes("employee")) {
+      window.location.href = "/employee";
+    }
+    else if (email.includes("retail")) {
+      window.location.href = "/retail";
+    }
+    else if (email.includes("hr")) {
+      window.location.href = "/hr";
+    }
+    else {
+      window.location.href = "/visitor";
+    }
+
+  } catch (err) {
+    console.error(err);
+    loginLoading.style.display = "none";
+    showError("Server error. Try again.");
+  }
+});
 }
 
 function showError(msg) {
@@ -89,3 +97,9 @@ function showError(msg) {
     errorBox.textContent = msg;
   }
 }
+
+
+window.ENV = {
+  HOME_API: "https://themeparkdatabase-w2b6.onrender.com",
+  MAINTENANCE_API: "https://maintenance-4i7r.onrender.com"
+};

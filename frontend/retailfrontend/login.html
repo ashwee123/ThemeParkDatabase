@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Retail Portal — Login</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div class="noise"></div>
+
+  <header class="site-header">
+    <h1>Retail Portal</h1>
+    <p class="tagline">Area Manager Access</p>
+  </header>
+
+  <main>
+    <div class="login-wrap">
+      <div class="card form-card">
+        <h3>Manager Login</h3>
+        <div class="login-form">
+          <label>Username
+            <input type="text" id="login-username" placeholder="Enter username" />
+          </label>
+          <label>Password
+            <input type="password" id="login-password" placeholder="Enter password" />
+          </label>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="btn-login">Enter</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="login.js"></script>
+</body>
+</html>

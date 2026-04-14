@@ -1,0 +1,12 @@
+{
+  "routes": [
+    { "src": "^/$", "dest": "/frontend/homepageFrontend/index.html" },
+
+    { "src": "^/maintenance/?$", "dest": "/frontend/maintenanceFrontend/index.html" },
+    { "src": "^/admin/?$", "dest": "/frontend/adminFrontend/index.html" },
+    { "src": "^/employee/?$", "dest": "/frontend/employeeFrontend/index.html" },
+    { "src": "^/retail/?$", "dest": "/frontend/retailFrontend/index.html" },
+    { "src": "^/hr/?$", "dest": "/frontend/hrFrontend/index.html" },
+    { "src": "^/visitor/?$", "dest": "/frontend/visitorFrontend/index.html" }
+  ]
+}
