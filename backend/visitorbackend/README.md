@@ -50,3 +50,20 @@ All endpoints are under:
 
 - `http://localhost:3002/api/...`
 
+## 6) Demo / presentation data (optional)
+
+To load a **moderate** amount of realistic data (visitors, tickets, reviews, children) for demos and reports:
+
+1. Ensure migrations/views are applied (`visitor_ticket_type_migration.sql`, `visitor_views_and_triggers.sql`).
+2. Choose one:
+
+**A — Pure MySQL (Workbench / `mysql` CLI):** run `sql files/visitor_presentation_seed_mysql.sql` against your database (edit `USE newthemepark;` if your DB name differs).
+
+**B — Node script:** from `backend/visitorbackend` run:
+
+```bash
+npm run seed:presentation
+```
+
+Both approaches create the same demo accounts: emails ending in `@presentation-demo.local`, password `Demo1234!`. They delete any previous rows for those emails first, then re-seed.
+
