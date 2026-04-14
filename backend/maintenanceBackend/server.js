@@ -1,27 +1,14 @@
 // maintenanceBackend/server.js
 const http = require("http");
 const url = require("url");
-const db = require("./db"); // make sure maintenanceBackend/db.js exists
+const db = require("./db");
 const jwt = require("jsonwebtoken");
-const SECRET = "supersecretkey";
+
+const SECRET = process.env.JWT_SECRET;
 
 // =========================
-// LOGIN
+// HELPERS
 // =========================
-if (parsedUrl.pathname === "/login" && req.method === "POST") {
-  const body = await getBody(req);
-  const { email, password } = body;
-
-  if (email === "maintenance@nightmarenexus.com" && password === "1234") {
-    const token = jwt.sign({ email }, SECRET, { expiresIn: "1h" });
-
-    res.writeHead(200, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ token }));
-  }
-
-  res.writeHead(401);
-  return res.end(JSON.stringify({ error: "Invalid login" }));
-}
 
 function verifyToken(req) {
   const authHeader = req.headers["authorization"];
@@ -36,20 +23,24 @@ function verifyToken(req) {
   }
 }
 
-// helper to read POST JSON
 function getBody(req) {
   return new Promise((resolve) => {
     let body = "";
     req.on("data", chunk => body += chunk.toString());
     req.on("end", () => {
-      try { resolve(JSON.parse(body || "{}")); } 
+      try { resolve(JSON.parse(body || "{}")); }
       catch { resolve({}); }
     });
   });
 }
 
+// =========================
+// SERVER
+// =========================
+
 const server = http.createServer(async (req, res) => {
   console.log("REQUEST:", req.method, req.url);
+
   const parsedUrl = url.parse(req.url, true);
 
   // CORS
@@ -63,13 +54,33 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
+
     // =========================
-    // GET TASKS
+    // LOGIN (🔴 FIXED - MUST BE HERE)
     // =========================
-    if (parsedUrl.pathname === "/favicon.ico") {
-      res.writeHead(204);
-      return res.end();
+    if (parsedUrl.pathname === "/login" && req.method === "POST") {
+      const body = await getBody(req);
+      const { email, password } = body;
+
+      if (email === "maintenance@nightmarenexus.com" && password === "1234") {
+        const token = jwt.sign({ email, role: "maintenance" }, SECRET, {
+          expiresIn: "1h"
+        });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({
+          message: "LOGIN SUCCESS",
+          token
+        }));
+      }
+
+      res.writeHead(401, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ error: "Invalid login" }));
     }
+
+    // =========================
+    // ROOT
+    // =========================
     if (parsedUrl.pathname === "/" && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({
@@ -77,8 +88,11 @@ const server = http.createServer(async (req, res) => {
         status: "OK"
       }));
     }
-    if (parsedUrl.pathname === "/tasks" && req.method === "GET") {
 
+    // =========================
+    // TASKS (PROTECTED)
+    // =========================
+    if (parsedUrl.pathname === "/tasks" && req.method === "GET") {
       const user = verifyToken(req);
       if (!user) {
         res.writeHead(401);
@@ -106,8 +120,9 @@ const server = http.createServer(async (req, res) => {
     // =========================
     // ADD TASK
     // =========================
-    else if (parsedUrl.pathname === "/addTask" && req.method === "POST") {
+    if (parsedUrl.pathname === "/addTask" && req.method === "POST") {
       const body = await getBody(req);
+
       await db.query(`
         INSERT INTO maintenanceassignment (EmployeeID, AreaID, TaskDescription, Status, DueDate)
         VALUES (?, ?, ?, ?, ?)
@@ -126,8 +141,9 @@ const server = http.createServer(async (req, res) => {
     // =========================
     // UPDATE TASK
     // =========================
-    else if (parsedUrl.pathname === "/updateTask" && req.method === "POST") {
+    if (parsedUrl.pathname === "/updateTask" && req.method === "POST") {
       const body = await getBody(req);
+
       await db.query(`
         UPDATE maintenanceassignment 
         SET Status = ? 
@@ -139,19 +155,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     // =========================
-    // GET ATTRACTIONS
+    // EMPLOYEES (PROTECTED)
     // =========================
-    else if (parsedUrl.pathname === "/attractions" && req.method === "GET") {
-      const [rows] = await db.query(`SELECT AttractionID, AttractionName, Status FROM attraction`);
-      res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify(rows));
-    }
-
-    // =========================
-    // GET EMPLOYEES
-    // =========================
-    else if (parsedUrl.pathname === "/employees" && req.method === "GET") {
-
+    if (parsedUrl.pathname === "/employees" && req.method === "GET") {
       const user = verifyToken(req);
       if (!user) {
         res.writeHead(401);
@@ -166,13 +172,30 @@ const server = http.createServer(async (req, res) => {
     // =========================
     // REPORTS
     // =========================
-    else if (parsedUrl.pathname === "/reports" && req.method === "GET") {
-      const [taskStats] = await db.query(`SELECT Status, COUNT(*) as count FROM maintenanceassignment GROUP BY Status`);
-      const [overdue] = await db.query(`SELECT COUNT(*) as overdueTasks FROM maintenanceassignment WHERE DueDate < CURDATE() AND Status != 'Completed'`);
-      const [areaLoad] = await db.query(`SELECT a.AreaName, COUNT(*) as totalTasks FROM maintenanceassignment m JOIN area a ON m.AreaID = a.AreaID GROUP BY a.AreaName`);
-      
+    if (parsedUrl.pathname === "/reports" && req.method === "GET") {
+      const [taskStats] = await db.query(`
+        SELECT Status, COUNT(*) as count 
+        FROM maintenanceassignment 
+        GROUP BY Status
+      `);
+
+      const [overdue] = await db.query(`
+        SELECT COUNT(*) as overdueTasks 
+        FROM maintenanceassignment 
+        WHERE DueDate < CURDATE() AND Status != 'Completed'
+      `);
+
+      const [areaLoad] = await db.query(`
+        SELECT a.AreaName, COUNT(*) as totalTasks 
+        FROM maintenanceassignment m 
+        JOIN area a ON m.AreaID = a.AreaID 
+        GROUP BY a.AreaName
+      `);
+
       const advice = [];
-      if (overdue[0].overdueTasks > 3) advice.push("⚠️ Too many overdue tasks — increase staffing.");
+      if (overdue[0].overdueTasks > 3) {
+        advice.push("⚠️ Too many overdue tasks — increase staffing.");
+      }
       if (areaLoad.length > 0) {
         const busiest = [...areaLoad].sort((a,b)=>b.totalTasks-a.totalTasks)[0];
         advice.push(`📍 ${busiest.AreaName} has the highest workload.`);
@@ -182,10 +205,11 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ taskStats, overdue, areaLoad, advice }));
     }
 
-    else {
-      res.writeHead(404);
-      return res.end("Route not found");
-    }
+    // =========================
+    // 404
+    // =========================
+    res.writeHead(404);
+    res.end("Route not found");
 
   } catch (err) {
     console.error(err);
