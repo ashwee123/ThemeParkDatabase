@@ -1,175 +1,191 @@
-const db = require("./db");
+const queries = require("./queries");
+const jwt     = require("jsonwebtoken");
+const SECRET  = process.env.JWT_SECRET || "supersecret";
+const db      = require("./db");
 
-// -------------------------------------------------------
-// REPORTS
-// -------------------------------------------------------
+function verifyToken(req, sendJSON, res) {
+    const authHeader = req.headers["authorization"];
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        sendJSON(res, 401, { error: "Unauthorized" });
+        return null;
+    }
+    const token   = authHeader.split(" ")[1];
+    try {
+        return jwt.verify(token, SECRET);
+    } catch {
+        sendJSON(res, 401, { error: "Invalid token" });
+        return null;
+    }
+}
 
-exports.getProfitReport = (areaID, startDate, endDate, callback) => {
+function getManagerArea(managerID, callback) {
     const sql = `
-        SELECT SUM(t.Price * t.Quantity) AS TotalProfit
-        FROM TransactionLog t
-        JOIN RetailItem ri ON t.ItemID = ri.ItemID
-        JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
-        WHERE rp.AreaID = ?
-        AND t.Date BETWEEN ? AND ?
+        SELECT rm.AreaID 
+        FROM RetailManager rm
+        WHERE rm.ManagerID = ?
     `;
-    db.query(sql, [areaID, startDate, endDate], callback);
-};
+    db.query(sql, [managerID], (err, results) => {
+        if (err || results.length === 0) return callback(null);
+        callback(results[0].AreaID);
+    });
+}
 
-exports.getDamagedStolenReport = (areaID, startDate, endDate, callback) => {
-    const sql = `
-        SELECT t.*
-        FROM TransactionLog t
-        JOIN RetailItem ri ON t.ItemID = ri.ItemID
-        JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
-        WHERE rp.AreaID = ?
-        AND t.Type IN ('Damaged', 'Stolen')
-        AND t.Date BETWEEN ? AND ?
-    `;
-    db.query(sql, [areaID, startDate, endDate], callback);
-};
+module.exports = function registerRoutes(req, res, url, sendJSON, parseBody) {
+    const path    = url.pathname;
+    const decoded = verifyToken(req, sendJSON, res);
+    if (!decoded) return;
 
-// -------------------------------------------------------
-// INVENTORY
-// -------------------------------------------------------
+    getManagerArea(decoded.id, (areaID) => {
+        if (!areaID) return sendJSON(res, 403, { error: "Not a retail manager" });
 
-exports.getInventory = (areaID, callback) => {
-    const sql = `
-        SELECT ri.*
-        FROM RetailItem ri
-        JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
-        WHERE rp.AreaID = ?
-    `;
-    db.query(sql, [areaID], callback);
-};
+        // -------------------------------------------------------
+        // REPORTS
+        // -------------------------------------------------------
 
-exports.adjustQuantity = (itemID, newQuantity, callback) => {
-    const sql = `
-        UPDATE RetailItem
-        SET Quantity = ?
-        WHERE ItemID = ?
-    `;
-    db.query(sql, [newQuantity, itemID], callback);
-};
+        if (path === "/report" && req.method === "GET") {
+            const startDate = url.searchParams.get("startDate");
+            const endDate   = url.searchParams.get("endDate");
+            queries.getProfitReport(areaID, startDate, endDate, (err, results) => {
+                if (err) return sendJSON(res, 500, { error: err.message });
+                sendJSON(res, 200, results);
+            });
 
-exports.updateThreshold = (itemID, threshold, callback) => {
-    const sql = `
-        UPDATE RetailItem
-        SET LowStockThreshold = ?
-        WHERE ItemID = ?
-    `;
-    db.query(sql, [threshold, itemID], callback);
-};
+        } else if (path === "/damaged-stolen" && req.method === "GET") {
+            const startDate = url.searchParams.get("startDate");
+            const endDate   = url.searchParams.get("endDate");
+            queries.getDamagedStolenReport(areaID, startDate, endDate, (err, results) => {
+                if (err) return sendJSON(res, 500, { error: err.message });
+                sendJSON(res, 200, results);
+            });
 
-exports.addItem = (itemName, buyPrice, sellPrice, discountPrice, quantity, threshold, retailID, callback) => {
-    const sql = `
-        INSERT INTO RetailItem 
-        (ItemName, BuyPrice, SellPrice, DiscountPrice, Quantity, LowStockThreshold, RetailID)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
-    db.query(sql, [itemName, buyPrice, sellPrice, discountPrice, quantity, threshold, retailID], callback);
-};
+        // -------------------------------------------------------
+        // INVENTORY
+        // -------------------------------------------------------
 
-exports.setItemActive = (itemID, isActive, callback) => {
-    const sql = `
-        UPDATE RetailItem
-        SET IsActive = ?
-        WHERE ItemID = ?
-    `;
-    db.query(sql, [isActive, itemID], callback);
-};
+        } else if (path === "/inventory" && req.method === "GET") {
+            queries.getInventory(areaID, (err, results) => {
+                if (err) return sendJSON(res, 500, { error: err.message });
+                sendJSON(res, 200, results);
+            });
 
-// -------------------------------------------------------
-// PRICING
-// -------------------------------------------------------
+        } else if (path === "/inventory/adjust" && req.method === "PUT") {
+            parseBody(req, (body) => {
+                if (!body) return sendJSON(res, 400, { error: "Invalid request body" });
+                const { itemID, newQuantity } = body;
+                queries.adjustQuantity(itemID, newQuantity, (err) => {
+                    if (err) return sendJSON(res, 500, { error: err.message });
+                    sendJSON(res, 200, { message: "Quantity updated successfully" });
+                });
+            });
 
-exports.updatePrices = (itemID, buyPrice, sellPrice, discountPrice, callback) => {
-    const sql = `
-        UPDATE RetailItem
-        SET BuyPrice = ?, SellPrice = ?, DiscountPrice = ?
-        WHERE ItemID = ?
-    `;
-    db.query(sql, [buyPrice, sellPrice, discountPrice, itemID], callback);
-};
+        } else if (path === "/inventory/threshold" && req.method === "PUT") {
+            parseBody(req, (body) => {
+                if (!body) return sendJSON(res, 400, { error: "Invalid request body" });
+                const { itemID, threshold } = body;
+                queries.updateThreshold(itemID, threshold, (err) => {
+                    if (err) return sendJSON(res, 500, { error: err.message });
+                    sendJSON(res, 200, { message: "Threshold updated successfully" });
+                });
+            });
 
-// -------------------------------------------------------
-// STORES
-// -------------------------------------------------------
+        } else if (path === "/item" && req.method === "POST") {
+            parseBody(req, (body) => {
+                if (!body) return sendJSON(res, 400, { error: "Invalid request body" });
+                const { itemName, buyPrice, sellPrice, discountPrice, quantity, threshold, retailID } = body;
+                queries.addItem(itemName, buyPrice, sellPrice, discountPrice, quantity, threshold, retailID, (err) => {
+                    if (err) return sendJSON(res, 500, { error: err.message });
+                    sendJSON(res, 200, { message: "Item added successfully" });
+                });
+            });
 
-exports.getStores = (areaID, callback) => {
-    const sql = `
-        SELECT *
-        FROM RetailPlace
-        WHERE AreaID = ?
-    `;
-    db.query(sql, [areaID], callback);
-};
+        } else if (path === "/item/active" && req.method === "PUT") {
+            parseBody(req, (body) => {
+                if (!body) return sendJSON(res, 400, { error: "Invalid request body" });
+                const { itemID, isActive } = body;
+                queries.setItemActive(itemID, isActive, (err) => {
+                    if (err) return sendJSON(res, 500, { error: err.message });
+                    sendJSON(res, 200, { message: `Item ${isActive ? "activated" : "deactivated"} successfully` });
+                });
+            });
 
-exports.addStore = (retailName, areaID, callback) => {
-    const sql = `
-        INSERT INTO RetailPlace (RetailName, AreaID)
-        VALUES (?, ?)
-    `;
-    db.query(sql, [retailName, areaID], callback);
-};
+        // -------------------------------------------------------
+        // PRICING
+        // -------------------------------------------------------
 
-// -------------------------------------------------------
-// RESTOCK
-// -------------------------------------------------------
+        } else if (path === "/item/price" && req.method === "PUT") {
+            parseBody(req, (body) => {
+                if (!body) return sendJSON(res, 400, { error: "Invalid request body" });
+                const { itemID, buyPrice, sellPrice, discountPrice } = body;
+                queries.updatePrices(itemID, buyPrice, sellPrice, discountPrice, (err) => {
+                    if (err) return sendJSON(res, 500, { error: err.message });
+                    sendJSON(res, 200, { message: "Prices updated successfully" });
+                });
+            });
 
-exports.addRestock = (itemID, quantity, callback) => {
-    const sql = `
-        INSERT INTO RestockLog (ItemID, Quantity, Date)
-        VALUES (?, ?, NOW())
-    `;
-    db.query(sql, [itemID, quantity], callback);
-};
+        // -------------------------------------------------------
+        // STORE MANAGEMENT
+        // -------------------------------------------------------
 
-exports.getRestockHistory = (areaID, callback) => {
-    const sql = `
-        SELECT r.*
-        FROM RestockLog r
-        JOIN RetailItem ri ON r.ItemID = ri.ItemID
-        JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
-        WHERE rp.AreaID = ?
-    `;
-    db.query(sql, [areaID], callback);
-};
+        } else if (path === "/stores" && req.method === "GET") {
+            queries.getStores(areaID, (err, results) => {
+                if (err) return sendJSON(res, 500, { error: err.message });
+                sendJSON(res, 200, results);
+            });
 
-// -------------------------------------------------------
-// TRANSACTIONS
-// -------------------------------------------------------
+        } else if (path === "/store" && req.method === "POST") {
+            parseBody(req, (body) => {
+                if (!body) return sendJSON(res, 400, { error: "Invalid request body" });
+                const { retailName } = body;
+                queries.addStore(retailName, areaID, (err) => {
+                    if (err) return sendJSON(res, 500, { error: err.message });
+                    sendJSON(res, 200, { message: "Store added successfully" });
+                });
+            });
 
-exports.addTransaction = (itemID, type, quantity, callback) => {
-    const sql = `
-        INSERT INTO TransactionLog (ItemID, Type, Quantity, Date, Time)
-        VALUES (?, ?, ?, CURDATE(), CURTIME())
-    `;
-    db.query(sql, [itemID, type, quantity], callback);
-};
+        // -------------------------------------------------------
+        // LOGS
+        // -------------------------------------------------------
 
-exports.getTransactionHistory = (areaID, callback) => {
-    const sql = `
-        SELECT t.*
-        FROM TransactionLog t
-        JOIN RetailItem ri ON t.ItemID = ri.ItemID
-        JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
-        WHERE rp.AreaID = ?
-    `;
-    db.query(sql, [areaID], callback);
-};
+        } else if (path === "/restock" && req.method === "POST") {
+            parseBody(req, (body) => {
+                if (!body) return sendJSON(res, 400, { error: "Invalid request body" });
+                const { itemID, quantity } = body;
+                queries.addRestock(itemID, quantity, (err) => {
+                    if (err) return sendJSON(res, 500, { error: err.message });
+                    sendJSON(res, 200, { message: "Restock logged successfully" });
+                });
+            });
 
-// -------------------------------------------------------
-// NOTIFICATIONS
-// -------------------------------------------------------
+        } else if (path === "/restock/history" && req.method === "GET") {
+            queries.getRestockHistory(areaID, (err, results) => {
+                if (err) return sendJSON(res, 500, { error: err.message });
+                sendJSON(res, 200, results);
+            });
 
-exports.getNotifications = (areaID, callback) => {
-    const sql = `
-        SELECT ri.ItemName, ri.Quantity, ri.LowStockThreshold
-        FROM RetailItem ri
-        JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
-        WHERE rp.AreaID = ?
-        AND ri.Quantity <= ri.LowStockThreshold
-    `;
-    db.query(sql, [areaID], callback);
+        } else if (path === "/transaction" && req.method === "POST") {
+            parseBody(req, (body) => {
+                if (!body) return sendJSON(res, 400, { error: "Invalid request body" });
+                const { itemID, type, quantity } = body;
+                queries.addTransaction(itemID, type, quantity, (err) => {
+                    if (err) return sendJSON(res, 500, { error: err.message });
+                    sendJSON(res, 200, { message: "Transaction logged successfully" });
+                });
+            });
+
+        } else if (path === "/transactions" && req.method === "GET") {
+            queries.getTransactionHistory(areaID, (err, results) => {
+                if (err) return sendJSON(res, 500, { error: err.message });
+                sendJSON(res, 200, results);
+            });
+
+        } else if (path === "/notifications" && req.method === "GET") {
+            queries.getNotifications(areaID, (err, results) => {
+                if (err) return sendJSON(res, 500, { error: err.message });
+                sendJSON(res, 200, results);
+            });
+
+        } else {
+            sendJSON(res, 404, { error: "Route not found" });
+        }
+    });
 };
