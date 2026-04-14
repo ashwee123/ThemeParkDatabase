@@ -13,6 +13,8 @@
     { "source": "/employee/:file*", "destination": "/frontend/employeefrontend/:file*" },
     { "source": "/retail/:file*", "destination": "/frontend/retailfrontend/:file*" },
     { "source": "/hr/:file*", "destination": "/frontend/hrFrontend/:file*" },
-    { "source": "/visitor/:file*", "destination": "/frontend/visitorfrontend/:file*" }
+    { "source": "/visitor/:file*", "destination": "/frontend/visitorfrontend/:file*" },
+
+    { "source": "/:file*", "destination": "/frontend/homepageFrontend/:file*" }
   ]
 }
