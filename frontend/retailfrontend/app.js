@@ -1,16 +1,28 @@
-const API = "https://retail-portal-backend-pg0i.onrender.com";
+const API_BASE = "https://retail-portal-backend-pg0i.onrender.com";
 
-// Redirect to login if no session
-if (!sessionStorage.getItem("areaID")) {
-    window.location.href = "login.html";
+// Redirect to home if no token
+const token = localStorage.getItem("token");
+if (!token) {
+    window.location.href = "/";
 }
 
-const AREA_ID      = sessionStorage.getItem("areaID");
+// Get area info from session set by main site
 const AREA_NAME    = sessionStorage.getItem("areaName");
 const MANAGER_NAME = sessionStorage.getItem("managerName");
 
 // Set portal title
-document.getElementById("portal-title").textContent = `${AREA_NAME} Retail`;
+document.getElementById("portal-title").textContent = `${AREA_NAME || "Retail"} Retail`;
+
+// =============================================================
+// AUTH HEADER HELPER
+// =============================================================
+
+function authHeader() {
+    return {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+    };
+}
 
 // =============================================================
 // TABS
@@ -23,7 +35,6 @@ document.querySelectorAll(".tab").forEach(tab => {
         tab.classList.add("active");
         document.getElementById(`tab-${tab.dataset.tab}`).classList.add("active");
 
-        // Load data when tab is opened
         switch (tab.dataset.tab) {
             case "dashboard":    loadDashboard();    break;
             case "inventory":    loadInventory();    break;
@@ -58,9 +69,9 @@ function formatDate(val) {
 }
 
 function stockStatus(qty, threshold) {
-    if (qty <= 0)           return `<span class="status status-critical">Out of Stock</span>`;
-    if (qty <= threshold)   return `<span class="status status-low">Low</span>`;
-    return                         `<span class="status status-ok">OK</span>`;
+    if (qty <= 0)         return `<span class="status status-critical">Out of Stock</span>`;
+    if (qty <= threshold) return `<span class="status status-low">Low</span>`;
+    return                       `<span class="status status-ok">OK</span>`;
 }
 
 function txnType(type) {
@@ -72,9 +83,8 @@ function txnType(type) {
 // =============================================================
 
 async function loadDashboard() {
-    // Notifications
-    const notifRes = await fetch(`${API}/notifications?areaID=${AREA_ID}`);
-    const notifs   = await notifRes.json();
+    const notifRes  = await fetch(`${API_BASE}/notifications`, { headers: authHeader() });
+    const notifs    = await notifRes.json();
     const notifBody = document.querySelector("#tbl-notifications tbody");
     notifBody.innerHTML = notifs.length ? notifs.map(n => `
         <tr>
@@ -84,8 +94,7 @@ async function loadDashboard() {
         </tr>
     `).join("") : `<tr><td colspan="3" style="color:var(--text-dim)">No notifications</td></tr>`;
 
-    // Inventory
-    const invRes  = await fetch(`${API}/inventory?areaID=${AREA_ID}`);
+    const invRes  = await fetch(`${API_BASE}/inventory`, { headers: authHeader() });
     const inv     = await invRes.json();
     const invBody = document.querySelector("#tbl-inventory tbody");
     invBody.innerHTML = inv.length ? inv.map(i => `
@@ -105,13 +114,12 @@ async function loadDashboard() {
 
 async function loadInventory() {
     const [invRes, storeRes] = await Promise.all([
-        fetch(`${API}/inventory?areaID=${AREA_ID}`),
-        fetch(`${API}/stores?areaID=${AREA_ID}`)
+        fetch(`${API_BASE}/inventory`, { headers: authHeader() }),
+        fetch(`${API_BASE}/stores`,    { headers: authHeader() })
     ]);
     const inv    = await invRes.json();
     const stores = await storeRes.json();
 
-    // Populate store dropdown in add item form
     const storeSelect = document.getElementById("new-item-store");
     storeSelect.innerHTML = stores.map(s => `<option value="${s.RetailID}">${s.RetailName}</option>`).join("");
 
@@ -138,7 +146,6 @@ async function loadInventory() {
     `).join("") : `<tr><td colspan="9" style="color:var(--text-dim)">No items found</td></tr>`;
 }
 
-// Add Item
 document.getElementById("btn-add-item").addEventListener("click", async () => {
     const name      = document.getElementById("new-item-name").value.trim();
     const buy       = parseFloat(document.getElementById("new-item-buy").value);
@@ -150,9 +157,9 @@ document.getElementById("btn-add-item").addEventListener("click", async () => {
 
     if (!name || !buy || !sell || !qty || !retailID) return showToast("Please fill in all required fields", true);
 
-    const res = await fetch(`${API}/item`, {
+    const res  = await fetch(`${API_BASE}/item`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeader(),
         body: JSON.stringify({ itemName: name, buyPrice: buy, sellPrice: sell, discountPrice: discount, quantity: qty, threshold, retailID })
     });
     const data = await res.json();
@@ -161,16 +168,15 @@ document.getElementById("btn-add-item").addEventListener("click", async () => {
     loadInventory();
 });
 
-// Edit Price
 function openEditPrice(itemID, buy, sell, discount) {
     const newBuy      = prompt("New Buy Price:", buy);
     const newSell     = prompt("New Sell Price:", sell);
     const newDiscount = prompt("New Discount Price (leave blank to clear):", discount || "");
     if (!newBuy || !newSell) return;
 
-    fetch(`${API}/item/price`, {
+    fetch(`${API_BASE}/item/price`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeader(),
         body: JSON.stringify({
             itemID,
             buyPrice:      parseFloat(newBuy),
@@ -184,14 +190,13 @@ function openEditPrice(itemID, buy, sell, discount) {
     });
 }
 
-// Adjust Quantity
 function openAdjustQty(itemID, current) {
     const newQty = prompt("New Quantity:", current);
     if (newQty === null) return;
 
-    fetch(`${API}/inventory/adjust`, {
+    fetch(`${API_BASE}/inventory/adjust`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeader(),
         body: JSON.stringify({ itemID, newQuantity: parseInt(newQty) })
     }).then(r => r.json()).then(data => {
         if (data.error) return showToast(data.error, true);
@@ -200,14 +205,13 @@ function openAdjustQty(itemID, current) {
     });
 }
 
-// Update Threshold
 function openThreshold(itemID, current) {
     const newThreshold = prompt("New Low Stock Threshold:", current);
     if (newThreshold === null) return;
 
-    fetch(`${API}/inventory/threshold`, {
+    fetch(`${API_BASE}/inventory/threshold`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeader(),
         body: JSON.stringify({ itemID, threshold: parseInt(newThreshold) })
     }).then(r => r.json()).then(data => {
         if (data.error) return showToast(data.error, true);
@@ -216,13 +220,12 @@ function openThreshold(itemID, current) {
     });
 }
 
-// Deactivate Item
 function toggleActive(itemID, isActive) {
     if (!confirm(`Are you sure you want to ${isActive ? "activate" : "deactivate"} this item?`)) return;
 
-    fetch(`${API}/item/active`, {
+    fetch(`${API_BASE}/item/active`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeader(),
         body: JSON.stringify({ itemID, isActive })
     }).then(r => r.json()).then(data => {
         if (data.error) return showToast(data.error, true);
@@ -237,13 +240,12 @@ function toggleActive(itemID, isActive) {
 
 async function loadTransactions() {
     const [txnRes, invRes] = await Promise.all([
-        fetch(`${API}/transactions?areaID=${AREA_ID}`),
-        fetch(`${API}/inventory?areaID=${AREA_ID}`)
+        fetch(`${API_BASE}/transactions`, { headers: authHeader() }),
+        fetch(`${API_BASE}/inventory`,    { headers: authHeader() })
     ]);
     const txns = await txnRes.json();
     const inv  = await invRes.json();
 
-    // Populate item dropdown
     const itemSelect = document.getElementById("txn-item");
     itemSelect.innerHTML = inv.map(i => `<option value="${i.ItemID}">${i.ItemName} (${i.RetailName})</option>`).join("");
 
@@ -261,7 +263,6 @@ async function loadTransactions() {
     `).join("") : `<tr><td colspan="7" style="color:var(--text-dim)">No transactions found</td></tr>`;
 }
 
-// Log Transaction
 document.getElementById("btn-log-txn").addEventListener("click", async () => {
     const itemID   = parseInt(document.getElementById("txn-item").value);
     const type     = document.getElementById("txn-type").value;
@@ -269,9 +270,9 @@ document.getElementById("btn-log-txn").addEventListener("click", async () => {
 
     if (!itemID || !type || !quantity) return showToast("Please fill in all fields", true);
 
-    const res = await fetch(`${API}/transaction`, {
+    const res  = await fetch(`${API_BASE}/transaction`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeader(),
         body: JSON.stringify({ itemID, type, quantity })
     });
     const data = await res.json();
@@ -286,13 +287,12 @@ document.getElementById("btn-log-txn").addEventListener("click", async () => {
 
 async function loadRestock() {
     const [restockRes, invRes] = await Promise.all([
-        fetch(`${API}/restock/history?areaID=${AREA_ID}`),
-        fetch(`${API}/inventory?areaID=${AREA_ID}`)
+        fetch(`${API_BASE}/restock/history`, { headers: authHeader() }),
+        fetch(`${API_BASE}/inventory`,        { headers: authHeader() })
     ]);
     const restocks = await restockRes.json();
     const inv      = await invRes.json();
 
-    // Populate item dropdown
     const itemSelect = document.getElementById("restock-item");
     itemSelect.innerHTML = inv.map(i => `<option value="${i.ItemID}">${i.ItemName} (${i.RetailName})</option>`).join("");
 
@@ -306,16 +306,15 @@ async function loadRestock() {
     `).join("") : `<tr><td colspan="3" style="color:var(--text-dim)">No restock history</td></tr>`;
 }
 
-// Log Restock
 document.getElementById("btn-log-restock").addEventListener("click", async () => {
     const itemID   = parseInt(document.getElementById("restock-item").value);
     const quantity = parseInt(document.getElementById("restock-qty").value);
 
     if (!itemID || !quantity) return showToast("Please fill in all fields", true);
 
-    const res = await fetch(`${API}/restock`, {
+    const res  = await fetch(`${API_BASE}/restock`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeader(),
         body: JSON.stringify({ itemID, quantity })
     });
     const data = await res.json();
@@ -335,14 +334,13 @@ document.getElementById("btn-run-report").addEventListener("click", async () => 
     if (!startDate || !endDate) return showToast("Please select a date range", true);
 
     const [reportRes, damagedRes] = await Promise.all([
-        fetch(`${API}/report?areaID=${AREA_ID}&startDate=${startDate}&endDate=${endDate}`),
-        fetch(`${API}/damaged-stolen?areaID=${AREA_ID}&startDate=${startDate}&endDate=${endDate}`)
+        fetch(`${API_BASE}/report?startDate=${startDate}&endDate=${endDate}`,         { headers: authHeader() }),
+        fetch(`${API_BASE}/damaged-stolen?startDate=${startDate}&endDate=${endDate}`, { headers: authHeader() })
     ]);
 
     const report  = await reportRes.json();
     const damaged = await damagedRes.json();
 
-    // Profit table
     const reportBody = document.querySelector("#tbl-report tbody");
     reportBody.innerHTML = report.length ? report.map(r => `
         <tr>
@@ -359,7 +357,6 @@ document.getElementById("btn-run-report").addEventListener("click", async () => 
         </tr>
     `).join("") : `<tr><td colspan="10" style="color:var(--text-dim)">No data for selected range</td></tr>`;
 
-    // Damaged/Stolen table
     const damagedBody = document.querySelector("#tbl-damaged tbody");
     damagedBody.innerHTML = damaged.length ? damaged.map(d => `
         <tr>
@@ -377,7 +374,7 @@ document.getElementById("btn-run-report").addEventListener("click", async () => 
 // =============================================================
 
 async function loadStores() {
-    const res    = await fetch(`${API}/stores?areaID=${AREA_ID}`);
+    const res    = await fetch(`${API_BASE}/stores`, { headers: authHeader() });
     const stores = await res.json();
 
     const tbody = document.querySelector("#tbl-stores tbody");
@@ -389,15 +386,14 @@ async function loadStores() {
     `).join("") : `<tr><td colspan="2" style="color:var(--text-dim)">No stores found</td></tr>`;
 }
 
-// Add Store
 document.getElementById("btn-add-store").addEventListener("click", async () => {
     const name = document.getElementById("new-store-name").value.trim();
     if (!name) return showToast("Please enter a store name", true);
 
-    const res = await fetch(`${API}/store`, {
+    const res  = await fetch(`${API_BASE}/store`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ retailName: name, areaID: AREA_ID })
+        headers: authHeader(),
+        body: JSON.stringify({ retailName: name })
     });
     const data = await res.json();
     if (data.error) return showToast(data.error, true);
@@ -406,6 +402,6 @@ document.getElementById("btn-add-store").addEventListener("click", async () => {
 });
 
 // =============================================================
-// INIT — load dashboard on page load
+// INIT
 // =============================================================
 loadDashboard();
