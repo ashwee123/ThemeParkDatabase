@@ -1,12 +1,18 @@
 {
   "rewrites": [
     { "source": "/", "destination": "/frontend/homepageFrontend/index.html" },
-
     { "source": "/maintenance", "destination": "/frontend/maintenanceFrontend/index.html" },
     { "source": "/admin", "destination": "/frontend/adminFrontend/index.html" },
     { "source": "/employee", "destination": "/frontend/employeefrontend/index.html" },
     { "source": "/retail", "destination": "/frontend/retailfrontend/index.html" },
     { "source": "/hr", "destination": "/frontend/hrFrontend/index.html" },
-    { "source": "/visitor", "destination": "/frontend/visitorfrontend/index.html" }
+    { "source": "/visitor", "destination": "/frontend/visitorfrontend/index.html" },
+
+    { "source": "/maintenance/:file*", "destination": "/frontend/maintenanceFrontend/:file*" },
+    { "source": "/admin/:file*", "destination": "/frontend/adminFrontend/:file*" },
+    { "source": "/employee/:file*", "destination": "/frontend/employeefrontend/:file*" },
+    { "source": "/retail/:file*", "destination": "/frontend/retailfrontend/:file*" },
+    { "source": "/hr/:file*", "destination": "/frontend/hrFrontend/:file*" },
+    { "source": "/visitor/:file*", "destination": "/frontend/visitorfrontend/:file*" }
   ]
 }
