@@ -1,4 +1,5 @@
-const TOKEN_KEY = "visitorToken";
+const API_BASE = "https://visitors-portal-backend.onrender.com";
+const TOKEN_KEY = "token";
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -14,7 +15,7 @@ async function api(path, { method = "GET", body = null, token = null } = {}) {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
-  const res = await fetch(path, {
+  const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -77,7 +78,7 @@ function showToast(msg, isErr) {
 }
 
 async function loadAreas() {
-  areas = await api("/api/areas");
+  areas = await api("/api/areas", { token: getToken() });
   return areas;
 }
 
