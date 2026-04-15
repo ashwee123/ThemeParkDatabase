@@ -1,7 +1,6 @@
 const pool = require("./db");
 
 function toISODate(d) {
-  // Returns YYYY-MM-DD in local time (good enough for portal date inputs).
   const dt = d instanceof Date ? d : new Date(d);
   const y = dt.getFullYear();
   const m = String(dt.getMonth() + 1).padStart(2, "0");
@@ -11,9 +10,195 @@ function toISODate(d) {
 
 function computeIsActiveFromExpiryDate(expiryDateStr) {
   if (!expiryDateStr) return 1;
-  // expiryDateStr comes from <input type="date"> => "YYYY-MM-DD"
   const today = toISODate(new Date());
   return String(expiryDateStr) >= today ? 1 : 0;
+}
+
+async function ensureVisitorPortalSchema() {
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS visitor_park (
+      ParkID INT NOT NULL AUTO_INCREMENT,
+      ParkName VARCHAR(120) NOT NULL UNIQUE,
+      LocationText VARCHAR(255) NULL,
+      OpeningTime TIME NULL,
+      ClosingTime TIME NULL,
+      MapImageUrl VARCHAR(255) NULL,
+      IsActive TINYINT(1) NOT NULL DEFAULT 1,
+      PRIMARY KEY (ParkID)
+    )
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS visitor_attraction_detail (
+      AttractionID INT NOT NULL,
+      ParkID INT NULL,
+      Description TEXT NULL,
+      HeightRequirementCm INT NULL,
+      DurationMinutes INT NULL,
+      ThrillLevel ENUM('Low', 'Medium', 'High', 'Extreme') NOT NULL DEFAULT 'Medium',
+      LocationHint VARCHAR(150) NULL,
+      UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (AttractionID),
+      CONSTRAINT fk_vad_attraction FOREIGN KEY (AttractionID) REFERENCES attraction(AttractionID) ON DELETE CASCADE,
+      CONSTRAINT fk_vad_park FOREIGN KEY (ParkID) REFERENCES visitor_park(ParkID) ON DELETE SET NULL
+    )
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS visitor_special_event (
+      EventID INT NOT NULL AUTO_INCREMENT,
+      ParkID INT NULL,
+      EventName VARCHAR(120) NOT NULL,
+      EventDescription TEXT NULL,
+      EventDate DATE NOT NULL,
+      StartTime TIME NULL,
+      EndTime TIME NULL,
+      PRIMARY KEY (EventID),
+      CONSTRAINT fk_vse_park FOREIGN KEY (ParkID) REFERENCES visitor_park(ParkID) ON DELETE SET NULL
+    )
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS visitor_dining_option (
+      DiningID INT NOT NULL AUTO_INCREMENT,
+      AreaID INT NULL,
+      ParkID INT NULL,
+      DiningName VARCHAR(120) NOT NULL,
+      CuisineType VARCHAR(80) NULL,
+      MenuSummary TEXT NULL,
+      IsActive TINYINT(1) NOT NULL DEFAULT 1,
+      PRIMARY KEY (DiningID),
+      CONSTRAINT fk_vdo_area FOREIGN KEY (AreaID) REFERENCES area(AreaID) ON DELETE SET NULL,
+      CONSTRAINT fk_vdo_park FOREIGN KEY (ParkID) REFERENCES visitor_park(ParkID) ON DELETE SET NULL
+    )
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS visitor_promo_code (
+      PromoCodeID INT NOT NULL AUTO_INCREMENT,
+      Code VARCHAR(32) NOT NULL UNIQUE,
+      DiscountType ENUM('Percent', 'Flat') NOT NULL DEFAULT 'Percent',
+      DiscountValue DECIMAL(10,2) NOT NULL,
+      ActiveFrom DATE NULL,
+      ActiveTo DATE NULL,
+      IsActive TINYINT(1) NOT NULL DEFAULT 1,
+      PRIMARY KEY (PromoCodeID)
+    )
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS visitor_order (
+      OrderID INT NOT NULL AUTO_INCREMENT,
+      VisitorID INT NOT NULL,
+      OrderType ENUM('Ticket', 'Dining', 'Merchandise') NOT NULL,
+      OrderTotal DECIMAL(10,2) NOT NULL DEFAULT 0,
+      DiscountAmount DECIMAL(10,2) NOT NULL DEFAULT 0,
+      PromoCodeID INT NULL,
+      PaymentMethod VARCHAR(40) NULL,
+      PaymentStatus ENUM('Pending', 'Paid', 'Failed', 'Refunded') NOT NULL DEFAULT 'Paid',
+      CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (OrderID),
+      CONSTRAINT fk_vo_visitor FOREIGN KEY (VisitorID) REFERENCES visitor(VisitorID) ON DELETE CASCADE,
+      CONSTRAINT fk_vo_promo FOREIGN KEY (PromoCodeID) REFERENCES visitor_promo_code(PromoCodeID) ON DELETE SET NULL
+    )
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS visitor_order_item (
+      OrderItemID INT NOT NULL AUTO_INCREMENT,
+      OrderID INT NOT NULL,
+      ItemType ENUM('Ticket', 'Dining', 'Merchandise') NOT NULL,
+      ItemRefID INT NULL,
+      ItemName VARCHAR(120) NOT NULL,
+      Quantity INT NOT NULL DEFAULT 1,
+      UnitPrice DECIMAL(10,2) NOT NULL DEFAULT 0,
+      TotalPrice DECIMAL(10,2) NOT NULL DEFAULT 0,
+      PRIMARY KEY (OrderItemID),
+      CONSTRAINT fk_voi_order FOREIGN KEY (OrderID) REFERENCES visitor_order(OrderID) ON DELETE CASCADE
+    )
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS visitor_reservation (
+      ReservationID INT NOT NULL AUTO_INCREMENT,
+      VisitorID INT NOT NULL,
+      ReservationType ENUM('FastPass', 'Ride', 'Dining') NOT NULL,
+      AttractionID INT NULL,
+      DiningID INT NULL,
+      ReservationDate DATE NOT NULL,
+      TimeSlot VARCHAR(40) NOT NULL,
+      PartySize INT NOT NULL DEFAULT 1,
+      Status ENUM('Upcoming', 'Cancelled', 'Completed', 'Rescheduled') NOT NULL DEFAULT 'Upcoming',
+      Notes VARCHAR(255) NULL,
+      CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (ReservationID),
+      CONSTRAINT fk_vr_visitor FOREIGN KEY (VisitorID) REFERENCES visitor(VisitorID) ON DELETE CASCADE,
+      CONSTRAINT fk_vr_attraction FOREIGN KEY (AttractionID) REFERENCES attraction(AttractionID) ON DELETE SET NULL,
+      CONSTRAINT fk_vr_dining FOREIGN KEY (DiningID) REFERENCES visitor_dining_option(DiningID) ON DELETE SET NULL
+    )
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS visitor_itinerary_item (
+      ItineraryID INT NOT NULL AUTO_INCREMENT,
+      VisitorID INT NOT NULL,
+      AttractionID INT NULL,
+      ParkID INT NULL,
+      PlannedDate DATE NULL,
+      ItemType ENUM('Wishlist', 'Itinerary') NOT NULL DEFAULT 'Wishlist',
+      Notes VARCHAR(255) NULL,
+      CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (ItineraryID),
+      CONSTRAINT fk_vii_visitor FOREIGN KEY (VisitorID) REFERENCES visitor(VisitorID) ON DELETE CASCADE,
+      CONSTRAINT fk_vii_attraction FOREIGN KEY (AttractionID) REFERENCES attraction(AttractionID) ON DELETE SET NULL,
+      CONSTRAINT fk_vii_park FOREIGN KEY (ParkID) REFERENCES visitor_park(ParkID) ON DELETE SET NULL
+    )
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS visitor_visit_history (
+      VisitHistoryID INT NOT NULL AUTO_INCREMENT,
+      VisitorID INT NOT NULL,
+      ActivityType VARCHAR(50) NOT NULL,
+      ActivitySummary VARCHAR(255) NOT NULL,
+      VisitDateTime TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (VisitHistoryID),
+      CONSTRAINT fk_vvh_visitor FOREIGN KEY (VisitorID) REFERENCES visitor(VisitorID) ON DELETE CASCADE
+    )
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS visitor_feedback_submission (
+      FeedbackID INT NOT NULL AUTO_INCREMENT,
+      VisitorID INT NOT NULL,
+      AttractionID INT NULL,
+      Rating INT NULL,
+      FeedbackType ENUM('Review', 'Complaint', 'General') NOT NULL DEFAULT 'General',
+      Message TEXT NOT NULL,
+      CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (FeedbackID),
+      CONSTRAINT fk_vfs_visitor FOREIGN KEY (VisitorID) REFERENCES visitor(VisitorID) ON DELETE CASCADE,
+      CONSTRAINT fk_vfs_attraction FOREIGN KEY (AttractionID) REFERENCES attraction(AttractionID) ON DELETE SET NULL
+    )
+  `);
+
+  await pool.execute(`
+    INSERT INTO visitor_park (ParkName, LocationText, OpeningTime, ClosingTime, MapImageUrl)
+    SELECT 'Nightmare Nexus Main Park', 'Downtown Theme District', '09:00:00', '22:00:00', '/assets/map-main-park.svg'
+    WHERE NOT EXISTS (SELECT 1 FROM visitor_park)
+  `);
+
+  await pool.execute(`
+    INSERT INTO visitor_promo_code (Code, DiscountType, DiscountValue, ActiveFrom, ActiveTo, IsActive)
+    SELECT 'WELCOME10', 'Percent', 10, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 365 DAY), 1
+    WHERE NOT EXISTS (SELECT 1 FROM visitor_promo_code WHERE Code = 'WELCOME10')
+  `);
+
+  await pool.execute(`
+    INSERT INTO visitor_promo_code (Code, DiscountType, DiscountValue, ActiveFrom, ActiveTo, IsActive)
+    SELECT 'FAMILY25', 'Flat', 25, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 365 DAY), 1
+    WHERE NOT EXISTS (SELECT 1 FROM visitor_promo_code WHERE Code = 'FAMILY25')
+  `);
 }
 
 async function createVisitor({ Name, Phone, Email, PasswordHash, Gender, Age }) {
@@ -39,8 +224,126 @@ async function getVisitorById(VisitorID) {
   return rows[0] || null;
 }
 
+async function updateVisitorProfile(VisitorID, { Name, Phone, Gender, Age }) {
+  const [result] = await pool.execute(
+    `UPDATE visitor
+     SET Name = ?, Phone = ?, Gender = ?, Age = ?
+     WHERE VisitorID = ?`,
+    [Name, Phone || null, Gender || null, Age == null ? null : Number(Age), VisitorID]
+  );
+  return result.affectedRows > 0;
+}
+
+async function addVisitHistory(VisitorID, ActivityType, ActivitySummary) {
+  await pool.execute(
+    `INSERT INTO visitor_visit_history (VisitorID, ActivityType, ActivitySummary) VALUES (?, ?, ?)`,
+    [VisitorID, ActivityType, ActivitySummary]
+  );
+}
+
+async function listVisitHistory(VisitorID) {
+  const [rows] = await pool.execute(
+    `SELECT VisitHistoryID, ActivityType, ActivitySummary, VisitDateTime
+     FROM visitor_visit_history
+     WHERE VisitorID = ?
+     ORDER BY VisitDateTime DESC, VisitHistoryID DESC`,
+    [VisitorID]
+  );
+  return rows;
+}
+
 async function listAreas() {
   const [rows] = await pool.execute(`SELECT AreaID, AreaName FROM area ORDER BY AreaID`);
+  return rows;
+}
+
+async function listParks() {
+  const [rows] = await pool.execute(
+    `SELECT ParkID, ParkName, LocationText, OpeningTime, ClosingTime, MapImageUrl
+     FROM visitor_park
+     WHERE IsActive = 1
+     ORDER BY ParkName`
+  );
+  return rows;
+}
+
+async function listAttractionsWithDetails() {
+  const [rows] = await pool.execute(
+    `SELECT
+        a.AttractionID,
+        a.AttractionName,
+        a.AttractionType,
+        a.Status,
+        a.QueueCount AS WaitTimeMinutes,
+        a.SeverityLevel,
+        ar.AreaName,
+        d.Description,
+        d.HeightRequirementCm,
+        d.DurationMinutes,
+        d.ThrillLevel,
+        d.LocationHint,
+        p.ParkID,
+        p.ParkName
+     FROM attraction a
+     LEFT JOIN area ar ON ar.AreaID = a.AreaID
+     LEFT JOIN visitor_attraction_detail d ON d.AttractionID = a.AttractionID
+     LEFT JOIN visitor_park p ON p.ParkID = d.ParkID
+     ORDER BY a.AttractionName`
+  );
+  return rows;
+}
+
+async function listSpecialEvents() {
+  const [rows] = await pool.execute(
+    `SELECT
+        e.EventID,
+        e.EventName,
+        e.EventDescription,
+        e.EventDate,
+        e.StartTime,
+        e.EndTime,
+        p.ParkName
+     FROM visitor_special_event e
+     LEFT JOIN visitor_park p ON p.ParkID = e.ParkID
+     ORDER BY e.EventDate ASC, e.StartTime ASC`
+  );
+  return rows;
+}
+
+async function listDiningOptions() {
+  const [rows] = await pool.execute(
+    `SELECT
+        d.DiningID,
+        d.DiningName,
+        d.CuisineType,
+        d.MenuSummary,
+        a.AreaName,
+        p.ParkName
+     FROM visitor_dining_option d
+     LEFT JOIN area a ON a.AreaID = d.AreaID
+     LEFT JOIN visitor_park p ON p.ParkID = d.ParkID
+     WHERE d.IsActive = 1
+     ORDER BY d.DiningName`
+  );
+  return rows;
+}
+
+async function listMerchandiseOptions() {
+  const [rows] = await pool.execute(
+    `SELECT
+        i.ItemID,
+        i.ItemName,
+        i.SellPrice,
+        i.DiscountPrice,
+        i.Quantity,
+        rp.RetailName,
+        a.AreaName
+     FROM retailitem i
+     JOIN retailplace rp ON rp.RetailID = i.RetailID
+     LEFT JOIN area a ON a.AreaID = rp.AreaID
+     WHERE i.IsActive = 1
+     ORDER BY i.ItemName`
+  );
   return rows;
 }
 
@@ -80,6 +383,300 @@ async function createTicket(VisitorID, { TicketType, DiscountFor, Price, ExpiryD
     [result.insertId, VisitorID]
   );
   return rows[0] || null;
+}
+
+function mapTicketPayload(payload) {
+  const plan = String(payload.TicketPlan || "SingleDay");
+  const category = String(payload.TicketCategory || "General");
+  let TicketType = "Basic";
+  let DiscountFor = "None";
+  if (category === "Membership" || plan === "SeasonPass") {
+    TicketType = "Membership";
+  } else if (category === "Senior" || category === "Veteran" || category === "Child") {
+    TicketType = "Discount";
+    DiscountFor = category;
+  }
+  return { TicketType, DiscountFor };
+}
+
+async function findPromoCode(code) {
+  if (!code) return null;
+  const [rows] = await pool.execute(
+    `SELECT PromoCodeID, Code, DiscountType, DiscountValue
+     FROM visitor_promo_code
+     WHERE Code = ? AND IsActive = 1
+       AND (ActiveFrom IS NULL OR ActiveFrom <= CURDATE())
+       AND (ActiveTo IS NULL OR ActiveTo >= CURDATE())
+     LIMIT 1`,
+    [String(code).trim().toUpperCase()]
+  );
+  return rows[0] || null;
+}
+
+function applyPromo(total, promo) {
+  if (!promo) return { total, discountAmount: 0 };
+  const rawTotal = Number(total) || 0;
+  let discountAmount = 0;
+  if (promo.DiscountType === "Percent") {
+    discountAmount = (rawTotal * Number(promo.DiscountValue || 0)) / 100;
+  } else {
+    discountAmount = Number(promo.DiscountValue || 0);
+  }
+  if (discountAmount > rawTotal) discountAmount = rawTotal;
+  return {
+    total: Number((rawTotal - discountAmount).toFixed(2)),
+    discountAmount: Number(discountAmount.toFixed(2)),
+  };
+}
+
+async function purchaseTicketForVisitor(
+  VisitorID,
+  { TicketPlan, TicketCategory, Price, ExpiryDate, PromoCode, PaymentMethod }
+) {
+  const promo = await findPromoCode(PromoCode);
+  const { total, discountAmount } = applyPromo(Price, promo);
+  const { TicketType, DiscountFor } = mapTicketPayload({ TicketPlan, TicketCategory });
+
+  const ticket = await createTicket(VisitorID, { TicketType, DiscountFor, Price: total, ExpiryDate });
+  const [orderResult] = await pool.execute(
+    `INSERT INTO visitor_order
+      (VisitorID, OrderType, OrderTotal, DiscountAmount, PromoCodeID, PaymentMethod, PaymentStatus)
+     VALUES (?, 'Ticket', ?, ?, ?, ?, 'Paid')`,
+    [VisitorID, total, discountAmount, promo ? promo.PromoCodeID : null, PaymentMethod || null]
+  );
+  await pool.execute(
+    `INSERT INTO visitor_order_item
+      (OrderID, ItemType, ItemRefID, ItemName, Quantity, UnitPrice, TotalPrice)
+     VALUES (?, 'Ticket', ?, ?, 1, ?, ?)`,
+    [orderResult.insertId, ticket.TicketNumber, `${TicketPlan} (${TicketCategory})`, total, total]
+  );
+
+  await addVisitHistory(VisitorID, "TicketPurchase", `Purchased ${TicketPlan} ticket (${TicketCategory})`);
+  return { ticket, orderId: orderResult.insertId, appliedPromo: promo ? promo.Code : null, discountAmount };
+}
+
+async function createReservationForVisitor(
+  VisitorID,
+  { ReservationType, AttractionID, DiningID, ReservationDate, TimeSlot, PartySize, Notes }
+) {
+  const [result] = await pool.execute(
+    `INSERT INTO visitor_reservation
+      (VisitorID, ReservationType, AttractionID, DiningID, ReservationDate, TimeSlot, PartySize, Status, Notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'Upcoming', ?)`,
+    [
+      VisitorID,
+      ReservationType,
+      AttractionID || null,
+      DiningID || null,
+      ReservationDate,
+      TimeSlot,
+      Number(PartySize || 1),
+      Notes || null,
+    ]
+  );
+  await addVisitHistory(VisitorID, "Reservation", `Booked ${ReservationType} reservation for ${ReservationDate} ${TimeSlot}`);
+  return result.insertId;
+}
+
+async function listReservationsForVisitor(VisitorID) {
+  const [rows] = await pool.execute(
+    `SELECT
+        r.ReservationID,
+        r.ReservationType,
+        r.ReservationDate,
+        r.TimeSlot,
+        r.PartySize,
+        r.Status,
+        r.Notes,
+        a.AttractionName,
+        d.DiningName
+     FROM visitor_reservation r
+     LEFT JOIN attraction a ON a.AttractionID = r.AttractionID
+     LEFT JOIN visitor_dining_option d ON d.DiningID = r.DiningID
+     WHERE r.VisitorID = ?
+     ORDER BY r.ReservationDate ASC, r.TimeSlot ASC`,
+    [VisitorID]
+  );
+  return rows;
+}
+
+async function updateReservationForVisitor(VisitorID, ReservationID, patch) {
+  const [result] = await pool.execute(
+    `UPDATE visitor_reservation
+     SET ReservationDate = ?, TimeSlot = ?, PartySize = ?, Status = ?, Notes = ?
+     WHERE ReservationID = ? AND VisitorID = ?`,
+    [
+      patch.ReservationDate,
+      patch.TimeSlot,
+      Number(patch.PartySize || 1),
+      patch.Status,
+      patch.Notes || null,
+      ReservationID,
+      VisitorID,
+    ]
+  );
+  return result.affectedRows > 0;
+}
+
+async function createItineraryItem(VisitorID, { AttractionID, ParkID, PlannedDate, ItemType, Notes }) {
+  const [result] = await pool.execute(
+    `INSERT INTO visitor_itinerary_item
+      (VisitorID, AttractionID, ParkID, PlannedDate, ItemType, Notes)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [VisitorID, AttractionID || null, ParkID || null, PlannedDate || null, ItemType || "Wishlist", Notes || null]
+  );
+  await addVisitHistory(VisitorID, "Planning", `Added ${ItemType || "Wishlist"} item`);
+  return result.insertId;
+}
+
+async function listItineraryItems(VisitorID) {
+  const [rows] = await pool.execute(
+    `SELECT
+        i.ItineraryID,
+        i.ItemType,
+        i.PlannedDate,
+        i.Notes,
+        a.AttractionName,
+        p.ParkName
+     FROM visitor_itinerary_item i
+     LEFT JOIN attraction a ON a.AttractionID = i.AttractionID
+     LEFT JOIN visitor_park p ON p.ParkID = i.ParkID
+     WHERE i.VisitorID = ?
+     ORDER BY i.CreatedAt DESC`,
+    [VisitorID]
+  );
+  return rows;
+}
+
+async function deleteItineraryItem(VisitorID, ItineraryID) {
+  const [result] = await pool.execute(
+    `DELETE FROM visitor_itinerary_item WHERE ItineraryID = ? AND VisitorID = ?`,
+    [ItineraryID, VisitorID]
+  );
+  return result.affectedRows > 0;
+}
+
+async function createFeedbackSubmission(VisitorID, { AttractionID, Rating, FeedbackType, Message }) {
+  const [result] = await pool.execute(
+    `INSERT INTO visitor_feedback_submission
+      (VisitorID, AttractionID, Rating, FeedbackType, Message)
+     VALUES (?, ?, ?, ?, ?)`,
+    [VisitorID, AttractionID || null, Rating || null, FeedbackType || "General", Message]
+  );
+  await addVisitHistory(VisitorID, "Feedback", `Submitted ${FeedbackType || "General"} feedback`);
+  return result.insertId;
+}
+
+async function listFeedbackSubmissions(VisitorID) {
+  const [rows] = await pool.execute(
+    `SELECT
+        f.FeedbackID,
+        f.Rating,
+        f.FeedbackType,
+        f.Message,
+        f.CreatedAt,
+        a.AttractionName
+     FROM visitor_feedback_submission f
+     LEFT JOIN attraction a ON a.AttractionID = f.AttractionID
+     WHERE f.VisitorID = ?
+     ORDER BY f.CreatedAt DESC`,
+    [VisitorID]
+  );
+  return rows;
+}
+
+async function createDiningOrder(VisitorID, { DiningID, Quantity, UnitPrice, PromoCode, PaymentMethod }) {
+  const totalRaw = Number(Quantity || 1) * Number(UnitPrice || 0);
+  const promo = await findPromoCode(PromoCode);
+  const { total, discountAmount } = applyPromo(totalRaw, promo);
+
+  const [diningRows] = await pool.execute(
+    `SELECT DiningName FROM visitor_dining_option WHERE DiningID = ? LIMIT 1`,
+    [DiningID]
+  );
+  const diningName = diningRows[0] ? diningRows[0].DiningName : "Dining Order";
+
+  const [orderResult] = await pool.execute(
+    `INSERT INTO visitor_order
+      (VisitorID, OrderType, OrderTotal, DiscountAmount, PromoCodeID, PaymentMethod, PaymentStatus)
+     VALUES (?, 'Dining', ?, ?, ?, ?, 'Paid')`,
+    [VisitorID, total, discountAmount, promo ? promo.PromoCodeID : null, PaymentMethod || null]
+  );
+
+  await pool.execute(
+    `INSERT INTO visitor_order_item
+      (OrderID, ItemType, ItemRefID, ItemName, Quantity, UnitPrice, TotalPrice)
+     VALUES (?, 'Dining', ?, ?, ?, ?, ?)`,
+    [orderResult.insertId, DiningID, diningName, Number(Quantity || 1), Number(UnitPrice || 0), total]
+  );
+
+  await addVisitHistory(VisitorID, "DiningOrder", `Placed dining order at ${diningName}`);
+  return orderResult.insertId;
+}
+
+async function createMerchOrder(VisitorID, { ItemID, Quantity, PromoCode, PaymentMethod }) {
+  const [items] = await pool.execute(
+    `SELECT ItemName, COALESCE(DiscountPrice, SellPrice) AS Price
+     FROM retailitem
+     WHERE ItemID = ? AND IsActive = 1
+     LIMIT 1`,
+    [ItemID]
+  );
+  if (!items[0]) return null;
+
+  const unitPrice = Number(items[0].Price || 0);
+  const qty = Number(Quantity || 1);
+  const totalRaw = unitPrice * qty;
+  const promo = await findPromoCode(PromoCode);
+  const { total, discountAmount } = applyPromo(totalRaw, promo);
+
+  const [orderResult] = await pool.execute(
+    `INSERT INTO visitor_order
+      (VisitorID, OrderType, OrderTotal, DiscountAmount, PromoCodeID, PaymentMethod, PaymentStatus)
+     VALUES (?, 'Merchandise', ?, ?, ?, ?, 'Paid')`,
+    [VisitorID, total, discountAmount, promo ? promo.PromoCodeID : null, PaymentMethod || null]
+  );
+
+  await pool.execute(
+    `INSERT INTO visitor_order_item
+      (OrderID, ItemType, ItemRefID, ItemName, Quantity, UnitPrice, TotalPrice)
+     VALUES (?, 'Merchandise', ?, ?, ?, ?, ?)`,
+    [orderResult.insertId, ItemID, items[0].ItemName, qty, unitPrice, total]
+  );
+  await addVisitHistory(VisitorID, "MerchOrder", `Purchased merchandise: ${items[0].ItemName}`);
+  return orderResult.insertId;
+}
+
+async function listOrdersForVisitor(VisitorID) {
+  const [rows] = await pool.execute(
+    `SELECT
+        o.OrderID,
+        o.OrderType,
+        o.OrderTotal,
+        o.DiscountAmount,
+        o.PaymentMethod,
+        o.PaymentStatus,
+        o.CreatedAt,
+        p.Code AS PromoCode
+     FROM visitor_order o
+     LEFT JOIN visitor_promo_code p ON p.PromoCodeID = o.PromoCodeID
+     WHERE o.VisitorID = ?
+     ORDER BY o.CreatedAt DESC, o.OrderID DESC`,
+    [VisitorID]
+  );
+  return rows;
+}
+
+async function listOrderItems(OrderID, VisitorID) {
+  const [rows] = await pool.execute(
+    `SELECT i.OrderItemID, i.ItemType, i.ItemName, i.Quantity, i.UnitPrice, i.TotalPrice
+     FROM visitor_order_item i
+     JOIN visitor_order o ON o.OrderID = i.OrderID
+     WHERE i.OrderID = ? AND o.VisitorID = ?
+     ORDER BY i.OrderItemID`,
+    [OrderID, VisitorID]
+  );
+  return rows;
 }
 
 async function updateTicketForVisitor(VisitorID, TicketNumber, { TicketType, DiscountFor, Price, ExpiryDate }) {
@@ -345,15 +942,37 @@ async function visitorTotalSpentReport(VisitorID) {
 }
 
 module.exports = {
+  ensureVisitorPortalSchema,
   createVisitor,
   getVisitorByEmail,
   getVisitorById,
+  updateVisitorProfile,
+  addVisitHistory,
+  listVisitHistory,
   listAreas,
+  listParks,
+  listAttractionsWithDetails,
+  listSpecialEvents,
+  listDiningOptions,
+  listMerchandiseOptions,
 
   listTicketsForVisitor,
   createTicket,
+  purchaseTicketForVisitor,
   updateTicketForVisitor,
   deleteTicketForVisitor,
+  createReservationForVisitor,
+  listReservationsForVisitor,
+  updateReservationForVisitor,
+  createItineraryItem,
+  listItineraryItems,
+  deleteItineraryItem,
+  createFeedbackSubmission,
+  listFeedbackSubmissions,
+  createDiningOrder,
+  createMerchOrder,
+  listOrdersForVisitor,
+  listOrderItems,
 
   listReviewsForVisitor,
   createReview,

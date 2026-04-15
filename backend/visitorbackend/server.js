@@ -168,12 +168,67 @@ async function handleApi(req, res, method, pathname, query) {
     return true;
   }
 
+  if (pathname === "/api/parks" && method === "GET") {
+    const parks = await q.listParks();
+    sendJson(res, 200, parks);
+    return true;
+  }
+
+  if (pathname === "/api/attractions" && method === "GET") {
+    const attractions = await q.listAttractionsWithDetails();
+    sendJson(res, 200, attractions);
+    return true;
+  }
+
+  if (pathname === "/api/events" && method === "GET") {
+    const events = await q.listSpecialEvents();
+    sendJson(res, 200, events);
+    return true;
+  }
+
+  if (pathname === "/api/dining" && method === "GET") {
+    const dining = await q.listDiningOptions();
+    sendJson(res, 200, dining);
+    return true;
+  }
+
+  if (pathname === "/api/merchandise" && method === "GET") {
+    const merch = await q.listMerchandiseOptions();
+    sendJson(res, 200, merch);
+    return true;
+  }
+
   // Auth-required endpoints
   const visitor = await requireVisitor(req, res);
   if (!visitor) return true;
 
   if (pathname === "/api/visitor/me" && method === "GET") {
     sendJson(res, 200, visitor);
+    return true;
+  }
+
+  if (pathname === "/api/visitor/profile" && method === "PUT") {
+    const body = await readJson(req);
+    if (!body || !body.Name) {
+      sendJson(res, 400, { error: "Name is required" });
+      return true;
+    }
+    const ok = await q.updateVisitorProfile(visitor.VisitorID, {
+      Name: String(body.Name).trim(),
+      Phone: body.Phone ? String(body.Phone).trim() : null,
+      Gender: body.Gender || null,
+      Age: body.Age == null || body.Age === "" ? null : Number(body.Age),
+    });
+    if (!ok) return sendJson(res, 404, { error: "Profile not found" });
+    await q.addVisitHistory(visitor.VisitorID, "ProfileUpdate", "Updated account profile details");
+    const updated = await q.getVisitorById(visitor.VisitorID);
+    sendJson(res, 200, updated);
+    return true;
+  }
+
+  if (pathname === "/api/visitor/visit-history" && method === "GET") {
+    const history = await q.listVisitHistory(visitor.VisitorID);
+    sendJson(res, 200, history);
     return true;
   }
 
@@ -216,6 +271,24 @@ async function handleApi(req, res, method, pathname, query) {
     return true;
   }
 
+  if (pathname === "/api/tickets/purchase" && method === "POST") {
+    const body = await readJson(req);
+    if (!body || !body.TicketPlan || !body.TicketCategory || body.Price == null || !body.ExpiryDate) {
+      sendJson(res, 400, { error: "TicketPlan, TicketCategory, Price, ExpiryDate are required" });
+      return true;
+    }
+    const created = await q.purchaseTicketForVisitor(visitor.VisitorID, {
+      TicketPlan: String(body.TicketPlan),
+      TicketCategory: String(body.TicketCategory),
+      Price: Number(body.Price),
+      ExpiryDate: String(body.ExpiryDate),
+      PromoCode: body.PromoCode ? String(body.PromoCode) : null,
+      PaymentMethod: body.PaymentMethod ? String(body.PaymentMethod) : null,
+    });
+    sendJson(res, 201, created);
+    return true;
+  }
+
   const ticketMatch = pathname.match(/^\/api\/tickets\/(\d+)$/);
   if (ticketMatch) {
     const TicketNumber = Number(ticketMatch[1]);
@@ -251,6 +324,147 @@ async function handleApi(req, res, method, pathname, query) {
       sendJson(res, 200, { ok: true });
       return true;
     }
+  }
+
+  if (pathname === "/api/reservations" && method === "GET") {
+    const reservations = await q.listReservationsForVisitor(visitor.VisitorID);
+    sendJson(res, 200, reservations);
+    return true;
+  }
+
+  if (pathname === "/api/reservations" && method === "POST") {
+    const body = await readJson(req);
+    if (!body || !body.ReservationType || !body.ReservationDate || !body.TimeSlot) {
+      sendJson(res, 400, { error: "ReservationType, ReservationDate, TimeSlot are required" });
+      return true;
+    }
+    const id = await q.createReservationForVisitor(visitor.VisitorID, {
+      ReservationType: String(body.ReservationType),
+      AttractionID: body.AttractionID ? Number(body.AttractionID) : null,
+      DiningID: body.DiningID ? Number(body.DiningID) : null,
+      ReservationDate: String(body.ReservationDate),
+      TimeSlot: String(body.TimeSlot),
+      PartySize: body.PartySize ? Number(body.PartySize) : 1,
+      Notes: body.Notes || null,
+    });
+    sendJson(res, 201, { ReservationID: id });
+    return true;
+  }
+
+  const reservationMatch = pathname.match(/^\/api\/reservations\/(\d+)$/);
+  if (reservationMatch && method === "PUT") {
+    const ReservationID = Number(reservationMatch[1]);
+    const body = await readJson(req);
+    if (!body || !body.ReservationDate || !body.TimeSlot || !body.Status) {
+      sendJson(res, 400, { error: "ReservationDate, TimeSlot, Status are required" });
+      return true;
+    }
+    const ok = await q.updateReservationForVisitor(visitor.VisitorID, ReservationID, {
+      ReservationDate: String(body.ReservationDate),
+      TimeSlot: String(body.TimeSlot),
+      PartySize: body.PartySize ? Number(body.PartySize) : 1,
+      Status: String(body.Status),
+      Notes: body.Notes || null,
+    });
+    if (!ok) return sendJson(res, 404, { error: "Reservation not found" });
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  if (pathname === "/api/itinerary" && method === "GET") {
+    const items = await q.listItineraryItems(visitor.VisitorID);
+    sendJson(res, 200, items);
+    return true;
+  }
+
+  if (pathname === "/api/itinerary" && method === "POST") {
+    const body = await readJson(req);
+    const id = await q.createItineraryItem(visitor.VisitorID, {
+      AttractionID: body && body.AttractionID ? Number(body.AttractionID) : null,
+      ParkID: body && body.ParkID ? Number(body.ParkID) : null,
+      PlannedDate: body && body.PlannedDate ? String(body.PlannedDate) : null,
+      ItemType: body && body.ItemType ? String(body.ItemType) : "Wishlist",
+      Notes: body && body.Notes ? String(body.Notes) : null,
+    });
+    sendJson(res, 201, { ItineraryID: id });
+    return true;
+  }
+
+  const itineraryMatch = pathname.match(/^\/api\/itinerary\/(\d+)$/);
+  if (itineraryMatch && method === "DELETE") {
+    const ok = await q.deleteItineraryItem(visitor.VisitorID, Number(itineraryMatch[1]));
+    if (!ok) return sendJson(res, 404, { error: "Itinerary item not found" });
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  if (pathname === "/api/orders" && method === "GET") {
+    const orders = await q.listOrdersForVisitor(visitor.VisitorID);
+    sendJson(res, 200, orders);
+    return true;
+  }
+
+  const orderItemsMatch = pathname.match(/^\/api\/orders\/(\d+)\/items$/);
+  if (orderItemsMatch && method === "GET") {
+    const rows = await q.listOrderItems(Number(orderItemsMatch[1]), visitor.VisitorID);
+    sendJson(res, 200, rows);
+    return true;
+  }
+
+  if (pathname === "/api/orders/dining" && method === "POST") {
+    const body = await readJson(req);
+    if (!body || !body.DiningID || body.UnitPrice == null) {
+      sendJson(res, 400, { error: "DiningID and UnitPrice are required" });
+      return true;
+    }
+    const orderId = await q.createDiningOrder(visitor.VisitorID, {
+      DiningID: Number(body.DiningID),
+      Quantity: body.Quantity ? Number(body.Quantity) : 1,
+      UnitPrice: Number(body.UnitPrice),
+      PromoCode: body.PromoCode || null,
+      PaymentMethod: body.PaymentMethod || null,
+    });
+    sendJson(res, 201, { OrderID: orderId });
+    return true;
+  }
+
+  if (pathname === "/api/orders/merchandise" && method === "POST") {
+    const body = await readJson(req);
+    if (!body || !body.ItemID) {
+      sendJson(res, 400, { error: "ItemID is required" });
+      return true;
+    }
+    const orderId = await q.createMerchOrder(visitor.VisitorID, {
+      ItemID: Number(body.ItemID),
+      Quantity: body.Quantity ? Number(body.Quantity) : 1,
+      PromoCode: body.PromoCode || null,
+      PaymentMethod: body.PaymentMethod || null,
+    });
+    if (!orderId) return sendJson(res, 404, { error: "Merchandise item not found" });
+    sendJson(res, 201, { OrderID: orderId });
+    return true;
+  }
+
+  if (pathname === "/api/feedback-submissions" && method === "GET") {
+    const rows = await q.listFeedbackSubmissions(visitor.VisitorID);
+    sendJson(res, 200, rows);
+    return true;
+  }
+
+  if (pathname === "/api/feedback-submissions" && method === "POST") {
+    const body = await readJson(req);
+    if (!body || !body.Message) {
+      sendJson(res, 400, { error: "Message is required" });
+      return true;
+    }
+    const id = await q.createFeedbackSubmission(visitor.VisitorID, {
+      AttractionID: body.AttractionID ? Number(body.AttractionID) : null,
+      Rating: body.Rating == null || body.Rating === "" ? null : Number(body.Rating),
+      FeedbackType: body.FeedbackType || "General",
+      Message: String(body.Message),
+    });
+    sendJson(res, 201, { FeedbackID: id });
+    return true;
   }
 
   // Reviews CRUD
@@ -462,7 +676,15 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Visitor portal server running on port ${PORT}`);
+async function start() {
+  await q.ensureVisitorPortalSchema();
+  server.listen(PORT, () => {
+    console.log(`Visitor portal server running on port ${PORT}`);
+  });
+}
+
+start().catch((err) => {
+  console.error("Failed to start visitor portal:", err);
+  process.exit(1);
 });
 
