@@ -1,34 +1,19 @@
 // maintenanceBackend/server.js
 const http = require("http");
 const url = require("url");
-const db = require("./db"); // make sure maintenanceBackend/db.js exists
+const db = require("./db");
 const jwt = require("jsonwebtoken");
-const SECRET = "supersecretkey";
+
+const SECRET = process.env.JWT_SECRET;
 
 // =========================
-// LOGIN
+// HELPERS
 // =========================
-if (parsedUrl.pathname === "/login" && req.method === "POST") {
-  const body = await getBody(req);
-  const { email, password } = body;
-
-  if (email === "maintenance@nightmarenexus.com" && password === "1234") {
-    const token = jwt.sign({ email }, SECRET, { expiresIn: "1h" });
-
-    res.writeHead(200, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ token }));
-  }
-
-  res.writeHead(401);
-  return res.end(JSON.stringify({ error: "Invalid login" }));
-}
 
 function verifyToken(req) {
   const authHeader = req.headers["authorization"];
   if (!authHeader) return null;
-
   const token = authHeader.split(" ")[1];
-
   try {
     return jwt.verify(token, SECRET);
   } catch {
@@ -36,23 +21,29 @@ function verifyToken(req) {
   }
 }
 
-// helper to read POST JSON
 function getBody(req) {
   return new Promise((resolve) => {
     let body = "";
-    req.on("data", chunk => body += chunk.toString());
+    req.on("data", (chunk) => (body += chunk.toString()));
     req.on("end", () => {
-      try { resolve(JSON.parse(body || "{}")); } 
-      catch { resolve({}); }
+      try {
+        resolve(JSON.parse(body || "{}"));
+      } catch {
+        resolve({});
+      }
     });
   });
 }
 
+// =========================
+// SERVER
+// =========================
+
 const server = http.createServer(async (req, res) => {
   console.log("REQUEST:", req.method, req.url);
+
   const parsedUrl = url.parse(req.url, true);
 
-  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -63,22 +54,38 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
+
     // =========================
-    // GET TASKS
+    // LOGIN
     // =========================
-    if (parsedUrl.pathname === "/favicon.ico") {
-      res.writeHead(204);
-      return res.end();
+    if (parsedUrl.pathname === "/login" && req.method === "POST") {
+      const body = await getBody(req);
+      const { email, password } = body;
+
+      if (email === "maintenance@nightmarenexus.com" && password === "1234") {
+        const token = jwt.sign({ email, role: "maintenance" }, SECRET, {
+          expiresIn: "1h",
+        });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ message: "LOGIN SUCCESS", token }));
+      }
+
+      res.writeHead(401, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ error: "Invalid login" }));
     }
+
+    // =========================
+    // ROOT
+    // =========================
     if (parsedUrl.pathname === "/" && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify({
-        service: "maintenanceBackend",
-        status: "OK"
-      }));
+      return res.end(JSON.stringify({ service: "maintenanceBackend", status: "OK" }));
     }
-    if (parsedUrl.pathname === "/tasks" && req.method === "GET") {
 
+    // =========================
+    // TASKS (PROTECTED)
+    // =========================
+    if (parsedUrl.pathname === "/tasks" && req.method === "GET") {
       const user = verifyToken(req);
       if (!user) {
         res.writeHead(401);
@@ -88,14 +95,14 @@ const server = http.createServer(async (req, res) => {
       const [rows] = await db.query(`
         SELECT 
           m.MaintenanceAssignmentID, 
-          e.Name AS EmployeeName, 
+          e.Name        AS EmployeeName, 
           a.AreaName, 
           m.TaskDescription, 
           m.Status, 
-          m.DueDate 
+          DATE_FORMAT(m.DueDate, '%Y-%m-%d') AS DueDate
         FROM maintenanceassignment m
         LEFT JOIN employee e ON m.EmployeeID = e.EmployeeID
-        LEFT JOIN area a ON m.AreaID = a.AreaID
+        LEFT JOIN area     a ON m.AreaID     = a.AreaID
         ORDER BY m.CreatedAt DESC
       `);
 
@@ -104,20 +111,28 @@ const server = http.createServer(async (req, res) => {
     }
 
     // =========================
-    // ADD TASK
+    // ADD TASK (PROTECTED)
     // =========================
-    else if (parsedUrl.pathname === "/addTask" && req.method === "POST") {
+    if (parsedUrl.pathname === "/addTask" && req.method === "POST") {
+      const user = verifyToken(req);
+      if (!user) {
+        res.writeHead(401);
+        return res.end("Unauthorized");
+      }
+
       const body = await getBody(req);
-      await db.query(`
-        INSERT INTO maintenanceassignment (EmployeeID, AreaID, TaskDescription, Status, DueDate)
-        VALUES (?, ?, ?, ?, ?)
-      `, [
-        body.EmployeeID,
-        body.AreaID,
-        body.TaskDescription,
-        body.Status || "Pending",
-        body.DueDate
-      ]);
+
+      await db.query(
+        `INSERT INTO maintenanceassignment (EmployeeID, AreaID, TaskDescription, Status, DueDate)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          body.EmployeeID,
+          body.AreaID   || null,
+          body.TaskDescription,
+          body.Status   || "Pending",
+          body.DueDate  || null,
+        ]
+      );
 
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ message: "Task added" }));
@@ -126,32 +141,22 @@ const server = http.createServer(async (req, res) => {
     // =========================
     // UPDATE TASK
     // =========================
-    else if (parsedUrl.pathname === "/updateTask" && req.method === "POST") {
+    if (parsedUrl.pathname === "/updateTask" && req.method === "POST") {
       const body = await getBody(req);
-      await db.query(`
-        UPDATE maintenanceassignment 
-        SET Status = ? 
-        WHERE MaintenanceAssignmentID = ?
-      `, [body.Status, body.MaintenanceAssignmentID]);
+
+      await db.query(
+        `UPDATE maintenanceassignment SET Status = ? WHERE MaintenanceAssignmentID = ?`,
+        [body.Status, body.MaintenanceAssignmentID]
+      );
 
       res.writeHead(200);
       return res.end("Updated");
     }
 
     // =========================
-    // GET ATTRACTIONS
+    // EMPLOYEES (PROTECTED)
     // =========================
-    else if (parsedUrl.pathname === "/attractions" && req.method === "GET") {
-      const [rows] = await db.query(`SELECT AttractionID, AttractionName, Status FROM attraction`);
-      res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify(rows));
-    }
-
-    // =========================
-    // GET EMPLOYEES
-    // =========================
-    else if (parsedUrl.pathname === "/employees" && req.method === "GET") {
-
+    if (parsedUrl.pathname === "/employees" && req.method === "GET") {
       const user = verifyToken(req);
       if (!user) {
         res.writeHead(401);
@@ -164,17 +169,70 @@ const server = http.createServer(async (req, res) => {
     }
 
     // =========================
-    // REPORTS
+    // ATTRACTIONS (PROTECTED)
+    // Schema: attraction(AttractionID, AttractionName, AttractionType,
+    //                    AreaID, Status ENUM, QueueCount, SeverityLevel)
     // =========================
-    else if (parsedUrl.pathname === "/reports" && req.method === "GET") {
-      const [taskStats] = await db.query(`SELECT Status, COUNT(*) as count FROM maintenanceassignment GROUP BY Status`);
-      const [overdue] = await db.query(`SELECT COUNT(*) as overdueTasks FROM maintenanceassignment WHERE DueDate < CURDATE() AND Status != 'Completed'`);
-      const [areaLoad] = await db.query(`SELECT a.AreaName, COUNT(*) as totalTasks FROM maintenanceassignment m JOIN area a ON m.AreaID = a.AreaID GROUP BY a.AreaName`);
-      
+    if (parsedUrl.pathname === "/attractions" && req.method === "GET") {
+      const user = verifyToken(req);
+      if (!user) {
+        res.writeHead(401);
+        return res.end("Unauthorized");
+      }
+
+      const [rows] = await db.query(`
+        SELECT 
+          att.AttractionID,
+          att.AttractionName,
+          att.AttractionType,
+          att.Status,
+          att.SeverityLevel,
+          att.QueueCount,
+          a.AreaName
+        FROM attraction att
+        LEFT JOIN area a ON att.AreaID = a.AreaID
+        ORDER BY att.AttractionName ASC
+      `);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify(rows));
+    }
+
+    // =========================
+    // REPORTS (PROTECTED)
+    // =========================
+    if (parsedUrl.pathname === "/reports" && req.method === "GET") {
+      const user = verifyToken(req);
+      if (!user) {
+        res.writeHead(401);
+        return res.end("Unauthorized");
+      }
+
+      const [taskStats] = await db.query(`
+        SELECT Status, COUNT(*) AS count 
+        FROM maintenanceassignment 
+        GROUP BY Status
+      `);
+
+      const [overdue] = await db.query(`
+        SELECT COUNT(*) AS overdueTasks 
+        FROM maintenanceassignment 
+        WHERE DueDate < CURDATE() AND Status != 'Completed'
+      `);
+
+      const [areaLoad] = await db.query(`
+        SELECT a.AreaName, COUNT(*) AS totalTasks 
+        FROM maintenanceassignment m 
+        JOIN area a ON m.AreaID = a.AreaID 
+        GROUP BY a.AreaName
+      `);
+
       const advice = [];
-      if (overdue[0].overdueTasks > 3) advice.push("⚠️ Too many overdue tasks — increase staffing.");
+      if (overdue[0].overdueTasks > 3) {
+        advice.push("⚠️ Too many overdue tasks — increase staffing.");
+      }
       if (areaLoad.length > 0) {
-        const busiest = [...areaLoad].sort((a,b)=>b.totalTasks-a.totalTasks)[0];
+        const busiest = [...areaLoad].sort((a, b) => b.totalTasks - a.totalTasks)[0];
         advice.push(`📍 ${busiest.AreaName} has the highest workload.`);
       }
 
@@ -182,10 +240,174 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ taskStats, overdue, areaLoad, advice }));
     }
 
-    else {
-      res.writeHead(404);
-      return res.end("Route not found");
+    // =========================
+    // NOTIFICATIONS (PROTECTED)
+    //
+    // Five sources, all matched to your dump schema:
+    //
+    //  1. activemaintenancealerts VIEW
+    //     → rows auto-inserted by trg_ride_maintenance when an attraction
+    //       is set to Status='NeedsMaintenance'. View filters Handled='No'.
+    //
+    //  2. attraction WHERE Status = 'ClosedDueToWeather'
+    //     → set automatically by trg_weather_shutdown on weather INSERT
+    //
+    //  3. attraction WHERE Status IN ('NeedsMaintenance','UnderMaintenance','Closed')
+    //     → general shutdown / maintenance-required alerts
+    //
+    //  4. maintenanceassignment overdue rows
+    //     → tasks past DueDate that are not Completed
+    //
+    //  5. weather table — any severe/medium entry in the last 3 days
+    //     → surfaces the weather event that triggered shutdowns
+    // =========================
+    if (parsedUrl.pathname === "/notifications" && req.method === "GET") {
+      const user = verifyToken(req);
+      if (!user) {
+        res.writeHead(401);
+        return res.end("Unauthorized");
+      }
+
+      const notifications = [];
+
+      // --- 1. DB-trigger alerts (activemaintenancealerts view) ---
+      // Populated automatically by trg_ride_maintenance.
+      // Columns: AlertID, AttractionName, SeverityLevel, AlertMessage, CreatedAt
+      const [alertRows] = await db.query(`
+        SELECT AlertID, AttractionName, SeverityLevel, AlertMessage,
+               DATE_FORMAT(CreatedAt, '%Y-%m-%d %H:%i') AS CreatedAt
+        FROM activemaintenancealerts
+        ORDER BY CreatedAt DESC
+        LIMIT 20
+      `);
+
+      alertRows.forEach((row) => {
+        notifications.push({
+          type:     "inspection",
+          severity: row.SeverityLevel === "Severe" ? "critical" : "high",
+          title:    `Maintenance Alert: ${row.AttractionName}`,
+          detail:   `${row.AlertMessage} — flagged at ${row.CreatedAt}`,
+        });
+      });
+
+      // --- 2. Weather closures (set by trg_weather_shutdown) ---
+      // trg_weather_shutdown sets Status='ClosedDueToWeather' on INSERT to weather
+      const [weatherClosures] = await db.query(`
+        SELECT att.AttractionName, att.AttractionType, a.AreaName
+        FROM attraction att
+        LEFT JOIN area a ON att.AreaID = a.AreaID
+        WHERE att.Status = 'ClosedDueToWeather'
+        ORDER BY att.AttractionName ASC
+      `);
+
+      weatherClosures.forEach((row) => {
+        notifications.push({
+          type:     "weather",
+          severity: "critical",
+          title:    `Weather Closure: ${row.AttractionName}`,
+          detail:   `${row.AttractionType} in ${row.AreaName || "unknown area"} was shut down by weather trigger. Inspect before reopening.`,
+        });
+      });
+
+      // --- 3. Rides needing or under maintenance / closed ---
+      // attraction.Status ENUM: 'Open','Closed','Restricted',
+      //                         'NeedsMaintenance','UnderMaintenance','ClosedDueToWeather'
+      const [shutdownRides] = await db.query(`
+        SELECT att.AttractionName, att.AttractionType,
+               att.Status, att.SeverityLevel, a.AreaName
+        FROM attraction att
+        LEFT JOIN area a ON att.AreaID = a.AreaID
+        WHERE att.Status IN ('NeedsMaintenance', 'UnderMaintenance', 'Closed')
+        ORDER BY
+          FIELD(att.SeverityLevel, 'Severe', 'Low', 'None'),
+          att.AttractionName ASC
+      `);
+
+      shutdownRides.forEach((row) => {
+        const statusLabel = {
+          NeedsMaintenance: "requires immediate maintenance",
+          UnderMaintenance: "is currently under maintenance",
+          Closed:           "is closed",
+        }[row.Status] || row.Status;
+
+        notifications.push({
+          type:     "shutdown",
+          severity: row.SeverityLevel === "Severe" ? "critical" : "high",
+          title:    `Ride Status: ${row.AttractionName}`,
+          detail:   `${row.AttractionType} in ${row.AreaName || "unknown area"} ${statusLabel}. Severity: ${row.SeverityLevel || "None"}.`,
+        });
+      });
+
+      // --- 4. Overdue maintenance assignments ---
+      const [overdueTasks] = await db.query(`
+        SELECT 
+          m.MaintenanceAssignmentID,
+          e.Name AS EmployeeName,
+          a.AreaName,
+          m.TaskDescription,
+          DATE_FORMAT(m.DueDate, '%Y-%m-%d') AS DueDate
+        FROM maintenanceassignment m
+        LEFT JOIN employee e ON m.EmployeeID = e.EmployeeID
+        LEFT JOIN area     a ON m.AreaID     = a.AreaID
+        WHERE m.DueDate < CURDATE()
+          AND m.Status  != 'Completed'
+        ORDER BY m.DueDate ASC
+        LIMIT 10
+      `);
+
+      overdueTasks.forEach((t) => {
+        const desc = t.TaskDescription.length > 70
+          ? t.TaskDescription.substring(0, 70) + "..."
+          : t.TaskDescription;
+        notifications.push({
+          type:     "overdue",
+          severity: "high",
+          title:    `Overdue Task: ${t.AreaName || "Unknown Area"}`,
+          detail:   `Task #${t.MaintenanceAssignmentID} assigned to ${t.EmployeeName} — due ${t.DueDate}. "${desc}"`,
+        });
+      });
+
+      // --- 5. Recent severe/medium weather events (weather table) ---
+      // weather(WeatherID, WeatherDate, HighTemp, LowTemp,
+      //         SeverityLevel ENUM('Low','Medium','High'),
+      //         AttractionOperationStatus ENUM('Open','Closed','Restricted'))
+      const [recentWeather] = await db.query(`
+        SELECT
+          DATE_FORMAT(WeatherDate, '%Y-%m-%d') AS WeatherDate,
+          HighTemp, LowTemp, SeverityLevel,
+          AttractionOperationStatus
+        FROM weather
+        WHERE SeverityLevel IN ('High', 'Medium')
+          AND WeatherDate >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+        ORDER BY WeatherDate DESC
+        LIMIT 1
+      `);
+
+      if (recentWeather.length > 0) {
+        const w = recentWeather[0];
+        notifications.push({
+          type:     "weather",
+          severity: w.SeverityLevel === "High" ? "critical" : "medium",
+          title:    `Weather Warning — ${w.WeatherDate}`,
+          detail:   `Severity: ${w.SeverityLevel}. Temp range ${w.LowTemp}°–${w.HighTemp}°. Park operation status: ${w.AttractionOperationStatus}. Rides may be affected.`,
+        });
+      }
+
+      // Sort: critical → high → medium
+      const severityOrder = { critical: 0, high: 1, medium: 2 };
+      notifications.sort(
+        (a, b) => severityOrder[a.severity] - severityOrder[b.severity]
+      );
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ notifications }));
     }
+
+    // =========================
+    // 404
+    // =========================
+    res.writeHead(404);
+    res.end("Route not found");
 
   } catch (err) {
     console.error(err);
@@ -195,4 +417,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3003;
-server.listen(PORT, () => console.log("Maintenance server running on port " + PORT));
+server.listen(PORT, () =>
+  console.log("Maintenance server running on port " + PORT)
+);
