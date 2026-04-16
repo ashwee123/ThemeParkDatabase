@@ -116,6 +116,34 @@ if (form) {
 }
 
 // =========================
+// ADD FILTERS
+// =========================
+async function loadMaintenanceReport() {
+  try {
+    const res = await fetch(
+      `${API_BASE}/maintenance-report?severity=High&areaId=101`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (res.status === 401) {
+      logout();
+      return;
+    }
+
+    const data = await res.json();
+    console.log("Maintenance Report:", data);
+
+    // TODO: render into table or UI
+  } catch (err) {
+    console.error("Report error:", err);
+  }
+}
+
+// =========================
 // LOGIN FUNCTION (FIXED)
 // =========================
 async function login() {
@@ -167,3 +195,4 @@ function logout() {
 // INITIAL LOAD
 // =========================
 loadTasks();
+loadMaintenanceReport();

@@ -18,13 +18,15 @@ function verifyToken(req, sendJSON, res) {
     }
 }
 
-function getManagerArea(managerID, callback) {
+function getManagerArea(userID, callback) {
     const sql = `
         SELECT rm.AreaID 
         FROM RetailManager rm
-        WHERE rm.ManagerID = ?
+        JOIN Manager m ON rm.ManagerID = m.ManagerID
+        JOIN users u ON u.Email = m.ManagerEmail
+        WHERE u.UserID = ?
     `;
-    db.query(sql, [managerID], (err, results) => {
+    db.query(sql, [userID], (err, results) => {
         if (err || results.length === 0) return callback(null);
         callback(results[0].AreaID);
     });
