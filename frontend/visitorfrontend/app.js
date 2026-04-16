@@ -47,6 +47,13 @@ function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+function logoutVisitor() {
+  clearToken();
+  showStatus("Logged out successfully.");
+  showAuth(true);
+  $("visitorBadge").textContent = "Guest";
+}
+
 function showStatus(msg, isErr = false) {
   const el = $("globalStatus");
   el.textContent = msg;
@@ -251,10 +258,8 @@ function bindAuthForms() {
 }
 
 function bindAppActions() {
-  $("btnLogout").addEventListener("click", () => {
-    clearToken();
-    location.reload();
-  });
+  $("btnLogout").addEventListener("click", logoutVisitor);
+  $("btnLogoutAccount").addEventListener("click", logoutVisitor);
 
   document.querySelectorAll(".tab-btn").forEach((btn) => btn.addEventListener("click", () => setTab(btn.dataset.tab)));
 
