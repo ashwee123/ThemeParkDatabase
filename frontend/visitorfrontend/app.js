@@ -53,6 +53,13 @@ function showStatus(msg, isErr = false) {
   el.className = isErr ? "status error" : "status";
 }
 
+function setAuthMode(mode) {
+  const isRegister = mode === "register";
+  $("registerPanel").classList.toggle("hidden", !isRegister);
+  $("btnShowLogin").classList.toggle("btn-primary", !isRegister);
+  $("btnShowRegister").classList.toggle("btn-primary", isRegister);
+}
+
 function setTab(name) {
   document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
   document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
@@ -99,6 +106,7 @@ function showAuth(isAuthView) {
   $("authSection").classList.toggle("hidden", !isAuthView);
   $("appSection").classList.toggle("hidden", isAuthView);
   $("btnLogout").classList.toggle("hidden", isAuthView);
+  if (isAuthView) setAuthMode("login");
 }
 
 async function refreshProfile() {
@@ -214,6 +222,9 @@ async function fullRefresh() {
 }
 
 function bindAuthForms() {
+  $("btnShowLogin").addEventListener("click", () => setAuthMode("login"));
+  $("btnShowRegister").addEventListener("click", () => setAuthMode("register"));
+
   $("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
