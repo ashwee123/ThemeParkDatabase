@@ -85,7 +85,7 @@
     <p style="color: var(--text-dim); margin-bottom: 25px;">See maintenance tasks that are currently pending or in progress.
     </p>
 
-    <div id="calendar">
+    <div id="calendar"></div>
       <table class="data-table">
         <thead>
           <tr>
@@ -99,7 +99,6 @@
         </thead>
         <tbody id="tbody-active-schedule"></tbody>
       </table>
-    </div>
   </section>
 
   <!-- ASSIGN TASK -->
@@ -246,9 +245,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadTasks();
     loadMaintenanceReport();
 
-    // Make Schedule the default tab
-    document.querySelector('[data-tab="schedule"]').click();
-
     // 3. Form Submission (with Safety Check)
     const addTaskForm = document.getElementById('form-add-task');
     if (addTaskForm) {
@@ -342,7 +338,7 @@ function renderTables(dataList) {
                 <td>${task.MaintenanceAssignmentID}</td>
                 <td><strong>${task.EmployeeName}</strong></td>
                 <td>${task.AreaName || ''}</td>
-                <td>${task.TaskDescription.substring(0, 40)}...</td>
+                <td>${(task.TaskDescription || "").substring(0, 40)}...</td>
                 <td><span class="${statusClass}">${task.Status}</span></td>
                 <td>${task.DueDate || ''}</td>
 
@@ -579,8 +575,8 @@ function showToast(message) {
     container.appendChild(div);
 
     setTimeout(() => div.remove(), 5000);
-    setInterval(loadAlerts, 10000); // every 10 seconds
 }
+setInterval(loadAlerts, 10000);
 
 async function loadScheduleCalendar() {
     const res = await fetch(`${API_BASE}/tasks`, {

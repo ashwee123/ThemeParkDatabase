@@ -4,7 +4,7 @@
   const db = require("./db");
   const jwt = require("jsonwebtoken");
 
-  const SECRET = process.env.JWT_SECRET;
+  const SECRET = process.env.JWT_SECRET || "dev_secret";
 
   // =========================
   // HELPERS
@@ -312,7 +312,7 @@
 
             ma.TaskDescription,
             ma.Status AS TaskStatus,
-            ma.DueDate
+            ma.DueDate,
 
             ir.ReportType,
             ir.ReportDate
@@ -321,8 +321,8 @@
           LEFT JOIN employee e     ON m.EmployeeID   = e.EmployeeID
           LEFT JOIN attraction att ON m.AttractionID = att.AttractionID
           LEFT JOIN area a         ON att.AreaID     = a.AreaID
-          LEFT JOIN maintenanceassignment ma         ON ma.EmployeeID = e.EmployeeID
-          LEFT JOIN incidentreport ir                ON ir.AttractionID = att.AttractionID
+          LEFT JOIN maintenanceassignment ma ON ma.EmployeeID = e.EmployeeID
+          LEFT JOIN incidentreport ir ON ir.AttractionID = att.AttractionID
 
           WHERE 1=1
             AND (? IS NULL OR m.DateStart >= ?)
