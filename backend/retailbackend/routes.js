@@ -23,12 +23,14 @@ function getManagerArea(userID, callback) {
         SELECT e.AreaID
         FROM users u
         JOIN Employee e ON u.EmployeeID = e.EmployeeID
-        WHERE u.id = ?
+        WHERE u.UserID = ?
         AND u.Role = 'RetailManager'
     `;
 
     db.query(sql, [userID], (err, results) => {
-        if (err || results.length === 0) return callback(null);
+        if (err) return callback(null);
+        if (results.length === 0) return callback(null);
+
         callback(results[0].AreaID);
     });
 }
