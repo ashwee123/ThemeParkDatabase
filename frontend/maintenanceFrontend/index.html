@@ -67,7 +67,7 @@
     <p style="color: var(--text-dim); margin-bottom: 25px;">See maintenance tasks that are currently pending or in progress.
     </p>
 
-    <div class="table-wrap">
+    <div id="calendar">
       <table class="data-table">
         <thead>
           <tr>
@@ -155,6 +155,7 @@
     </div>
 </div>
 
+<div id="toast-container"></div>
 <script>
 const token = localStorage.getItem("token");
 
@@ -188,6 +189,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 } 
                 else if (tab.dataset.tab === 'reports') {
                     loadReports();
+                }
+                else if (tab.dataset.tab === 'schedule') {
+                    loadScheduleCalendar();
                 }
                 else {
                     loadTasks();
@@ -421,6 +425,39 @@ async function loadReports() {
     }
 }
 
+async function loadAlerts() {
+    try {
+        const res = await fetch(`${API_BASE}/alerts`, {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        const alerts = await res.json();
+
+        alerts.forEach(alert => {
+            showToast(alert.AlertMessage);
+        });
+
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function showToast(message) {
+    const container = document.getElementById("toast-container");
+
+    const div = document.createElement("div");
+    div.className = "toast";
+    div.innerText = message;
+
+    container.appendChild(div);
+
+    setTimeout(() => div.remove(), 5000);
+    setInterval(loadAlerts, 10000); // every 10 seconds
+}
 </script>
+
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+
 </body>
 </html>

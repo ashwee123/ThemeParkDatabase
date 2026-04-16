@@ -838,3 +838,19 @@ select:hover {
 .data-table th {
   user-select: none;
 }
+
+.toast {
+    background: #222;
+    color: white;
+    padding: 10px;
+    margin: 5px;
+    border-left: 4px solid red;
+    animation: fadeIn 0.3s ease;
+}
+
+#toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+}
