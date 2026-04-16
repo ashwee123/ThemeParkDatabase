@@ -20,12 +20,13 @@ function verifyToken(req, sendJSON, res) {
 
 function getManagerArea(userID, callback) {
     const sql = `
-        SELECT rm.AreaID 
-        FROM RetailManager rm
-        JOIN Manager m ON rm.ManagerID = m.ManagerID
-        JOIN users u ON u.Email = m.ManagerEmail
+        SELECT e.AreaID
+        FROM users u
+        JOIN Employee e ON u.EmployeeID = e.EmployeeID
         WHERE u.UserID = ?
+        AND u.Role = 'RetailManager'
     `;
+
     db.query(sql, [userID], (err, results) => {
         if (err || results.length === 0) return callback(null);
         callback(results[0].AreaID);
