@@ -23,7 +23,7 @@ function getManagerArea(userID, callback) {
         SELECT e.AreaID
         FROM users u
         JOIN Employee e ON u.EmployeeID = e.EmployeeID
-        WHERE u.UserID = ?
+        WHERE u.id = ?
         AND u.Role = 'RetailManager'
     `;
 
