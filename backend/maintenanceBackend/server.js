@@ -309,7 +309,6 @@
             att.AttractionType,
 
             a.AreaName
-
             ma.TaskDescription,
             ma.Status AS TaskStatus,
             ma.DueDate,
@@ -538,3 +537,9 @@
       res.end(JSON.stringify({ error: err.message }));
     }
   });
+
+  const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
