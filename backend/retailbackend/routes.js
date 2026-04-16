@@ -22,9 +22,9 @@ function getManagerArea(userID, callback) {
     const sql = `
         SELECT e.AreaID
         FROM users u
-        JOIN Employee e ON u.EmployeeID = e.EmployeeID
+        JOIN employee e ON u.EmployeeID = e.EmployeeID
         WHERE u.UserID = ?
-        AND u.Role = 'RetailManager'
+        LIMIT 1
     `;
 
     db.query(sql, [userID], (err, results) => {
@@ -41,7 +41,7 @@ module.exports = function registerRoutes(req, res, url, sendJSON, parseBody) {
     if (!decoded) return;
 
     getManagerArea(decoded.id, (areaID) => {
-        if (!areaID) return sendJSON(res, 403, { error: "Not a retail manager" });
+        if (areaID === null || areaID === undefined) return sendJSON(res, 403, { error: "Not a retail manager" });
 
         // -------------------------------------------------------
         // REPORTS
