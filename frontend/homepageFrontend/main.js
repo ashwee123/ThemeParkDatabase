@@ -41,60 +41,76 @@ if (togglePw && passwordInput) {
 const form = document.getElementById("loginForm");
 if (form) {
   form.addEventListener("submit", async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  const email = document.getElementById("emailInput").value;
-  const password = document.getElementById("passwordInput").value;
+    const email = document.getElementById("emailInput").value.trim().toLowerCase();
+    const password = document.getElementById("passwordInput").value;
+    const loginLoading = document.getElementById("loginLoading");
+    const submitLogin = document.getElementById("submitLogin");
+    const isVisitorLogin =
+      !email.includes("admin") &&
+      !email.includes("employee") &&
+      !email.includes("retail") &&
+      !email.includes("hr") &&
+      email !== "maintenance@nightmarenexus.com";
 
-  const loginLoading = document.getElementById("loginLoading");
-  loginLoading.style.display = "block";
+    loginLoading.style.display = "block";
+    if (submitLogin) submitLogin.disabled = true;
+    showError("");
 
-  try {
-    const API_BASE = "https://themeparkdatabase-w2b6.onrender.com";
+    try {
+      const apiBase = isVisitorLogin
+        ? "https://visitors-portal-backend.onrender.com"
+        : "https://themeparkdatabase-w2b6.onrender.com";
+      const endpoint = isVisitorLogin ? "/api/visitor/login" : "/login";
+      const payload = isVisitorLogin
+        ? { Email: email, Password: password }
+        : { email, password };
 
-    const res = await fetch(`${API_BASE}/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
+      const res = await fetch(`${apiBase}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    const data = await res.json();
-    // 🔐 SAVE TOKEN
-    localStorage.setItem("token", data.token);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.token) {
+        showError(data.error || "Invalid email or password.");
+        return;
+      }
 
-    // ✅ SIMPLE ROLE DETECTION (for now via email)
-    if (email === "maintenance@nightmarenexus.com") {
-      window.location.href = "/maintenance";
-    } 
-    else if (email.includes("admin")) {
-      window.location.href = "/admin";
+      localStorage.setItem("token", data.token);
+
+      if (isVisitorLogin) {
+        window.location.href = "/visitor";
+      } else if (email === "maintenance@nightmarenexus.com") {
+        window.location.href = "/maintenance";
+      } else if (email.includes("admin")) {
+        window.location.href = "/admin";
+      } else if (email.includes("employee")) {
+        window.location.href = "/employee";
+      } else if (email.includes("retail")) {
+        window.location.href = "/retail";
+      } else if (email.includes("hr")) {
+        window.location.href = "/hr";
+      } else {
+        showError("Unknown account type.");
+      }
+    } catch (err) {
+      console.error(err);
+      showError("Server error. Try again.");
+    } finally {
+      loginLoading.style.display = "none";
+      if (submitLogin) submitLogin.disabled = false;
     }
-    else if (email.includes("employee")) {
-      window.location.href = "/employee";
-    }
-    else if (email.includes("retail")) {
-      window.location.href = "/retail";
-    }
-    else if (email.includes("hr")) {
-      window.location.href = "/hr";
-    }
-    else {
-      window.location.href = "/visitor";
-    }
-
-  } catch (err) {
-    console.error(err);
-    loginLoading.style.display = "none";
-    showError("Server error. Try again.");
-  }
-});
+  });
 }
 
 function showError(msg) {
   const errorBox = document.getElementById("loginError");
   if (errorBox) {
-    errorBox.style.display = "block";
-    errorBox.textContent = msg;
+    errorBox.style.display = msg ? "block" : "none";
+    errorBox.textContent = msg || "";
   }
 }
 
