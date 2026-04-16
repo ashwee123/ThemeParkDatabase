@@ -581,6 +581,42 @@ function showToast(message) {
     setTimeout(() => div.remove(), 5000);
     setInterval(loadAlerts, 10000); // every 10 seconds
 }
+
+async function loadScheduleCalendar() {
+    const res = await fetch(`${API_BASE}/tasks`, {
+        headers: { "Authorization": `Bearer ${token}` }
+    });
+
+    const tasks = await res.json();
+
+    const zoneColors = {
+        Zone1: "red",
+        Zone2: "blue",
+        Zone3: "green",
+        Zone4: "orange",
+        Zone5: "purple",
+        Zone6: "brown"
+    };
+
+    const events = tasks.map(task => ({
+        title: `${task.TaskDescription} (${task.EmployeeName})`,
+        start: task.DueDate,
+        color: zoneColors[task.AreaName] || "gray"
+    }));
+
+    const calendarEl = document.getElementById("calendar");
+
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: "dayGridMonth",
+        events: events,
+        height: "auto",
+        eventClick: function(info) {
+            alert(info.event.title);
+        }
+    });
+
+    calendar.render();
+}
 </script>
 
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">

@@ -111,45 +111,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     // =========================
-    // TASKS (PROTECTED)
-    // =========================
-    async function loadScheduleCalendar() {
-      const res = await fetch(`${API_BASE}/tasks`, {
-          headers: { "Authorization": `Bearer ${token}` }
-      });
-
-      const tasks = await res.json();
-
-      const zoneColors = {
-          Zone1: "red",
-          Zone2: "blue",
-          Zone3: "green",
-          Zone4: "orange",
-          Zone5: "purple",
-          Zone6: "brown"
-      };
-
-      const events = tasks.map(task => ({
-          title: `${task.TaskDescription} (${task.EmployeeName})`,
-          start: task.DueDate,
-          color: zoneColors[task.AreaName] || "gray"
-      }));
-
-      const calendarEl = document.getElementById("calendar");
-
-      const calendar = new FullCalendar.Calendar(calendarEl, {
-          initialView: "dayGridMonth",
-          events: events,
-          height: "auto",
-          eventClick: function(info) {
-              alert(info.event.title);
-          }
-      });
-
-      calendar.render();
-    }
-
-    // =========================
     // ADD TASK
     // =========================
     if (parsedUrl.pathname === "/addTask" && req.method === "POST") {
@@ -559,20 +520,18 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-app.get("/alerts", async (req, res) => {
-    try {
-        const [rows] = await db.query(`
-            SELECT * 
-            FROM MaintenanceAlert
-            ORDER BY AlertID DESC
-            LIMIT 20
-        `);
-
-        res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+// =========================
+    // ALERTS
+    // =========================
+    if (parsedUrl.pathname === "/alerts" && req.method === "GET") {
+      const [rows] = await db.query(`
+          SELECT * FROM MaintenanceAlert
+          ORDER BY AlertID DESC
+          LIMIT 20
+      `);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify(rows));
     }
-});
 
 const PORT = process.env.PORT || 3003;
 server.listen(PORT, () =>
