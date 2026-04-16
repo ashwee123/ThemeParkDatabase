@@ -28,6 +28,23 @@
   <section id="panel-reports" class="panel">
     <h2>Reports</h2>
     <div id="reports-container" class="stats-grid"></div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Employee</th>
+                <th>Area</th>
+                <th>Attraction</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Start</th>
+                <th>End</th>
+            </tr>
+            </thead>
+            <tbody id="tbody-report"></tbody>
+        </table>
+    </div>
   </section>
 
   <!-- ALL TASKS -->
@@ -51,6 +68,7 @@
             <th onclick="toggleSort('TaskDescription')">Description</th>
             <th onclick="toggleSort('Status')">Status</th>
             <th onclick="toggleSort('DueDate')">Due Date</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody id="tbody-tasks"></tbody>
@@ -94,6 +112,11 @@
     <form id="form-add-task" class="grid-form">
       
       <div class="form-row">
+
+        <label>Employee Name
+          <input type="text" name="EmployeeName" required>
+        </label>
+
         <label>Employee ID
           <input type="number" name="EmployeeID" required>
         </label>
@@ -102,11 +125,28 @@
           <input type="number" name="AreaID">
         </label>
 
+        <label>Attraction
+          <input type="number" name="Attraction">
+        </label>
+
         <label>Status
           <select name="Status">
             <option value="Pending">Pending</option>
             <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
           </select>
+        </label>
+
+        <label>Weather Severity
+          <select name="Status">
+            <option value="Pending">Low</option>
+            <option value="In Progress">Medium</option>
+            <option value="Completed">High</option>
+          </select>
+        </label>
+
+        <label>Date Created
+          <input type="date" name="DueDate">
         </label>
 
         <label>Due Date
@@ -188,9 +228,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 } 
                 else if (tab.dataset.tab === 'reports') {
                     loadReports();
+                    loadMaintenanceReport();
                 }
                 else {
                     loadTasks();
+                    loadMaintenanceReport();
                 }
             }
         });
@@ -198,6 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Always load tasks on page start
     loadTasks();
+    loadMaintenanceReport();
 
     // Make Schedule the default tab
     document.querySelector('[data-tab="schedule"]').click();
@@ -278,7 +321,6 @@ async function loadPerformance() {
 }
 
 // --- RENDERING TABLES ---
-
 function renderTables(dataList) {
     const tbodyHistory = document.getElementById('tbody-tasks');
     const tbodySchedule = document.getElementById('tbody-active-schedule');
@@ -292,13 +334,18 @@ function renderTables(dataList) {
         const cleanDesc = task.TaskDescription.replace(/'/g, "\\'");
         
         const rowHTML = `
-            <tr onclick="showTaskDetails('${task.EmployeeName}', '${cleanDesc}')" style="cursor:pointer;">
+            <tr>
                 <td>${task.MaintenanceAssignmentID}</td>
                 <td><strong>${task.EmployeeName}</strong></td>
                 <td>${task.AreaName || ''}</td>
                 <td>${task.TaskDescription.substring(0, 40)}...</td>
                 <td><span class="${statusClass}">${task.Status}</span></td>
                 <td>${task.DueDate || ''}</td>
+
+                <td>
+                    <button onclick="editTask(${task.MaintenanceAssignmentID})">Edit</button>
+                    <button onclick="deleteTask(${task.MaintenanceAssignmentID})">Delete</button>
+                </td>
             </tr>`;
 
         if (tbodyHistory) tbodyHistory.innerHTML += rowHTML;
@@ -310,8 +357,53 @@ function renderTables(dataList) {
     });
 }
 
-// --- UI HELPERS ---
+// --- EDIT TASK ---
+async function editTask(id) {
+    const newStatus = prompt("Enter new status (Pending / In Progress / Completed):");
+    const newDesc = prompt("Enter new description:");
 
+    if (!newStatus || !newDesc) return;
+
+    const task = allTasksData.find(t => t.MaintenanceAssignmentID === id);
+
+    await fetch(`${API_BASE}/updateTask`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            MaintenanceAssignmentID: id,
+            EmployeeID: task.EmployeeID,
+            AreaID: task.AreaID,
+            TaskDescription: newDesc,
+            Status: newStatus,
+            DueDate: task.DueDate
+        })
+    });
+
+    loadTasks();
+}
+
+// --- DELETE TASK ---
+async function deleteTask(id) {
+    if (!confirm("Are you sure you want to delete this task?")) return;
+
+    await fetch(`${API_BASE}/deleteTask`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            MaintenanceAssignmentID: id
+        })
+    });
+
+    loadTasks();
+}
+
+// --- UI HELPERS ---
 function showTaskDetails(employee, description) {
     const modal = document.getElementById('task-modal');
     if (modal) {
@@ -387,6 +479,41 @@ if (logoutBtn) {
         // This sends the user back to the main landing page
         window.location.href = "/";
     });
+}
+
+async function loadMaintenanceReport() {
+    const tbody = document.getElementById("tbody-report");
+    if (!tbody) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/maintenance-report`, {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
+
+        const data = await res.json();
+
+        tbody.innerHTML = "";
+
+        data.forEach(row => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${row.MaintenanceID}</td>
+                    <td>${row.EmployeeName || ''}</td>
+                    <td>${row.AreaName || ''}</td>
+                    <td>${row.AttractionName || ''}</td>
+                    <td>${row.Severity || ''}</td>
+                    <td>${row.Status || ''}</td>
+                    <td>${row.DateStart || ''}</td>
+                    <td>${row.DateEnd || "N/A"}</td>
+                </tr>
+            `;
+        });
+
+    } catch (err) {
+        console.error("Maintenance report error:", err);
+    }
 }
 
 async function loadReports() {

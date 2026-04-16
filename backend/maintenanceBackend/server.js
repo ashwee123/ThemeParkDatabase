@@ -142,15 +142,51 @@ const server = http.createServer(async (req, res) => {
     // UPDATE TASK
     // =========================
     if (parsedUrl.pathname === "/updateTask" && req.method === "POST") {
+      const user = verifyToken(req);
+      if (!user) {
+        res.writeHead(401);
+        return res.end("Unauthorized");
+      }
+
       const body = await getBody(req);
 
       await db.query(
-        `UPDATE maintenanceassignment SET Status = ? WHERE MaintenanceAssignmentID = ?`,
-        [body.Status, body.MaintenanceAssignmentID]
+        `UPDATE maintenanceassignment 
+        SET EmployeeID = ?, AreaID = ?, TaskDescription = ?, Status = ?, DueDate = ?
+        WHERE MaintenanceAssignmentID = ?`,
+        [
+          body.EmployeeID,
+          body.AreaID,
+          body.TaskDescription,
+          body.Status,
+          body.DueDate,
+          body.MaintenanceAssignmentID
+        ]
       );
 
-      res.writeHead(200);
-      return res.end("Updated");
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ message: "Task updated" }));
+    }
+
+    // =========================
+    // DELETE TASK
+    // =========================
+    if (parsedUrl.pathname === "/deleteTask" && req.method === "POST") {
+      const user = verifyToken(req);
+      if (!user) {
+        res.writeHead(401);
+        return res.end("Unauthorized");
+      }
+
+      const body = await getBody(req);
+
+      await db.query(
+        `DELETE FROM maintenanceassignment WHERE MaintenanceAssignmentID = ?`,
+        [body.MaintenanceAssignmentID]
+      );
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ message: "Task deleted" }));
     }
 
     // =========================
@@ -238,6 +274,74 @@ const server = http.createServer(async (req, res) => {
 
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ taskStats, overdue, areaLoad, advice }));
+    }
+
+    // =========================
+    // DETAILED MAINTENANCE REPORT
+    // =========================
+    if (parsedUrl.pathname === "/maintenance-report" && req.method === "GET") {
+      const user = verifyToken(req);
+      if (!user) {
+        res.writeHead(401);
+        return res.end("Unauthorized");
+      }
+
+      const {
+        startDate,
+        endDate,
+        severity,
+        employeeId,
+        areaId
+      } = parsedUrl.query;
+
+      const [rows] = await db.query(`
+        SELECT 
+          m.MaintenanceID,
+          DATE_FORMAT(m.DateStart, '%Y-%m-%d') AS DateStart,
+          DATE_FORMAT(m.DateEnd, '%Y-%m-%d')   AS DateEnd,
+          m.Severity,
+          m.Status,
+
+          e.EmployeeID,
+          e.Name AS EmployeeName,
+
+          att.AttractionName,
+          att.AttractionType,
+
+          a.AreaName
+
+          ma.TaskDescription,
+          ma.Status AS TaskStatus,
+          ma.DueDate
+
+          ir.ReportType,
+          ir.ReportDate
+
+        FROM maintenance m
+        LEFT JOIN employee e     ON m.EmployeeID   = e.EmployeeID
+        LEFT JOIN attraction att ON m.AttractionID = att.AttractionID
+        LEFT JOIN area a         ON att.AreaID     = a.AreaID
+        LEFT JOIN maintenanceassignment ma         ON ma.EmployeeID = e.EmployeeID4
+        LEFT JOIN incidentreport ir                ON ir.AttractionID = att.AttractionID
+
+        WHERE 1=1
+          AND (? IS NULL OR m.DateStart >= ?)
+          AND (? IS NULL OR m.DateEnd   <= ?)
+          AND (? IS NULL OR m.Severity  = ?)
+          AND (? IS NULL OR e.EmployeeID = ?)
+          AND (? IS NULL OR a.AreaID     = ?)
+
+        ORDER BY m.DateStart DESC
+      `, [
+        startDate, startDate,
+        endDate, endDate,
+        severity, severity,
+        employeeId, employeeId,
+        areaId, areaId
+      ]);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify(rows));
     }
 
     // =========================
