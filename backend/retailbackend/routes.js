@@ -41,7 +41,9 @@ module.exports = function registerRoutes(req, res, url, sendJSON, parseBody) {
     if (!decoded) return;
 
     getManagerArea(decoded.id, (areaID) => {
-        if (areaID === null || areaID === undefined) return sendJSON(res, 403, { error: "Not a retail manager" });
+        if (areaID === null || areaID === undefined) {
+            return sendJSON(res, 403, { error: "No area assigned" });
+        }
 
         // -------------------------------------------------------
         // REPORTS
