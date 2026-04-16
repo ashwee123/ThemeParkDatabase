@@ -21,14 +21,19 @@ function safeJson(text) {
 }
 
 async function api(path, { method = "GET", body = null, token = null } = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error("Cannot reach backend API. Check Render backend URL/CORS settings.");
+  }
   const raw = await res.text();
   const data = raw ? safeJson(raw) : null;
   if (!res.ok) {
@@ -58,6 +63,18 @@ function showStatus(msg, isErr = false) {
   const el = $("globalStatus");
   el.textContent = msg;
   el.className = isErr ? "status error" : "status";
+}
+
+function showAuthError(msg) {
+  const el = $("authError");
+  if (!el) return;
+  if (!msg) {
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+  el.textContent = msg;
+  el.classList.remove("hidden");
 }
 
 function setAuthMode(mode) {
@@ -234,6 +251,7 @@ function bindAuthForms() {
 
   $("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    showAuthError("");
     try {
       const tokenData = await api("/api/visitor/login", {
         method: "POST",
@@ -243,11 +261,13 @@ function bindAuthForms() {
       await bootApp();
     } catch (err) {
       showStatus(err.message, true);
+      showAuthError(err.message);
     }
   });
 
   $("registerForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    showAuthError("");
     try {
       const tokenData = await api("/api/visitor/register", {
         method: "POST",
@@ -264,6 +284,7 @@ function bindAuthForms() {
       await bootApp();
     } catch (err) {
       showStatus(err.message, true);
+      showAuthError(err.message);
     }
   });
 }
