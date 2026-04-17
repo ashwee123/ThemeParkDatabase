@@ -23,7 +23,7 @@ const server = http.createServer((req, res) => {
 // STATIC FILE SERVING
 // ======================
 
-const PUBLIC_DIR = path.join(__dirname, "public", "frontend");
+const PUBLIC_DIR = path.join(__dirname, "public", "retailfront");
 
 let cleanPath = url.pathname;
 
