@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HR Portal — Sign in</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .login-wrap { max-width: 420px; margin: 3rem auto; padding: 0 1.5rem; position: relative; z-index: 1; }
+    .login-card { background: var(--dark-card); border: 1px solid rgba(139, 0, 0, 0.35); border-radius: var(--radius); padding: 1.75rem; }
+    .login-card h2 { font-family: "Cinzel Decorative", serif; font-size: 1rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold); margin-bottom: 1rem; }
+    .login-card label { display: block; margin-bottom: 0.75rem; color: var(--text-dim); font-size: 0.95rem; }
+    .login-card input { width: 100%; margin-top: 0.35rem; padding: 0.5rem 0.65rem; background: var(--dark-surface); border: 1px solid rgba(201, 168, 76, 0.25); color: var(--bone); border-radius: var(--radius); font-family: inherit; font-size: 1rem; }
+    .login-actions { margin-top: 1.25rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    .login-error { color: var(--blood-light); font-size: 0.95rem; margin-top: 0.75rem; min-height: 1.25rem; }
+  </style>
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <header class="site-header">
+    <h1>HR Manager Portal</h1>
+    <p class="tagline">Sign in with your ThemeParkDB HR account</p>
+  </header>
+  <main class="login-wrap">
+    <div class="login-card">
+      <h2>Sign in</h2>
+      <p class="hint" style="margin-bottom:1rem">Use a row from the <code>Users</code> table with <code>Role = 'hr'</code> (for example <code>hr@nightmarenexus.com</code>). Optional: set <code>HR_AUTH_DISABLED=1</code> in <code>.env</code> to skip login locally.</p>
+      <form id="form-login">
+        <label>Email <input name="email" type="email" autocomplete="username" required /></label>
+        <label>Password <input name="password" type="password" autocomplete="current-password" required /></label>
+        <div class="login-actions">
+          <button type="submit" class="btn btn-primary">Sign in</button>
+          <a class="btn btn-ghost" href="/">Cancel</a>
+        </div>
+      </form>
+      <p id="login-error" class="login-error" role="alert"></p>
+    </div>
+  </main>
+  <script>
+    (function () {
+      var form = document.getElementById("form-login");
+      var err = document.getElementById("login-error");
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        err.textContent = "";
+        var fd = new FormData(form);
+        var email = String(fd.get("email") || "").trim();
+        var password = String(fd.get("password") || "");
+        fetch("/auth/login", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email, password: password }),
+        })
+          .then(function (res) {
+            return res.text().then(function (text) {
+              var data = null;
+              try {
+                data = text ? JSON.parse(text) : null;
+              } catch (e) {
+                data = { error: text || res.statusText };
+              }
+              return { res: res, data: data };
+            });
+          })
+          .then(function (_ref) {
+            var res = _ref.res;
+            var data = _ref.data;
+            if (res.ok) {
+              if (data && data.authDisabled) {
+                window.location.replace("/");
+                return;
+              }
+              window.location.replace("/");
+              return;
+            }
+            var msg = (data && data.error) || res.statusText;
+            if (data && data.hint) msg += " — " + data.hint;
+            err.textContent = msg;
+          })
+          .catch(function (e) {
+            err.textContent = e.message || "Network error";
+          });
+      });
+    })();
+  </script>
+</body>
+</html>
