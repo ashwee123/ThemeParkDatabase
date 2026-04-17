@@ -288,15 +288,29 @@ async function handleApi(req, res, method, pathname, query) {
 
   if (pathname === "/api/tickets/purchase" && method === "POST") {
     const body = await readJson(req);
-    if (!body || !body.TicketPlan || !body.TicketCategory || !body.ExpiryDate) {
-      sendJson(res, 400, { error: "TicketPlan, TicketCategory, ExpiryDate are required" });
+    if (!body || !body.TicketPlan || !body.TicketCategory) {
+      sendJson(res, 400, { error: "TicketPlan, TicketCategory are required" });
+      return true;
+    }
+    const plan = String(body.TicketPlan);
+    const visitDate = body.VisitDate != null && body.VisitDate !== "" ? String(body.VisitDate).slice(0, 10) : null;
+    if (plan !== "SeasonPass" && !visitDate) {
+      sendJson(res, 400, { error: "VisitDate is required for single-day and multi-day tickets" });
+      return true;
+    }
+    const ExpiryDate = q.computeTicketPurchaseExpiryDate({
+      TicketPlan: plan,
+      VisitDate: visitDate,
+      MultiDayCount: body.MultiDayCount,
+    });
+    if (!ExpiryDate) {
+      sendJson(res, 400, { error: "Could not compute ticket expiry; check VisitDate" });
       return true;
     }
     const created = await q.purchaseTicketForVisitor(visitor.VisitorID, {
-      TicketPlan: String(body.TicketPlan),
+      TicketPlan: plan,
       TicketCategory: String(body.TicketCategory),
-      ExpiryDate: String(body.ExpiryDate),
-      PromoCode: body.PromoCode ? String(body.PromoCode) : null,
+      ExpiryDate,
       PaymentMethod: body.PaymentMethod ? String(body.PaymentMethod) : null,
     });
     sendJson(res, 201, created);

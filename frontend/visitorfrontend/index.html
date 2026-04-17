@@ -608,8 +608,8 @@
               <label>Ticket category <select id="ticketCategory"><option value="General">General</option><option value="Senior">Discounted - Seniors</option><option value="Veteran">Discounted - Veterans</option><option value="Child">Discounted - Children</option><option value="Membership">Membership</option></select></label>
               <label>Price (auto-set) <input id="ticketPrice" type="number" min="0" step="0.01" readonly /></label>
               <p id="ticketBenefits" class="hint" style="margin: 0;">Price: $40.00.</p>
-              <label>Expiry date <input id="ticketExpiry" type="date" required /></label>
-              <label>Promo code <input id="ticketPromo" /></label>
+              <label class="ticket-visit-field"><span id="ticketVisitLabel">Visit date</span> <input id="ticketVisitDate" type="date" /></label>
+              <label class="ticket-multiday-field hidden">Number of days <select id="ticketMultiDayCount"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></label>
               <label>Payment method <input id="ticketPaymentMethod" /></label>
               <button class="btn btn-primary" type="submit">Pay and issue ticket</button>
             </form>
@@ -700,7 +700,6 @@
                 </div>
               </div>
             </div>
-            <ul id="diningList"></ul>
           </section>
 
           <section id="merchMenuSection" class="panel hidden" style="margin-top: 14px;">
@@ -756,7 +755,6 @@
               <label>Dining option <select id="diningOrderDining"></select></label>
               <label>Quantity <input id="diningOrderQty" type="number" min="1" value="1" /></label>
               <label>Unit price <input id="diningOrderUnitPrice" type="number" min="0" step="0.01" required /></label>
-              <label>Promo code <input id="diningPromo" /></label>
               <label>Payment method <input id="diningPaymentMethod" /></label>
               <button class="btn btn-primary" type="submit">Pay dining order</button>
             </form>
@@ -764,7 +762,6 @@
               <h3>Pay for merchandise</h3>
               <label>Merch item <select id="merchOrderItem"></select></label>
               <label>Quantity <input id="merchOrderQty" type="number" min="1" value="1" /></label>
-              <label>Promo code <input id="merchPromo" /></label>
               <label>Payment method <input id="merchPaymentMethod" /></label>
               <button class="btn btn-primary" type="submit">Pay merchandise order</button>
             </form>
@@ -772,7 +769,7 @@
         </section>
 
         <section id="tab-orders" class="tab-panel hidden">
-          <div style="overflow:auto;"><table><thead><tr><th>Order ID</th><th>Type</th><th>Total</th><th>Promo</th><th>Payment</th><th>Items</th></tr></thead><tbody id="ordersTbody"></tbody></table></div>
+          <div style="overflow:auto;"><table><thead><tr><th>Order ID</th><th>Type</th><th>Total</th><th>Payment</th><th>Items</th></tr></thead><tbody id="ordersTbody"></tbody></table></div>
           <div class="panel" style="margin-top:14px;"><h3>Order items preview</h3><pre id="orderItemsPreview" style="white-space: pre-wrap;"></pre></div>
         </section>
 

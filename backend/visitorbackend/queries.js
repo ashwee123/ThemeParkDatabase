@@ -8,6 +8,41 @@ function toISODate(d) {
   return `${y}-${m}-${day}`;
 }
 
+function toISODateUTC(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  const y = dt.getUTCFullYear();
+  const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(dt.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function addCalendarDaysISO(isoDateStr, deltaDays) {
+  const s = String(isoDateStr).slice(0, 10);
+  const [y, m, d] = s.split("-").map((n) => Number(n));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + deltaDays);
+  return toISODateUTC(dt);
+}
+
+/** Expiry is stored as a DATE: ticket is valid through the end of that calendar day. */
+function computeTicketPurchaseExpiryDate({ TicketPlan, VisitDate, MultiDayCount }) {
+  const plan = String(TicketPlan || "");
+  if (plan === "SeasonPass") {
+    const y = new Date().getFullYear();
+    return `${y}-12-31`;
+  }
+  const visit = VisitDate ? String(VisitDate).slice(0, 10) : "";
+  if (!visit) return null;
+  if (plan === "SingleDay") return visit;
+  if (plan === "MultiDay") {
+    const n = Number(MultiDayCount);
+    const span = Number.isFinite(n) && n >= 2 ? Math.floor(n) : 2;
+    return addCalendarDaysISO(visit, span - 1);
+  }
+  return visit;
+}
+
 function computeIsActiveFromExpiryDate(expiryDateStr) {
   if (!expiryDateStr) return 1;
   const today = toISODate(new Date());
@@ -509,21 +544,21 @@ function applyPromo(total, promo) {
 
 async function purchaseTicketForVisitor(
   VisitorID,
-  { TicketPlan, TicketCategory, ExpiryDate, PromoCode, PaymentMethod }
+  { TicketPlan, TicketCategory, ExpiryDate, PaymentMethod }
 ) {
-  const promo = await findPromoCode(PromoCode);
   const { TicketType, DiscountFor, BasePrice, MembershipPerks } = mapTicketPayload({
     TicketPlan,
     TicketCategory,
   });
-  const { total, discountAmount } = applyPromo(BasePrice, promo);
+  const total = BasePrice;
+  const discountAmount = 0;
 
   const ticket = await createTicket(VisitorID, { TicketType, DiscountFor, Price: total, ExpiryDate });
   const [orderResult] = await pool.execute(
     `INSERT INTO visitor_order
       (VisitorID, OrderType, OrderTotal, DiscountAmount, PromoCodeID, PaymentMethod, PaymentStatus)
-     VALUES (?, 'Ticket', ?, ?, ?, ?, 'Paid')`,
-    [VisitorID, total, discountAmount, promo ? promo.PromoCodeID : null, PaymentMethod || null]
+     VALUES (?, 'Ticket', ?, ?, NULL, ?, 'Paid')`,
+    [VisitorID, total, discountAmount, PaymentMethod || null]
   );
   await pool.execute(
     `INSERT INTO visitor_order_item
@@ -536,7 +571,7 @@ async function purchaseTicketForVisitor(
   return {
     ticket,
     orderId: orderResult.insertId,
-    appliedPromo: promo ? promo.Code : null,
+    appliedPromo: null,
     discountAmount,
     basePrice: BasePrice,
     membershipPerks: MembershipPerks,
@@ -1030,6 +1065,7 @@ async function visitorTotalSpentReport(VisitorID) {
 }
 
 module.exports = {
+  computeTicketPurchaseExpiryDate,
   ensureVisitorPortalSchema,
   createVisitor,
   getVisitorByEmail,
