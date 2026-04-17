@@ -280,6 +280,17 @@
         overflow: hidden;
         background: rgba(16, 16, 20, 0.9);
       }
+      .image-frame::after {
+        content: "Generating image...";
+        position: absolute;
+        bottom: 8px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 11px;
+        color: rgba(230, 226, 234, 0.45);
+        pointer-events: none;
+      }
       .image-skeleton {
         position: absolute;
         inset: 0;
@@ -297,6 +308,7 @@
       }
       .image-frame.loaded .generated-art { opacity: 1; }
       .image-frame.loaded .image-skeleton { display: none; }
+      .image-frame.loaded::after { display: none; }
       @keyframes image-skeleton-shimmer {
         0% { background-position: 200% 0, 0 0; }
         100% { background-position: -20% 0, 0 0; }

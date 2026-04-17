@@ -302,7 +302,7 @@ function renderGeneratedArtImage(name, width, height, alt) {
         src="${src}"
         data-fallback-src="${fallback}"
         alt="${alt}"
-        loading="lazy"
+        loading="eager"
         decoding="async"
         style="width:${width}px; height:${height}px;"
       />
@@ -655,14 +655,19 @@ async function renderAttractions() {
   $("attractionsGrid").innerHTML = uniqueRows
     .map(
       (a) => `<article class="attraction-card" tabindex="0">
-      <img
-        class="attraction-image"
-        src="${cardImageUrl(a.AttractionName)}"
-        alt="${a.AttractionName}"
-        loading="lazy"
-        decoding="async"
-        onerror="this.src='${fallbackImageUrl(a.AttractionName, 640, 360)}'"
-      />
+      <div class="image-frame" style="width:100%; height:200px;">
+        <div class="image-skeleton"></div>
+        <img
+          class="generated-art attraction-image"
+          src="${cardImageUrl(a.AttractionName)}"
+          data-fallback-src="${fallbackImageUrl(a.AttractionName, 640, 360)}"
+          alt="${a.AttractionName}"
+          loading="eager"
+          decoding="async"
+          style="width:100%; height:200px; object-fit:cover;"
+          onerror="this.src='${fallbackImageUrl(a.AttractionName, 640, 360)}'"
+        />
+      </div>
       <div class="attraction-name">${a.AttractionName}</div>
       <div class="attraction-overlay">
         <p><strong>Height:</strong> ${a.HeightRequirementCm || "-"} cm</p>
@@ -674,6 +679,7 @@ async function renderAttractions() {
     </article>`
     )
     .join("");
+  wireGeneratedImages($("attractionsGrid"));
 }
 
 async function renderParksAndEvents() {
@@ -684,14 +690,19 @@ async function renderParksAndEvents() {
   $("eventsGrid").innerHTML = uniqueEvents
     .map(
       (e) => `<article class="event-card" tabindex="0">
-      <img
-        class="event-image"
-        src="${cardImageUrl(e.EventName)}"
-        alt="${e.EventName}"
-        loading="lazy"
-        decoding="async"
-        onerror="this.src='${fallbackImageUrl(e.EventName, 640, 360)}'"
-      />
+      <div class="image-frame" style="width:100%; height:200px;">
+        <div class="image-skeleton"></div>
+        <img
+          class="generated-art event-image"
+          src="${cardImageUrl(e.EventName)}"
+          data-fallback-src="${fallbackImageUrl(e.EventName, 640, 360)}"
+          alt="${e.EventName}"
+          loading="eager"
+          decoding="async"
+          style="width:100%; height:200px; object-fit:cover;"
+          onerror="this.src='${fallbackImageUrl(e.EventName, 640, 360)}'"
+        />
+      </div>
       <div class="event-name">${e.EventName}</div>
       <div class="event-overlay">
         <p><strong>Date:</strong> ${e.EventDate || "-"}</p>
@@ -702,6 +713,7 @@ async function renderParksAndEvents() {
     </article>`
     )
     .join("");
+  wireGeneratedImages($("eventsGrid"));
 }
 
 async function renderTickets() {
@@ -1120,5 +1132,13 @@ setDiningShopView("dining");
 setParkContentView("attractions");
 renderMerchCart();
 renderDiningCart();
+
+// Pre-warm known attraction and event images immediately on page load.
+const KNOWN_ATTRACTION_NAMES = Object.keys(HORROR_IMAGE_PROMPTS_BY_NAME);
+KNOWN_ATTRACTION_NAMES.forEach((name) => {
+  const img = new Image();
+  img.src = cardImageUrl(name);
+});
+
 bootApp();
 
