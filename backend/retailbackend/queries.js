@@ -27,18 +27,50 @@ const loginManager = (username, password, callback) => {
 // REPORTS
 // -------------------------------------------------------
 
-const getProfitReport = (areaID, startDate, endDate, callback) => {
-    const sql = `
-        SELECT * FROM RetailProfitReport
-        WHERE AreaID = ?
-        AND Date BETWEEN ? AND ?
-    `;
-    db.query(sql, [areaID, startDate, endDate], callback);
-};
-
-const getDamagedStolenReport = (areaID, startDate, endDate, callback) => {
+const getProfitReport = (areaID, startDate, endDate, retailID, callback) => {
     const sql = `
         SELECT
+            rp.RetailName,
+            ri.ItemName,
+            SUM(CASE WHEN tl.Type IN ('Normal', 'Discount') THEN tl.Quantity ELSE 0 END) AS UnitsSold,
+            SUM(CASE WHEN tl.Type IN ('Normal', 'Discount') THEN COALESCE(tl.TotalCost, 0) ELSE 0 END) AS Revenue,
+            SUM(CASE WHEN tl.Type IN ('Normal', 'Discount') THEN COALESCE(ri.BuyPrice, 0) * tl.Quantity ELSE 0 END) AS COGS,
+            SUM(CASE WHEN tl.Type = 'Discount' THEN 1 ELSE 0 END) AS DiscountTransactions,
+            SUM(CASE WHEN tl.Type = 'Damaged' THEN tl.Quantity ELSE 0 END) AS DamagedCount,
+            SUM(CASE WHEN tl.Type = 'Stolen' THEN tl.Quantity ELSE 0 END) AS StolenCount
+        FROM TransactionLog tl
+        JOIN RetailItem ri  ON tl.ItemID   = ri.ItemID
+        JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
+        WHERE rp.AreaID = ?
+        AND tl.Date BETWEEN ? AND ?
+        AND (? IS NULL OR rp.RetailID = ?)
+        GROUP BY rp.RetailID, rp.RetailName, ri.ItemID, ri.ItemName
+        ORDER BY rp.RetailName ASC, ri.ItemName ASC
+    `;
+    db.query(sql, [areaID, startDate, endDate, retailID, retailID], (err, results) => {
+        if (err) return callback(err);
+
+        const enriched = results.map(row => {
+            const revenue = Number(row.Revenue) || 0;
+            const cogs = Number(row.COGS) || 0;
+            const grossProfit = revenue - cogs;
+            const grossMarginPct = revenue === 0 ? 0 : (grossProfit / revenue) * 100;
+
+            return {
+                ...row,
+                GrossProfit: grossProfit,
+                GrossMarginPct: grossMarginPct
+            };
+        });
+
+        callback(null, enriched);
+    });
+};
+
+const getDamagedStolenReport = (areaID, startDate, endDate, retailID, callback) => {
+    const sql = `
+        SELECT
+            rp.RetailName,
             ri.ItemName,
             tl.Type,
             tl.Quantity,
@@ -50,9 +82,31 @@ const getDamagedStolenReport = (areaID, startDate, endDate, callback) => {
         WHERE rp.AreaID = ?
         AND tl.Type IN ('Damaged', 'Stolen')
         AND tl.Date BETWEEN ? AND ?
+        AND (? IS NULL OR rp.RetailID = ?)
         ORDER BY tl.Date DESC
     `;
-    db.query(sql, [areaID, startDate, endDate], callback);
+    db.query(sql, [areaID, startDate, endDate, retailID, retailID], callback);
+};
+
+const getItemsBoughtReport = (areaID, startDate, endDate, retailID, callback) => {
+    const sql = `
+        SELECT
+            rp.RetailName,
+            ri.ItemName,
+            SUM(tl.Quantity) AS TotalQuantityBought,
+            COUNT(*) AS PurchaseTransactions,
+            SUM(COALESCE(tl.TotalCost, 0)) AS TotalSales
+        FROM TransactionLog tl
+        JOIN RetailItem ri  ON tl.ItemID   = ri.ItemID
+        JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
+        WHERE rp.AreaID = ?
+        AND tl.Type IN ('Normal', 'Discount')
+        AND tl.Date BETWEEN ? AND ?
+        AND (? IS NULL OR rp.RetailID = ?)
+        GROUP BY rp.RetailID, rp.RetailName, ri.ItemID, ri.ItemName
+        ORDER BY TotalQuantityBought DESC, rp.RetailName ASC, ri.ItemName ASC
+    `;
+    db.query(sql, [areaID, startDate, endDate, retailID, retailID], callback);
 };
 
 // -------------------------------------------------------
@@ -256,6 +310,7 @@ module.exports = {
     loginManager,
     getProfitReport,
     getDamagedStolenReport,
+    getItemsBoughtReport,
     getInventory,
     adjustQuantity,
     updateThreshold,
