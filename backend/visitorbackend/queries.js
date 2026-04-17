@@ -268,6 +268,38 @@ async function listParks() {
 }
 
 async function listAttractionsWithDetails() {
+  const allowedAttractionNames = [
+    "Broadcast Hijack",
+    "Escape the Backrooms",
+    "Alternate Invasion",
+    "Looping Day",
+    "Smile Protocol",
+    "Harvest Festival",
+    "Pastor John's Sermon",
+    "The Offering",
+    "Forest of Whispers",
+    "AI Override",
+    "The Last Transmission",
+    "Containment Breach",
+    "Zero-Gravity Situation",
+    "Watchtower Drop",
+    "Cryptid Hunt",
+    "Trail Tour",
+    "Lake Terror",
+    "Camper Safety Orientation",
+    "Psych Ward Tour",
+    "Midnight Stalker",
+    "Final Girl: The Chase",
+    "Execution Alley",
+    "Body Count",
+    "Outbreak: Day Zero",
+    "Evacuation Protocol",
+    "Emergency Broadcast Live",
+    "Containment Collapse",
+    "Last Stand Barricade",
+  ];
+
+  const placeholders = allowedAttractionNames.map(() => "?").join(",");
   const [rows] = await pool.execute(
     `SELECT
         a.AttractionID,
@@ -288,13 +320,17 @@ async function listAttractionsWithDetails() {
      LEFT JOIN area ar ON ar.AreaID = a.AreaID
      LEFT JOIN visitor_attraction_detail d ON d.AttractionID = a.AttractionID
      LEFT JOIN visitor_park p ON p.ParkID = d.ParkID
+     WHERE a.AttractionName IN (${placeholders})
+       AND a.AttractionType <> 'Show'
      ORDER BY a.AttractionName`
+    ,
+    allowedAttractionNames
   );
   return rows;
 }
 
 async function listSpecialEvents() {
-  const [rows] = await pool.execute(
+  const [manualRows] = await pool.execute(
     `SELECT
         e.EventID,
         e.EventName,
@@ -307,7 +343,35 @@ async function listSpecialEvents() {
      LEFT JOIN visitor_park p ON p.ParkID = e.ParkID
      ORDER BY e.EventDate ASC, e.StartTime ASC`
   );
-  return rows;
+
+  const allowedShowNames = [
+    "Broadcast Hijack",
+    "Harvest Festival",
+    "Pastor John's Sermon",
+    "The Last Transmission",
+    "Camper Safety Orientation",
+    "Emergency Broadcast Live",
+  ];
+  const placeholders = allowedShowNames.map(() => "?").join(",");
+  const [showRows] = await pool.execute(
+    `SELECT
+        a.AttractionID AS EventID,
+        a.AttractionName AS EventName,
+        COALESCE(d.Description, CONCAT(a.AttractionName, ' show event')) AS EventDescription,
+        CURDATE() AS EventDate,
+        '19:00:00' AS StartTime,
+        '19:30:00' AS EndTime,
+        p.ParkName
+     FROM attraction a
+     LEFT JOIN visitor_attraction_detail d ON d.AttractionID = a.AttractionID
+     LEFT JOIN visitor_park p ON p.ParkID = d.ParkID
+     WHERE a.AttractionName IN (${placeholders})
+       AND a.AttractionType = 'Show'
+     ORDER BY a.AttractionName`,
+    allowedShowNames
+  );
+
+  return [...manualRows, ...showRows];
 }
 
 async function listDiningOptions() {
