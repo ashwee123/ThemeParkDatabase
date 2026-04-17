@@ -59,6 +59,7 @@ const state = {
   areas: [],
   parks: [],
   attractions: [],
+  events: [],
   dining: [],
   merchandise: [],
   diningShopView: "dining",
@@ -236,11 +237,53 @@ function dedupeAttractions(rows) {
   return out;
 }
 
+function dedupeEvents(rows) {
+  const seen = new Set();
+  const out = [];
+  for (const row of rows || []) {
+    const key = String(row.EventName || "").trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
 function preloadAttractionImages(attractions) {
   for (const a of dedupeAttractions(attractions)) {
     const img = new Image();
     img.src = cardImageUrl(a.AttractionName);
   }
+}
+
+function preloadEventImages(events) {
+  for (const e of dedupeEvents(events)) {
+    const img = new Image();
+    img.src = cardImageUrl(e.EventName);
+  }
+}
+
+function injectImagePreloadLinks(urls) {
+  const head = document.head || document.getElementsByTagName("head")[0];
+  if (!head) return;
+  for (const href of urls) {
+    if (!href) continue;
+    const already = Array.from(head.querySelectorAll('link[rel="preload"][as="image"]')).some(
+      (el) => el.getAttribute("href") === href
+    );
+    if (already) continue;
+    const link = document.createElement("link");
+    link.rel = "preload";
+    link.as = "image";
+    link.href = href;
+    head.appendChild(link);
+  }
+}
+
+function preloadAttractionAndEventLinks(attractions, events) {
+  const attractionUrls = dedupeAttractions(attractions).map((a) => cardImageUrl(a.AttractionName));
+  const eventUrls = dedupeEvents(events).map((e) => cardImageUrl(e.EventName));
+  injectImagePreloadLinks([...attractionUrls, ...eventUrls]);
 }
 
 function fallbackImageUrl(name, width, height) {
@@ -539,16 +582,18 @@ function removeDiningCartItem(key) {
 }
 
 async function loadLookups(token) {
-  const [areas, parks, attractions, dining, merchandise] = await Promise.all([
+  const [areas, parks, attractions, events, dining, merchandise] = await Promise.all([
     api("/api/areas", { token }),
     api("/api/parks", { token }),
     api("/api/attractions", { token }),
+    api("/api/events", { token }),
     api("/api/dining", { token }),
     api("/api/merchandise", { token }),
   ]);
   state.areas = areas;
   state.parks = parks;
   state.attractions = attractions;
+  state.events = events;
   state.dining = dining;
   state.merchandise = merchandise;
 
@@ -559,7 +604,9 @@ async function loadLookups(token) {
   fillSelect("feedbackAttraction", attractions, "AttractionID", "AttractionName", true);
   fillSelect("diningOrderDining", dining, "DiningID", "DiningName", false);
   fillSelect("merchOrderItem", merchandise, "ItemID", "ItemName", false);
+  preloadAttractionAndEventLinks(attractions, events);
   preloadAttractionImages(attractions);
+  preloadEventImages(events);
 
   const zones = Array.from(
     new Set(PARK_ZONES)
@@ -612,7 +659,7 @@ async function renderAttractions() {
         class="attraction-image"
         src="${cardImageUrl(a.AttractionName)}"
         alt="${a.AttractionName}"
-        loading="eager"
+        loading="lazy"
         decoding="async"
         onerror="this.src='${fallbackImageUrl(a.AttractionName, 640, 360)}'"
       />
@@ -631,15 +678,30 @@ async function renderAttractions() {
 
 async function renderParksAndEvents() {
   const events = await api("/api/events", { token: getToken() });
-  $("eventsList").innerHTML = events
+  state.events = events;
+  const uniqueEvents = dedupeEvents(events);
+  preloadEventImages(uniqueEvents);
+  $("eventsGrid").innerHTML = uniqueEvents
     .map(
-      (e) => `<li style="display:flex; gap:10px; align-items:flex-start; margin-bottom:10px;">
-      ${renderGeneratedArtImage(e.EventName, 120, 70, e.EventName)}
-      <div><strong>${e.EventName}</strong> (${e.EventDate}) ${e.StartTime || ""}-${e.EndTime || ""} - ${e.EventDescription || ""}</div>
-    </li>`
+      (e) => `<article class="event-card" tabindex="0">
+      <img
+        class="event-image"
+        src="${cardImageUrl(e.EventName)}"
+        alt="${e.EventName}"
+        loading="lazy"
+        decoding="async"
+        onerror="this.src='${fallbackImageUrl(e.EventName, 640, 360)}'"
+      />
+      <div class="event-name">${e.EventName}</div>
+      <div class="event-overlay">
+        <p><strong>Date:</strong> ${e.EventDate || "-"}</p>
+        <p><strong>Time:</strong> ${(e.StartTime || "-")}${e.EndTime ? ` - ${e.EndTime}` : ""}</p>
+        <p><strong>Park:</strong> ${e.ParkName || "-"}</p>
+        <p><strong>Details:</strong> ${e.EventDescription || "-"}</p>
+      </div>
+    </article>`
     )
     .join("");
-  wireGeneratedImages($("eventsList"));
 }
 
 async function renderTickets() {
