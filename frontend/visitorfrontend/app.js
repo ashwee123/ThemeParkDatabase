@@ -66,6 +66,7 @@ const state = {
   parkContentView: "attractions",
   merchCart: [],
   diningCart: [],
+  visitorEmail: "",
 };
 
 function $(id) {
@@ -78,6 +79,52 @@ function safeJson(text) {
   } catch {
     return null;
   }
+}
+
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+const ORDER_LINE_EMOJI = { Dining: "🍽", Ticket: "🎫", Merchandise: "🛍" };
+const ORDER_LINE_KIND = { Dining: "Dining", Ticket: "Ticket", Merchandise: "Merchandise" };
+
+function formatOrderItemsDisplayHtml(items, ticketsByNumber) {
+  const byNum = ticketsByNumber || {};
+  return (items || [])
+    .map((item) => {
+      const type = String(item.ItemType || "");
+      const emoji = ORDER_LINE_EMOJI[type] || "📦";
+      const kind = ORDER_LINE_KIND[type] || (type || "Item");
+      const title = escapeHtml(item.ItemName || "Item");
+      const qty = Number(item.Quantity || 0);
+      const unit = Number(item.UnitPrice || 0);
+      const total = Number(item.TotalPrice || 0);
+      let extra = "";
+      if (type === "Ticket" && item.ItemRefID != null && item.ItemRefID !== "") {
+        const t = byNum[Number(item.ItemRefID)];
+        if (t) {
+          extra = `<p class="hint" style="margin:8px 0 0;line-height:1.45;">Ticket #${escapeHtml(String(t.TicketNumber))} · ${escapeHtml(String(t.TicketType))} (${escapeHtml(String(t.DiscountFor))})<br/>Expires ${escapeHtml(String(t.ExpiryDate))} · ${t.IsActive ? "Active" : "Expired"}</p>`;
+        }
+      }
+      return `<article class="order-item-card">
+  <div class="order-item-emoji" aria-hidden="true">${emoji}</div>
+  <div class="order-item-body">
+    <div class="order-item-title">${title}</div>
+    <div class="order-item-kind">${escapeHtml(kind)}</div>
+    ${extra}
+    <dl class="order-item-meta">
+      <dt>Quantity</dt><dd>× ${qty}</dd>
+      <dt>Price per item</dt><dd>$${unit.toFixed(2)}</dd>
+      <dt>Total</dt><dd>$${total.toFixed(2)}</dd>
+    </dl>
+  </div>
+</article>`;
+    })
+    .join("");
 }
 
 async function api(path, { method = "GET", body = null, token = null } = {}) {
@@ -153,12 +200,10 @@ function setTab(name) {
       ob.textContent = "";
       ob.classList.add("hidden");
     }
-    const orp = $("orderTicketReservationPanel");
-    if (orp) orp.classList.add("hidden");
-    const det = $("orderDetailTicketsTbody");
-    if (det) det.innerHTML = "";
-    const resDet = $("orderDetailReservationsTbody");
-    if (resDet) resDet.innerHTML = "";
+    const oip = $("orderItemsPanel");
+    if (oip) oip.classList.add("hidden");
+    const oid = $("orderItemsDisplay");
+    if (oid) oid.innerHTML = "";
   }
   document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
   document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
@@ -175,6 +220,29 @@ function showOrdersAfterTransaction(message) {
   setTab("orders");
   const panel = $("tab-orders");
   if (panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function hidePaymentConfirmModal() {
+  const modal = $("paymentConfirmModal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function showPaymentConfirmModal({ orderIds, amount, tagline } = {}) {
+  const modal = $("paymentConfirmModal");
+  const orderEl = $("paymentConfirmOrderNum");
+  const amtEl = $("paymentConfirmAmount");
+  const tagEl = $("paymentConfirmTagline");
+  const emailEl = $("paymentConfirmEmailLine");
+  if (!modal) return;
+  const ids = (Array.isArray(orderIds) ? orderIds : [orderIds]).filter((x) => x != null && x !== "" && !Number.isNaN(Number(x)));
+  if (orderEl) orderEl.textContent = ids.length ? ids.map((id) => `ORD-${Number(id)}`).join(", ") : "—";
+  if (amtEl) amtEl.textContent = `$${Number(amount || 0).toFixed(2)}`;
+  if (tagEl) tagEl.textContent = tagline || "Your booking is all set. See you at the park!";
+  if (emailEl) {
+    const em = state.visitorEmail || "";
+    emailEl.textContent = em ? `Sent to ${em} to show that it went through.` : "Sent to your email to show that it went through.";
+  }
+  modal.classList.remove("hidden");
 }
 
 function fillSelect(id, items, valueKey, labelKey, includeBlank = false) {
@@ -304,9 +372,22 @@ function hashStringToIndex(str, modulo) {
   return Math.abs(h) % modulo;
 }
 
+/** Fixed Pollinations URLs for known attraction/event names (exact or case-insensitive match). */
+function resolveFixedHorrorImageUrl(name) {
+  const key = String(name || "").trim();
+  if (!key) return null;
+  if (HORROR_IMAGE_URL_BY_NAME[key]) return HORROR_IMAGE_URL_BY_NAME[key];
+  const lower = key.toLowerCase();
+  for (const k of Object.keys(HORROR_IMAGE_URL_BY_NAME)) {
+    if (k.toLowerCase() === lower) return HORROR_IMAGE_URL_BY_NAME[k];
+  }
+  return null;
+}
+
 function cardImageUrl(name) {
   const key = String(name || "").trim();
-  if (HORROR_IMAGE_URL_BY_NAME[key]) return HORROR_IMAGE_URL_BY_NAME[key];
+  const fixed = resolveFixedHorrorImageUrl(key);
+  if (fixed) return fixed;
   const prompt = HORROR_IMAGE_PROMPTS_BY_NAME[key] || `${key}, horror theme park attraction poster, cinematic dark style`;
   const seed = hashStringToIndex(key || "default", 999999) + 1;
   return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=640&height=360&seed=${seed}&model=flux&nologo=true`;
@@ -374,6 +455,8 @@ function preloadAttractionAndEventLinks(attractions, events) {
 }
 
 function fallbackImageUrl(name, width, height) {
+  const fixed = resolveFixedHorrorImageUrl(name);
+  if (fixed) return fixed;
   const label = encodeURIComponent(`${name || "Horror Attraction"}\nImage Loading`);
   return `https://placehold.co/${width}x${height}/111014/e6e2ea?text=${label}`;
 }
@@ -731,6 +814,7 @@ function showAuth(isAuthView) {
 async function refreshProfile() {
   const token = getToken();
   const me = await api("/api/visitor/me", { token });
+  state.visitorEmail = me.Email || "";
   $("visitorBadge").textContent = `${me.Name} (${me.Email})`;
   $("profileName").value = me.Name || "";
   $("profilePhone").value = me.Phone || "";
@@ -812,16 +896,11 @@ async function renderParksAndEvents() {
   wireGeneratedImages($("eventsGrid"));
 }
 
-async function renderTickets() {
-  const rows = await api("/api/tickets", { token: getToken() });
-  $("ticketsTbody").innerHTML = rows
-    .map((t) => `<tr><td>${t.TicketNumber}</td><td>${t.TicketType}</td><td>${t.DiscountFor}</td><td>${Number(t.Price).toFixed(2)}</td><td>${t.ExpiryDate}</td><td>${t.IsActive ? "Active" : "Expired"}</td></tr>`)
-    .join("");
-}
-
 async function renderReservations() {
+  const tbody = $("reservationsTbody");
+  if (!tbody) return;
   const rows = await api("/api/reservations", { token: getToken() });
-  $("reservationsTbody").innerHTML = rows
+  tbody.innerHTML = rows
     .map(
       (r) => `<tr>
       <td>${r.ReservationID}</td>
@@ -838,9 +917,18 @@ async function renderReservations() {
 
 async function renderItinerary() {
   const rows = await api("/api/itinerary", { token: getToken() });
-  $("itineraryList").innerHTML = rows
-    .map((i) => `<li>${i.ItemType}: ${i.AttractionName || i.ParkName || "-"} ${i.PlannedDate ? `on ${i.PlannedDate}` : ""} <button class="btn small" data-del-itin="${i.ItineraryID}">Delete</button></li>`)
-    .join("");
+  const line = (i) => {
+    const place = escapeHtml(i.AttractionName || i.ParkName || "-");
+    const when = i.PlannedDate ? ` on ${escapeHtml(String(i.PlannedDate))}` : "";
+    return `<li>${place}${when} <button class="btn small" type="button" data-del-itin="${i.ItineraryID}">Delete</button></li>`;
+  };
+  const itinerary = rows.filter((i) => String(i.ItemType) === "Itinerary");
+  const wishlist = rows.filter((i) => String(i.ItemType) !== "Itinerary");
+  const emptyLi = `<li class="hint" style="list-style:none;padding-left:0;">No items yet.</li>`;
+  const itinEl = $("itineraryListItinerary");
+  const wishEl = $("itineraryListWishlist");
+  if (itinEl) itinEl.innerHTML = itinerary.length ? itinerary.map(line).join("") : emptyLi;
+  if (wishEl) wishEl.innerHTML = wishlist.length ? wishlist.map(line).join("") : emptyLi;
 }
 
 async function renderDiningAndMerch() {
@@ -852,17 +940,15 @@ async function renderDiningAndMerch() {
 }
 
 async function renderOrders() {
-  const panel = $("orderTicketReservationPanel");
-  if (panel) panel.classList.add("hidden");
-  const det = $("orderDetailTicketsTbody");
-  if (det) det.innerHTML = "";
-  const resDet = $("orderDetailReservationsTbody");
-  if (resDet) resDet.innerHTML = "";
+  const oip = $("orderItemsPanel");
+  if (oip) oip.classList.add("hidden");
+  const oid = $("orderItemsDisplay");
+  if (oid) oid.innerHTML = "";
   const rows = await api("/api/orders", { token: getToken() });
   $("ordersTbody").innerHTML = rows
     .map(
       (o) =>
-        `<tr><td>${o.OrderID}</td><td>${o.OrderType}</td><td>${Number(o.OrderTotal).toFixed(2)}</td><td>${o.PaymentStatus}</td><td><button class="btn small" type="button" data-order-items="${o.OrderID}" data-order-type="${String(o.OrderType || "")}">View Items</button></td></tr>`
+        `<tr><td>${o.OrderID}</td><td>${o.OrderType}</td><td>${Number(o.OrderTotal).toFixed(2)}</td><td>${o.PaymentStatus}</td><td><button class="btn small" type="button" data-order-items="${o.OrderID}">View Items</button></td></tr>`
     )
     .join("");
 }
@@ -880,7 +966,6 @@ async function fullRefresh() {
     renderVisitHistory(),
     renderAttractions(),
     renderParksAndEvents(),
-    renderTickets(),
     renderReservations(),
     renderItinerary(),
     renderDiningAndMerch(),
@@ -937,6 +1022,14 @@ function bindAppActions() {
   $("btnLogout").addEventListener("click", logoutVisitor);
   $("btnLogoutAccount").addEventListener("click", logoutVisitor);
 
+  $("paymentConfirmModalClose")?.addEventListener("click", hidePaymentConfirmModal);
+  $("paymentConfirmModalBackdrop")?.addEventListener("click", hidePaymentConfirmModal);
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const m = $("paymentConfirmModal");
+    if (m && !m.classList.contains("hidden")) hidePaymentConfirmModal();
+  });
+
   document.querySelectorAll(".tab-btn").forEach((btn) => btn.addEventListener("click", () => setTab(btn.dataset.tab)));
 
   $("profileForm").addEventListener("submit", async (e) => {
@@ -989,7 +1082,7 @@ function bindAppActions() {
     if (plan === "MultiDay") {
       body.MultiDayCount = Number($("ticketMultiDayCount").value || 2);
     }
-    await api("/api/tickets/purchase", {
+    const created = await api("/api/tickets/purchase", {
       method: "POST",
       token: getToken(),
       body,
@@ -999,7 +1092,12 @@ function bindAppActions() {
     syncTicketFormForPlan();
     updateTicketPricingPreview();
     await fullRefresh();
-    showOrdersAfterTransaction("Payment complete. Click View Items on your new ticket order below for details. Your full ticket and reservation lists are on Tickets & Reservations.");
+    showPaymentConfirmModal({
+      orderIds: [created.orderId],
+      amount: Number(created.ticket && created.ticket.Price != null ? created.ticket.Price : 0),
+      tagline: "Your ticket is issued. See you at the park!",
+    });
+    showOrdersAfterTransaction("Payment complete. Click View Items on your new ticket order below for details. Upcoming reservations are on the Planning tab.");
   });
 
   $("reservationForm").addEventListener("submit", async (e) => {
@@ -1020,7 +1118,7 @@ function bindAppActions() {
     showStatus("Reservation saved.");
     e.target.reset();
     await fullRefresh();
-    showOrdersAfterTransaction("Your reservation is saved. Open Tickets & Reservations to view or cancel it.");
+    showOrdersAfterTransaction("Your reservation is saved. Open Planning to view or cancel it.");
   });
 
   $("reservationsTbody").addEventListener("click", async (e) => {
@@ -1055,7 +1153,7 @@ function bindAppActions() {
     await renderItinerary();
   });
 
-  $("itineraryList").addEventListener("click", async (e) => {
+  $("tab-planning")?.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-del-itin]");
     if (!btn) return;
     await api(`/api/itinerary/${Number(btn.dataset.delItin)}`, { method: "DELETE", token: getToken() });
@@ -1064,17 +1162,23 @@ function bindAppActions() {
 
   $("diningOrderForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    await api("/api/orders/dining", {
+    const qty = Number($("diningOrderQty").value || 1);
+    const unit = Number($("diningOrderUnitPrice").value);
+    const res = await api("/api/orders/dining", {
       method: "POST",
       token: getToken(),
       body: {
         DiningID: Number($("diningOrderDining").value),
-        Quantity: Number($("diningOrderQty").value || 1),
-        UnitPrice: Number($("diningOrderUnitPrice").value),
+        Quantity: qty,
+        UnitPrice: unit,
         PaymentMethod: $("diningPaymentMethod").value || null,
       },
     });
     await renderOrders();
+    showPaymentConfirmModal({
+      orderIds: [res.OrderID],
+      amount: qty * unit,
+    });
   });
 
   $("diningCards").addEventListener("click", (e) => {
@@ -1109,14 +1213,16 @@ function bindAppActions() {
       showStatus("Your dining cart is empty.", true);
       return;
     }
-    const paymentMethod = $("diningPaymentMethod").value || "Card";
+    const paymentMethod = $("diningPaymentMethod").value || "Credit card";
     const fallbackDiningId = Number($("diningOrderDining").value || 0);
     if (!fallbackDiningId) {
       showStatus("Select a dining option before checkout.", true);
       return;
     }
+    const diningOrderIds = [];
+    let diningTotal = 0;
     for (const item of state.diningCart) {
-      await api("/api/orders/dining", {
+      const res = await api("/api/orders/dining", {
         method: "POST",
         token: getToken(),
         body: {
@@ -1126,25 +1232,36 @@ function bindAppActions() {
           PaymentMethod: paymentMethod,
         },
       });
+      diningOrderIds.push(res.OrderID);
+      diningTotal += Number(item.price) * Number(item.qty);
     }
     state.diningCart = [];
     renderDiningCart();
     await renderOrders();
     showStatus("Dining cart checkout complete.");
+    showPaymentConfirmModal({ orderIds: diningOrderIds, amount: diningTotal });
   });
 
   $("merchOrderForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    await api("/api/orders/merchandise", {
+    const itemId = Number($("merchOrderItem").value);
+    const qty = Number($("merchOrderQty").value || 1);
+    const m = state.merchandise.find((x) => Number(x.ItemID) === itemId);
+    const unit = m ? Number(m.DiscountPrice || m.SellPrice || 0) : 0;
+    const res = await api("/api/orders/merchandise", {
       method: "POST",
       token: getToken(),
       body: {
-        ItemID: Number($("merchOrderItem").value),
-        Quantity: Number($("merchOrderQty").value || 1),
+        ItemID: itemId,
+        Quantity: qty,
         PaymentMethod: $("merchPaymentMethod").value || null,
       },
     });
     await renderOrders();
+    showPaymentConfirmModal({
+      orderIds: [res.OrderID],
+      amount: unit * qty,
+    });
   });
 
   $("merchCards").addEventListener("click", (e) => {
@@ -1179,10 +1296,12 @@ function bindAppActions() {
       showStatus("Your merch cart is empty.", true);
       return;
     }
-    const paymentMethod = $("merchPaymentMethod").value || "Card";
+    const paymentMethod = $("merchPaymentMethod").value || "Credit card";
 
+    const merchOrderIds = [];
+    let merchTotal = 0;
     for (const item of state.merchCart) {
-      await api("/api/orders/merchandise", {
+      const res = await api("/api/orders/merchandise", {
         method: "POST",
         token: getToken(),
         body: {
@@ -1191,67 +1310,37 @@ function bindAppActions() {
           PaymentMethod: paymentMethod,
         },
       });
+      merchOrderIds.push(res.OrderID);
+      merchTotal += Number(item.price) * Number(item.qty);
     }
 
     state.merchCart = [];
     renderMerchCart();
     await renderOrders();
     showStatus("Merch cart checkout complete.");
+    showPaymentConfirmModal({ orderIds: merchOrderIds, amount: merchTotal });
   });
 
   $("ordersTbody").addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-order-items]");
     if (!btn) return;
     const orderId = Number(btn.dataset.orderItems);
-    const orderType = String(btn.dataset.orderType || "").trim();
     const rows = await api(`/api/orders/${orderId}/items`, { token: getToken() });
-    const pre = $("orderItemsPreview");
-    if (pre) pre.textContent = JSON.stringify(rows, null, 2);
 
-    const panel = $("orderTicketReservationPanel");
-    const hint = $("orderTicketReservationHint");
-    const detailTbody = $("orderDetailTicketsTbody");
-    const resDetailTbody = $("orderDetailReservationsTbody");
-    if (orderType === "Ticket" && panel && detailTbody) {
-      panel.classList.remove("hidden");
-      if (hint) {
-        hint.textContent =
-          "Details for this ticket purchase. Upcoming reservations on your account are listed below (they are not tied to this order row).";
-      }
+    let ticketsByNumber = {};
+    if (rows.some((r) => String(r.ItemType) === "Ticket")) {
       const tickets = await api("/api/tickets", { token: getToken() });
-      const ticketLine = rows.find((r) => String(r.ItemType) === "Ticket" && r.ItemRefID != null && r.ItemRefID !== "");
-      if (ticketLine) {
-        const tn = Number(ticketLine.ItemRefID);
-        const t = tickets.find((x) => Number(x.TicketNumber) === tn);
-        if (t) {
-          detailTbody.innerHTML = `<tr><td>${t.TicketNumber}</td><td>${t.TicketType}</td><td>${t.DiscountFor}</td><td>${Number(t.Price).toFixed(2)}</td><td>${t.ExpiryDate}</td><td>${t.IsActive ? "Active" : "Expired"}</td></tr>`;
-        } else {
-          detailTbody.innerHTML = `<tr><td>${Number.isFinite(tn) ? tn : "-"}</td><td colspan="5">${ticketLine.ItemName || "Ticket"} — if you just bought this ticket, refresh the page.</td></tr>`;
-        }
-      } else {
-        detailTbody.innerHTML = `<tr><td colspan="6">No ticket line found for this order.</td></tr>`;
-      }
-      if (resDetailTbody) {
-        const resv = await api("/api/reservations", { token: getToken() });
-        resDetailTbody.innerHTML = resv.length
-          ? resv
-              .map(
-                (r) => `<tr>
-          <td>${r.ReservationID}</td>
-          <td>${r.ReservationType}</td>
-          <td>${r.AttractionName || r.DiningName || "-"}</td>
-          <td>${r.ReservationDate}</td>
-          <td>${r.TimeSlot}</td>
-          <td>${r.Status}</td>
-        </tr>`
-              )
-              .join("")
-          : `<tr><td colspan="6">No upcoming reservations.</td></tr>`;
-      }
-    } else {
-      if (panel) panel.classList.add("hidden");
-      if (detailTbody) detailTbody.innerHTML = "";
-      if (resDetailTbody) resDetailTbody.innerHTML = "";
+      ticketsByNumber = Object.fromEntries(tickets.map((t) => [Number(t.TicketNumber), t]));
+    }
+
+    const display = $("orderItemsDisplay");
+    const panel = $("orderItemsPanel");
+    if (display && panel) {
+      display.innerHTML = rows.length
+        ? formatOrderItemsDisplayHtml(rows, ticketsByNumber)
+        : `<p class="hint" style="margin:0;">No line items for this order.</p>`;
+      panel.classList.remove("hidden");
+      panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   });
 
