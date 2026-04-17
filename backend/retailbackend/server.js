@@ -19,40 +19,47 @@ const server = http.createServer((req, res) => {
 
     const url = new URL(req.url, `http://${req.headers.host}`);
 
-    // ======================
-    // STATIC FILE SERVING
-    // ======================
-    let filePath = path.join(
-        __dirname,
-        "retailfront",
-        url.pathname === "/" ? "index.html" : url.pathname
-    );
+// ======================
+// STATIC FILE SERVING
+// ======================
 
-    // Prevent directory traversal attacks
-    if (!filePath.startsWith(path.join(__dirname, "retailfront"))) {
-        res.writeHead(403);
-        res.end("Forbidden");
-        return;
-    }
+let cleanPath = url.pathname;
 
-    if (fs.existsSync(filePath) && fs.lstatSync(filePath).isFile()) {
-        const ext = path.extname(filePath).toLowerCase();
+// remove leading /retailfront if it exists
+cleanPath = cleanPath.replace("/retailfront", "");
 
-        const contentTypes = {
-            ".html": "text/html",
-            ".css": "text/css",
-            ".js": "application/javascript",
-            ".json": "application/json",
-            ".png": "image/png",
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".svg": "image/svg+xml"
-        };
+// default route
+if (cleanPath === "/") {
+    cleanPath = "/index.html";
+}
 
-        res.writeHead(200, { "Content-Type": contentTypes[ext] || "application/octet-stream" });
-        fs.createReadStream(filePath).pipe(res);
-        return;
-    }
+const filePath = path.join(__dirname, "retailfront", cleanPath);
+
+// security check
+if (!filePath.startsWith(path.join(__dirname, "retailfront"))) {
+    res.writeHead(403);
+    res.end("Forbidden");
+    return;
+}
+
+if (fs.existsSync(filePath) && fs.lstatSync(filePath).isFile()) {
+    const ext = path.extname(filePath).toLowerCase();
+
+    const contentTypes = {
+        ".html": "text/html",
+        ".css": "text/css",
+        ".js": "application/javascript",
+        ".json": "application/json",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".svg": "image/svg+xml"
+    };
+
+    res.writeHead(200, { "Content-Type": contentTypes[ext] || "application/octet-stream" });
+    fs.createReadStream(filePath).pipe(res);
+    return;
+}
 
     // ======================
     // HELPERS
