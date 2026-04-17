@@ -20,14 +20,17 @@ function verifyToken(req, sendJSON, res) {
 
 function getManagerArea(userID, callback) {
     const sql = `
-        SELECT rm.AreaID 
-        FROM RetailManager rm
-        JOIN Manager m ON rm.ManagerID = m.ManagerID
-        JOIN users u ON u.Email = m.ManagerEmail
+        SELECT e.AreaID
+        FROM users u
+        JOIN employee e ON u.EmployeeID = e.EmployeeID
         WHERE u.UserID = ?
+        LIMIT 1
     `;
+
     db.query(sql, [userID], (err, results) => {
-        if (err || results.length === 0) return callback(null);
+        if (err) return callback(null);
+        if (results.length === 0) return callback(null);
+
         callback(results[0].AreaID);
     });
 }
@@ -38,7 +41,9 @@ module.exports = function registerRoutes(req, res, url, sendJSON, parseBody) {
     if (!decoded) return;
 
     getManagerArea(decoded.id, (areaID) => {
-        if (!areaID) return sendJSON(res, 403, { error: "Not a retail manager" });
+        if (areaID === null || areaID === undefined) {
+            return sendJSON(res, 403, { error: "No area assigned" });
+        }
 
         // -------------------------------------------------------
         // REPORTS
