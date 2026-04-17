@@ -52,7 +52,8 @@ module.exports = function registerRoutes(req, res, url, sendJSON, parseBody) {
         if (path === "/report" && req.method === "GET") {
             const startDate = url.searchParams.get("startDate");
             const endDate   = url.searchParams.get("endDate");
-            queries.getProfitReport(areaID, startDate, endDate, (err, results) => {
+            const retailID  = url.searchParams.get("retailID");
+            queries.getProfitReport(areaID, startDate, endDate, retailID, (err, results) => {
                 if (err) return sendJSON(res, 500, { error: err.message });
                 sendJSON(res, 200, results);
             });
@@ -60,7 +61,17 @@ module.exports = function registerRoutes(req, res, url, sendJSON, parseBody) {
         } else if (path === "/damaged-stolen" && req.method === "GET") {
             const startDate = url.searchParams.get("startDate");
             const endDate   = url.searchParams.get("endDate");
-            queries.getDamagedStolenReport(areaID, startDate, endDate, (err, results) => {
+            const retailID  = url.searchParams.get("retailID");
+            queries.getDamagedStolenReport(areaID, startDate, endDate, retailID, (err, results) => {
+                if (err) return sendJSON(res, 500, { error: err.message });
+                sendJSON(res, 200, results);
+            });
+
+        } else if (path === "/items-bought" && req.method === "GET") {
+            const startDate = url.searchParams.get("startDate");
+            const endDate   = url.searchParams.get("endDate");
+            const retailID  = url.searchParams.get("retailID");
+            queries.getItemsBoughtReport(areaID, startDate, endDate, retailID, (err, results) => {
                 if (err) return sendJSON(res, 500, { error: err.message });
                 sendJSON(res, 200, results);
             });
