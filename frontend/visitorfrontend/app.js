@@ -224,6 +224,25 @@ function cardImageUrl(name) {
   return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=640&height=360&seed=${seed}&model=flux&nologo=true`;
 }
 
+function dedupeAttractions(rows) {
+  const seen = new Set();
+  const out = [];
+  for (const row of rows || []) {
+    const key = String(row.AttractionName || "").trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
+function preloadAttractionImages(attractions) {
+  for (const a of dedupeAttractions(attractions)) {
+    const img = new Image();
+    img.src = cardImageUrl(a.AttractionName);
+  }
+}
+
 function fallbackImageUrl(name, width, height) {
   const label = encodeURIComponent(`${name || "Horror Attraction"}\nImage Loading`);
   return `https://placehold.co/${width}x${height}/111014/e6e2ea?text=${label}`;
@@ -540,6 +559,7 @@ async function loadLookups(token) {
   fillSelect("feedbackAttraction", attractions, "AttractionID", "AttractionName", true);
   fillSelect("diningOrderDining", dining, "DiningID", "DiningName", false);
   fillSelect("merchOrderItem", merchandise, "ItemID", "ItemName", false);
+  preloadAttractionImages(attractions);
 
   const zones = Array.from(
     new Set(PARK_ZONES)
@@ -584,21 +604,29 @@ async function renderVisitHistory() {
 
 async function renderAttractions() {
   const rows = await api("/api/attractions", { token: getToken() });
-  $("attractionsTbody").innerHTML = rows
+  const uniqueRows = dedupeAttractions(rows);
+  $("attractionsGrid").innerHTML = uniqueRows
     .map(
-      (a) => `<tr>
-      <td>${renderGeneratedArtImage(a.AttractionName, 140, 80, a.AttractionName)}</td>
-      <td>${a.AttractionName}</td>
-      <td>${a.Description || "-"}</td>
-      <td>${a.HeightRequirementCm || "-"}</td>
-      <td>${a.DurationMinutes || "-"}</td>
-      <td>${a.ThrillLevel || "Medium"}</td>
-      <td>${a.Status}</td>
-      <td>${a.WaitTimeMinutes || 0} min</td>
-    </tr>`
+      (a) => `<article class="attraction-card" tabindex="0">
+      <img
+        class="attraction-image"
+        src="${cardImageUrl(a.AttractionName)}"
+        alt="${a.AttractionName}"
+        loading="eager"
+        decoding="async"
+        onerror="this.src='${fallbackImageUrl(a.AttractionName, 640, 360)}'"
+      />
+      <div class="attraction-name">${a.AttractionName}</div>
+      <div class="attraction-overlay">
+        <p><strong>Height:</strong> ${a.HeightRequirementCm || "-"} cm</p>
+        <p><strong>Duration:</strong> ${a.DurationMinutes || "-"} mins</p>
+        <p><strong>Thrill:</strong> ${a.ThrillLevel || "Medium"}</p>
+        <p><strong>Status:</strong> ${a.Status || "Unknown"}</p>
+        <p><strong>Wait:</strong> ${a.WaitTimeMinutes || 0} min</p>
+      </div>
+    </article>`
     )
     .join("");
-  wireGeneratedImages($("attractionsTbody"));
 }
 
 async function renderParksAndEvents() {

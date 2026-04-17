@@ -311,6 +311,42 @@
         background: rgba(15, 15, 18, 0.8);
       }
       .merch-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 10px; }
+      .attraction-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-top: 12px; }
+      .attraction-card {
+        position: relative;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        overflow: hidden;
+        background: rgba(10, 10, 14, 0.92);
+      }
+      .attraction-image {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+        display: block;
+      }
+      .attraction-name {
+        padding: 10px;
+        text-align: center;
+        font-weight: 600;
+      }
+      .attraction-overlay {
+        position: absolute;
+        inset: 0;
+        padding: 12px;
+        display: grid;
+        align-content: end;
+        gap: 4px;
+        background: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.9));
+        opacity: 0;
+        transition: opacity 180ms ease-in-out;
+        pointer-events: none;
+      }
+      .attraction-card:hover .attraction-overlay,
+      .attraction-card:focus-within .attraction-overlay {
+        opacity: 1;
+      }
+      .attraction-overlay p { margin: 0; font-size: 13px; }
       .merch-card {
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 12px;
@@ -510,13 +546,8 @@
             <h3>Events</h3>
             <ul id="eventsList"></ul>
           </div>
-          <div id="attractionsSection" style="overflow:auto; margin-top: 14px;">
-            <table>
-              <thead>
-                <tr><th>Image</th><th>Attraction</th><th>Description</th><th>Height (cm)</th><th>Duration (mins)</th><th>Thrill</th><th>Status</th><th>Wait Time</th></tr>
-              </thead>
-              <tbody id="attractionsTbody"></tbody>
-            </table>
+          <div id="attractionsSection" style="margin-top: 14px;">
+            <div id="attractionsGrid" class="attraction-grid"></div>
           </div>
         </section>
 
