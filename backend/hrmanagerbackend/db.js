@@ -13,11 +13,11 @@ export function getPool() {
   if (pool) return pool;
   const ssl = sslOption();
   pool = mysql.createPool({
-    host: process.env.MYSQL_HOST || "themepark6.mysql.database.azure.com",
-    port: Number(process.env.MYSQL_PORT) || 3306,
-    user: process.env.MYSQL_USER || "root",
-    password: process.env.MYSQL_PASSWORD || "",
-    database: process.env.MYSQL_DATABASE || "newthemepark",
+    host: process.env.MYSQL_HOST || process.env.DB_HOST || "themepark6.mysql.database.azure.com",
+    port: Number(process.env.MYSQL_PORT || process.env.DB_PORT) || 3306,
+    user: process.env.MYSQL_USER || process.env.DB_USER || "root",
+    password: process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || "",
+    database: process.env.MYSQL_DATABASE || process.env.DB_NAME || "newthemepark",
     waitForConnections: true,
     connectionLimit: 10,
     ...(ssl ? { ssl } : {}),
