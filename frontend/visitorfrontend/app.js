@@ -172,10 +172,38 @@ function updateTicketPricingPreview() {
 
   const info = $("ticketBenefits");
   if (!info) return;
-  if (isMembership) {
+  const y = new Date().getFullYear();
+  if (plan === "SeasonPass") {
+    info.textContent = `Price: $${price.toFixed(2)}. Pass valid through Dec 31, ${y}. ${MEMBERSHIP_PERKS_TEXT}`;
+  } else if (isMembership) {
     info.textContent = `Price: $${price.toFixed(2)}. ${MEMBERSHIP_PERKS_TEXT}`;
+  } else if (plan === "MultiDay") {
+    info.textContent = `Price: $${price.toFixed(2)}. Ticket is valid through the last day of your selected visit window.`;
   } else {
-    info.textContent = `Price: $${price.toFixed(2)}.`;
+    info.textContent = `Price: $${price.toFixed(2)}. Ticket expires at the end of your visit date.`;
+  }
+}
+
+function syncTicketFormForPlan() {
+  const plan = $("ticketPlan").value || "SingleDay";
+  const visitWrap = document.querySelector(".ticket-visit-field");
+  const multiWrap = document.querySelector(".ticket-multiday-field");
+  const visitInput = $("ticketVisitDate");
+  if (!visitWrap || !multiWrap || !visitInput) return;
+  const visitLbl = $("ticketVisitLabel");
+  if (visitLbl) visitLbl.textContent = plan === "MultiDay" ? "First visit date" : "Visit date";
+  if (plan === "SeasonPass") {
+    visitWrap.classList.add("hidden");
+    multiWrap.classList.add("hidden");
+    visitInput.removeAttribute("required");
+  } else if (plan === "MultiDay") {
+    visitWrap.classList.remove("hidden");
+    multiWrap.classList.remove("hidden");
+    visitInput.setAttribute("required", "required");
+  } else {
+    visitWrap.classList.remove("hidden");
+    multiWrap.classList.add("hidden");
+    visitInput.setAttribute("required", "required");
   }
 }
 
@@ -439,10 +467,6 @@ function renderDiningList() {
         >+ Add</button>
       </div>
     </article>`)
-    .join("");
-
-  $("diningList").innerHTML = rows
-    .map((d) => `<li><strong>${d.name}</strong> @ ${d.venue} - $${Number(d.price).toFixed(2)}</li>`)
     .join("");
 }
 
@@ -791,7 +815,7 @@ async function renderDiningAndMerch() {
 async function renderOrders() {
   const rows = await api("/api/orders", { token: getToken() });
   $("ordersTbody").innerHTML = rows
-    .map((o) => `<tr><td>${o.OrderID}</td><td>${o.OrderType}</td><td>${Number(o.OrderTotal).toFixed(2)}</td><td>${o.PromoCode || "-"}</td><td>${o.PaymentStatus}</td><td><button class="btn small" data-order-items="${o.OrderID}">View Items</button></td></tr>`)
+    .map((o) => `<tr><td>${o.OrderID}</td><td>${o.OrderType}</td><td>${Number(o.OrderTotal).toFixed(2)}</td><td>${o.PaymentStatus}</td><td><button class="btn small" data-order-items="${o.OrderID}">View Items</button></td></tr>`)
     .join("");
 }
 
@@ -883,8 +907,14 @@ function bindAppActions() {
     await fullRefresh();
   });
 
-  $("ticketCategory").addEventListener("change", updateTicketPricingPreview);
-  $("ticketPlan").addEventListener("change", updateTicketPricingPreview);
+  $("ticketCategory").addEventListener("change", () => {
+    updateTicketPricingPreview();
+    syncTicketFormForPlan();
+  });
+  $("ticketPlan").addEventListener("change", () => {
+    updateTicketPricingPreview();
+    syncTicketFormForPlan();
+  });
   $("diningShopViewSelect").addEventListener("change", (e) => setDiningShopView(e.target.value));
   $("diningSearch").addEventListener("input", renderDiningList);
   $("diningZoneFilter").addEventListener("change", renderDiningList);
@@ -898,19 +928,28 @@ function bindAppActions() {
 
   $("ticketPurchaseForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const plan = $("ticketPlan").value;
+    const visitDate = $("ticketVisitDate").value || null;
+    const body = {
+      TicketPlan: plan,
+      TicketCategory: $("ticketCategory").value,
+      PaymentMethod: $("ticketPaymentMethod").value || null,
+    };
+    if (plan !== "SeasonPass") {
+      body.VisitDate = visitDate;
+    }
+    if (plan === "MultiDay") {
+      body.MultiDayCount = Number($("ticketMultiDayCount").value || 2);
+    }
     await api("/api/tickets/purchase", {
       method: "POST",
       token: getToken(),
-      body: {
-        TicketPlan: $("ticketPlan").value,
-        TicketCategory: $("ticketCategory").value,
-        ExpiryDate: $("ticketExpiry").value,
-        PromoCode: $("ticketPromo").value || null,
-        PaymentMethod: $("ticketPaymentMethod").value || null,
-      },
+      body,
     });
     showStatus("Ticket purchased.");
     e.target.reset();
+    syncTicketFormForPlan();
+    updateTicketPricingPreview();
     await fullRefresh();
   });
 
@@ -982,7 +1021,6 @@ function bindAppActions() {
         DiningID: Number($("diningOrderDining").value),
         Quantity: Number($("diningOrderQty").value || 1),
         UnitPrice: Number($("diningOrderUnitPrice").value),
-        PromoCode: $("diningPromo").value || null,
         PaymentMethod: $("diningPaymentMethod").value || null,
       },
     });
@@ -1022,7 +1060,6 @@ function bindAppActions() {
       return;
     }
     const paymentMethod = $("diningPaymentMethod").value || "Card";
-    const promoCode = $("diningPromo").value || null;
     const fallbackDiningId = Number($("diningOrderDining").value || 0);
     if (!fallbackDiningId) {
       showStatus("Select a dining option before checkout.", true);
@@ -1036,7 +1073,6 @@ function bindAppActions() {
           DiningID: fallbackDiningId,
           Quantity: Number(item.qty),
           UnitPrice: Number(item.price),
-          PromoCode: promoCode,
           PaymentMethod: paymentMethod,
         },
       });
@@ -1055,7 +1091,6 @@ function bindAppActions() {
       body: {
         ItemID: Number($("merchOrderItem").value),
         Quantity: Number($("merchOrderQty").value || 1),
-        PromoCode: $("merchPromo").value || null,
         PaymentMethod: $("merchPaymentMethod").value || null,
       },
     });
@@ -1095,7 +1130,6 @@ function bindAppActions() {
       return;
     }
     const paymentMethod = $("merchPaymentMethod").value || "Card";
-    const promoCode = $("merchPromo").value || null;
 
     for (const item of state.merchCart) {
       await api("/api/orders/merchandise", {
@@ -1104,7 +1138,6 @@ function bindAppActions() {
         body: {
           ItemID: Number(item.itemId),
           Quantity: Number(item.qty),
-          PromoCode: promoCode,
           PaymentMethod: paymentMethod,
         },
       });
@@ -1150,6 +1183,7 @@ async function bootApp() {
     await loadLookups(token);
     showAuth(false);
     await fullRefresh();
+    syncTicketFormForPlan();
     setTab("account");
   } catch (err) {
     clearToken();
@@ -1161,6 +1195,7 @@ async function bootApp() {
 bindAuthForms();
 bindAppActions();
 updateTicketPricingPreview();
+syncTicketFormForPlan();
 setDiningShopView("dining");
 setParkContentView("attractions");
 renderMerchCart();
