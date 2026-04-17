@@ -303,33 +303,24 @@ async function listParks() {
 }
 
 async function listAttractionsWithDetails() {
+  /* Rides / non-shows only — rows with AttractionType = 'Show' appear under /api/events instead. */
   const allowedAttractionNames = [
-    "Broadcast Hijack",
     "Escape the Backrooms",
     "Alternate Invasion",
-    "Looping Day",
-    "Smile Protocol",
-    "Harvest Festival",
-    "Pastor John's Sermon",
     "The Offering",
     "Forest of Whispers",
     "AI Override",
-    "The Last Transmission",
     "Containment Breach",
     "Zero-Gravity Situation",
     "Watchtower Drop",
     "Cryptid Hunt",
     "Trail Tour",
     "Lake Terror",
-    "Camper Safety Orientation",
     "Psych Ward Tour",
     "Midnight Stalker",
     "Final Girl: The Chase",
-    "Execution Alley",
-    "Body Count",
     "Outbreak: Day Zero",
     "Evacuation Protocol",
-    "Emergency Broadcast Live",
     "Containment Collapse",
     "Last Stand Barricade",
   ];
@@ -381,13 +372,15 @@ async function listSpecialEvents() {
 
   const allowedShowNames = [
     "Broadcast Hijack",
+    "Body Count",
+    "Camper Safety Orientation",
+    "Emergency Broadcast Live",
+    "Execution Alley",
     "Harvest Festival",
     "Looping Day",
     "Pastor John's Sermon",
     "Smile Protocol",
     "The Last Transmission",
-    "Camper Safety Orientation",
-    "Emergency Broadcast Live",
   ];
   const placeholders = allowedShowNames.map(() => "?").join(",");
   const [showRows] = await pool.execute(

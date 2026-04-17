@@ -434,6 +434,7 @@ function dedupeEvents(rows) {
 function preloadAttractionImages(attractions) {
   for (const a of dedupeAttractions(attractions)) {
     const img = new Image();
+    img.referrerPolicy = "no-referrer";
     img.src = cardImageUrl(a.AttractionName);
   }
 }
@@ -441,6 +442,7 @@ function preloadAttractionImages(attractions) {
 function preloadEventImages(events) {
   for (const e of dedupeEvents(events)) {
     const img = new Image();
+    img.referrerPolicy = "no-referrer";
     img.src = cardImageUrl(e.EventName);
   }
 }
@@ -486,6 +488,7 @@ function renderGeneratedArtImage(name, width, height, alt) {
         src="${htmlAttrEscapeUrl(src)}"
         data-fallback-src="${htmlAttrEscapeUrl(fallback)}"
         alt="${alt}"
+        referrerpolicy="no-referrer"
         loading="eager"
         decoding="async"
         style="width:${width}px; height:${height}px;"
@@ -856,6 +859,7 @@ async function renderAttractions() {
           src="${htmlAttrEscapeUrl(cardImageUrl(a.AttractionName))}"
           data-fallback-src="${htmlAttrEscapeUrl(fallbackImageUrl(a.AttractionName, 640, 360))}"
           alt="${a.AttractionName}"
+          referrerpolicy="no-referrer"
           loading="eager"
           decoding="async"
           style="width:100%; height:200px; object-fit:cover;"
@@ -890,6 +894,7 @@ async function renderParksAndEvents() {
           src="${htmlAttrEscapeUrl(cardImageUrl(e.EventName))}"
           data-fallback-src="${htmlAttrEscapeUrl(fallbackImageUrl(e.EventName, 640, 360))}"
           alt="${e.EventName}"
+          referrerpolicy="no-referrer"
           loading="eager"
           decoding="async"
           style="width:100%; height:200px; object-fit:cover;"
@@ -1405,6 +1410,7 @@ renderDiningCart();
 const KNOWN_ATTRACTION_NAMES = Object.keys(HORROR_IMAGE_PROMPTS_BY_NAME);
 KNOWN_ATTRACTION_NAMES.forEach((name) => {
   const img = new Image();
+  img.referrerPolicy = "no-referrer";
   img.src = cardImageUrl(name);
 });
 
