@@ -792,7 +792,7 @@ async function listOrdersForVisitor(VisitorID) {
 
 async function listOrderItems(OrderID, VisitorID) {
   const [rows] = await pool.execute(
-    `SELECT i.OrderItemID, i.ItemType, i.ItemName, i.Quantity, i.UnitPrice, i.TotalPrice
+    `SELECT i.OrderItemID, i.ItemType, i.ItemRefID, i.ItemName, i.Quantity, i.UnitPrice, i.TotalPrice
      FROM visitor_order_item i
      JOIN visitor_order o ON o.OrderID = i.OrderID
      WHERE i.OrderID = ? AND o.VisitorID = ?

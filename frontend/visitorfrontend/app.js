@@ -145,17 +145,35 @@ function setAuthMode(mode) {
 }
 
 function setTab(name) {
+  const prevBtn = document.querySelector(".tab-btn.active");
+  const prevName = prevBtn && prevBtn.dataset ? prevBtn.dataset.tab : null;
+  if (prevName === "orders" && name !== "orders") {
+    const ob = $("ordersTransactionBanner");
+    if (ob) {
+      ob.textContent = "";
+      ob.classList.add("hidden");
+    }
+    const orp = $("orderTicketReservationPanel");
+    if (orp) orp.classList.add("hidden");
+    const det = $("orderDetailTicketsTbody");
+    if (det) det.innerHTML = "";
+    const resDet = $("orderDetailReservationsTbody");
+    if (resDet) resDet.innerHTML = "";
+  }
   document.querySelectorAll(".tab-panel").forEach((p) => p.classList.add("hidden"));
   document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   const panel = document.getElementById(`tab-${name}`);
   if (panel) panel.classList.remove("hidden");
 }
 
-function showMyBookingsAfter(message) {
-  const b = $("mybookingsBanner");
-  if (b) b.textContent = message || "";
-  setTab("mybookings");
-  const panel = $("tab-mybookings");
+function showOrdersAfterTransaction(message) {
+  const b = $("ordersTransactionBanner");
+  if (b) {
+    b.textContent = message || "";
+    b.classList.toggle("hidden", !message);
+  }
+  setTab("orders");
+  const panel = $("tab-orders");
   if (panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -509,16 +527,29 @@ function renderMerchList() {
     return an.localeCompare(bn);
   });
 
-  const uniqueShops = new Set(rows.map((m) => String(m.RetailName || "Unknown")));
-  const prices = rows.map((m) => Number(m.DiscountPrice || m.SellPrice || 0));
+  const MERCH_DISPLAY_MAX = 40;
+  const displayRows = rows.slice(0, MERCH_DISPLAY_MAX);
+  const capEl = $("merchCapNotice");
+  if (capEl) {
+    if (rows.length > MERCH_DISPLAY_MAX) {
+      capEl.textContent = `${rows.length} items match your filters; showing the first ${MERCH_DISPLAY_MAX}. Narrow your search or filters to see other items.`;
+      capEl.classList.remove("hidden");
+    } else {
+      capEl.textContent = "";
+      capEl.classList.add("hidden");
+    }
+  }
+
+  const uniqueShops = new Set(displayRows.map((m) => String(m.RetailName || "Unknown")));
+  const prices = displayRows.map((m) => Number(m.DiscountPrice || m.SellPrice || 0));
   const lowest = prices.length ? Math.min(...prices) : 0;
   const highest = prices.length ? Math.max(...prices) : 0;
-  $("merchTotalItems").textContent = String(rows.length);
+  $("merchTotalItems").textContent = String(displayRows.length);
   $("merchTotalShops").textContent = String(uniqueShops.size);
   $("merchLowestPrice").textContent = `$${lowest.toFixed(2)}`;
   $("merchHighestPrice").textContent = `$${highest.toFixed(2)}`;
 
-  $("merchCards").innerHTML = rows
+  $("merchCards").innerHTML = displayRows
     .map((m) => {
       const zoneName = normalizeZoneName(m.AreaName);
       const price = Number(m.DiscountPrice || m.SellPrice || 0);
@@ -821,9 +852,18 @@ async function renderDiningAndMerch() {
 }
 
 async function renderOrders() {
+  const panel = $("orderTicketReservationPanel");
+  if (panel) panel.classList.add("hidden");
+  const det = $("orderDetailTicketsTbody");
+  if (det) det.innerHTML = "";
+  const resDet = $("orderDetailReservationsTbody");
+  if (resDet) resDet.innerHTML = "";
   const rows = await api("/api/orders", { token: getToken() });
   $("ordersTbody").innerHTML = rows
-    .map((o) => `<tr><td>${o.OrderID}</td><td>${o.OrderType}</td><td>${Number(o.OrderTotal).toFixed(2)}</td><td>${o.PaymentStatus}</td><td><button class="btn small" data-order-items="${o.OrderID}">View Items</button></td></tr>`)
+    .map(
+      (o) =>
+        `<tr><td>${o.OrderID}</td><td>${o.OrderType}</td><td>${Number(o.OrderTotal).toFixed(2)}</td><td>${o.PaymentStatus}</td><td><button class="btn small" type="button" data-order-items="${o.OrderID}" data-order-type="${String(o.OrderType || "")}">View Items</button></td></tr>`
+    )
     .join("");
 }
 
@@ -959,7 +999,7 @@ function bindAppActions() {
     syncTicketFormForPlan();
     updateTicketPricingPreview();
     await fullRefresh();
-    showMyBookingsAfter("Payment complete. Your new ticket is listed below.");
+    showOrdersAfterTransaction("Payment complete. Click View Items on your new ticket order below for details. Your full ticket and reservation lists are on Tickets & Reservations.");
   });
 
   $("reservationForm").addEventListener("submit", async (e) => {
@@ -980,13 +1020,7 @@ function bindAppActions() {
     showStatus("Reservation saved.");
     e.target.reset();
     await fullRefresh();
-    showMyBookingsAfter("Your reservation is confirmed. See it under Upcoming reservations below.");
-  });
-
-  $("btnGoToTicketForms").addEventListener("click", () => {
-    const b = $("mybookingsBanner");
-    if (b) b.textContent = "";
-    setTab("tickets");
+    showOrdersAfterTransaction("Your reservation is saved. Open Tickets & Reservations to view or cancel it.");
   });
 
   $("reservationsTbody").addEventListener("click", async (e) => {
@@ -1168,8 +1202,57 @@ function bindAppActions() {
   $("ordersTbody").addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-order-items]");
     if (!btn) return;
-    const rows = await api(`/api/orders/${Number(btn.dataset.orderItems)}/items`, { token: getToken() });
-    $("orderItemsPreview").textContent = JSON.stringify(rows, null, 2);
+    const orderId = Number(btn.dataset.orderItems);
+    const orderType = String(btn.dataset.orderType || "").trim();
+    const rows = await api(`/api/orders/${orderId}/items`, { token: getToken() });
+    const pre = $("orderItemsPreview");
+    if (pre) pre.textContent = JSON.stringify(rows, null, 2);
+
+    const panel = $("orderTicketReservationPanel");
+    const hint = $("orderTicketReservationHint");
+    const detailTbody = $("orderDetailTicketsTbody");
+    const resDetailTbody = $("orderDetailReservationsTbody");
+    if (orderType === "Ticket" && panel && detailTbody) {
+      panel.classList.remove("hidden");
+      if (hint) {
+        hint.textContent =
+          "Details for this ticket purchase. Upcoming reservations on your account are listed below (they are not tied to this order row).";
+      }
+      const tickets = await api("/api/tickets", { token: getToken() });
+      const ticketLine = rows.find((r) => String(r.ItemType) === "Ticket" && r.ItemRefID != null && r.ItemRefID !== "");
+      if (ticketLine) {
+        const tn = Number(ticketLine.ItemRefID);
+        const t = tickets.find((x) => Number(x.TicketNumber) === tn);
+        if (t) {
+          detailTbody.innerHTML = `<tr><td>${t.TicketNumber}</td><td>${t.TicketType}</td><td>${t.DiscountFor}</td><td>${Number(t.Price).toFixed(2)}</td><td>${t.ExpiryDate}</td><td>${t.IsActive ? "Active" : "Expired"}</td></tr>`;
+        } else {
+          detailTbody.innerHTML = `<tr><td>${Number.isFinite(tn) ? tn : "-"}</td><td colspan="5">${ticketLine.ItemName || "Ticket"} — if you just bought this ticket, refresh the page.</td></tr>`;
+        }
+      } else {
+        detailTbody.innerHTML = `<tr><td colspan="6">No ticket line found for this order.</td></tr>`;
+      }
+      if (resDetailTbody) {
+        const resv = await api("/api/reservations", { token: getToken() });
+        resDetailTbody.innerHTML = resv.length
+          ? resv
+              .map(
+                (r) => `<tr>
+          <td>${r.ReservationID}</td>
+          <td>${r.ReservationType}</td>
+          <td>${r.AttractionName || r.DiningName || "-"}</td>
+          <td>${r.ReservationDate}</td>
+          <td>${r.TimeSlot}</td>
+          <td>${r.Status}</td>
+        </tr>`
+              )
+              .join("")
+          : `<tr><td colspan="6">No upcoming reservations.</td></tr>`;
+      }
+    } else {
+      if (panel) panel.classList.add("hidden");
+      if (detailTbody) detailTbody.innerHTML = "";
+      if (resDetailTbody) resDetailTbody.innerHTML = "";
+    }
   });
 
   $("feedbackForm").addEventListener("submit", async (e) => {

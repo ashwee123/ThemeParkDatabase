@@ -559,7 +559,6 @@
           <button class="tab-btn btn active" data-tab="account" type="button">Account</button>
           <button class="tab-btn btn" data-tab="park" type="button">Attractions & Events</button>
           <button class="tab-btn btn" data-tab="tickets" type="button">Tickets & Reservations</button>
-          <button class="tab-btn btn" data-tab="mybookings" type="button">My tickets & reservations</button>
           <button class="tab-btn btn" data-tab="planning" type="button">Planning</button>
           <button class="tab-btn btn" data-tab="dining" type="button">Dining & Shopping</button>
           <button class="tab-btn btn" data-tab="orders" type="button">Payments & Orders</button>
@@ -631,16 +630,7 @@
               <button class="btn btn-primary" type="submit">Book reservation</button>
             </form>
           </div>
-          <p class="hint" style="margin-top: 14px;">After you pay for a ticket or complete a reservation, you will be taken to <strong>My tickets &amp; reservations</strong> to review what you booked.</p>
-        </section>
-
-        <section id="tab-mybookings" class="tab-panel hidden">
-          <div class="panel">
-            <h3 style="margin-top: 0;">My tickets &amp; reservations</h3>
-            <p id="mybookingsBanner" class="hint" style="margin-top: 0;"></p>
-            <p class="hint">Here are your issued tickets and upcoming reservations. You can cancel a reservation from this list.</p>
-            <button type="button" class="btn" id="btnGoToTicketForms">Buy another ticket or book a reservation</button>
-          </div>
+          <p class="hint" style="margin-top: 14px;">After you pay for a ticket, you will be taken to <strong>Payments &amp; Orders</strong>. Click <strong>View Items</strong> on that order to see the ticket from that purchase. Your tickets and upcoming reservations are always listed below.</p>
           <h3 style="margin-top:16px;">Tickets</h3>
           <div style="overflow:auto;"><table><thead><tr><th>ID</th><th>Type</th><th>Discount</th><th>Price</th><th>Expiry</th><th>Status</th></tr></thead><tbody id="ticketsTbody"></tbody></table></div>
           <h3 style="margin-top:16px;">Upcoming reservations</h3>
@@ -745,11 +735,12 @@
               </label>
             </div>
             <div class="shop-stats">
-              <div class="shop-stat">Total items: <strong id="merchTotalItems">0</strong></div>
+              <div class="shop-stat">Items shown: <strong id="merchTotalItems">0</strong></div>
               <div class="shop-stat">Shops: <strong id="merchTotalShops">0</strong></div>
               <div class="shop-stat">Lowest price: <strong id="merchLowestPrice">$0.00</strong></div>
               <div class="shop-stat">Highest price: <strong id="merchHighestPrice">$0.00</strong></div>
             </div>
+            <p id="merchCapNotice" class="hint hidden" style="margin-top: 8px;"></p>
             <div id="merchCards" class="merch-grid"></div>
             <div class="cart-panel">
               <h3 style="margin-bottom: 8px;">Mini cart</h3>
@@ -762,11 +753,18 @@
                 </div>
               </div>
             </div>
+            <form id="merchOrderForm" class="panel grid" style="margin-top: 16px;">
+              <h3>Pay for merchandise</h3>
+              <label>Merch item <select id="merchOrderItem"></select></label>
+              <label>Quantity <input id="merchOrderQty" type="number" min="1" value="1" /></label>
+              <label>Payment method <input id="merchPaymentMethod" /></label>
+              <button class="btn btn-primary" type="submit">Pay merchandise order</button>
+            </form>
             <ul id="merchList" class="hidden"></ul>
           </section>
 
-          <div class="two-col grid" style="margin-top:16px;">
-            <form id="diningOrderForm" class="panel grid">
+          <div class="panel" style="margin-top:16px;">
+            <form id="diningOrderForm" class="grid">
               <h3>Pay for dining</h3>
               <label>Dining option <select id="diningOrderDining"></select></label>
               <label>Quantity <input id="diningOrderQty" type="number" min="1" value="1" /></label>
@@ -774,19 +772,26 @@
               <label>Payment method <input id="diningPaymentMethod" /></label>
               <button class="btn btn-primary" type="submit">Pay dining order</button>
             </form>
-            <form id="merchOrderForm" class="panel grid">
-              <h3>Pay for merchandise</h3>
-              <label>Merch item <select id="merchOrderItem"></select></label>
-              <label>Quantity <input id="merchOrderQty" type="number" min="1" value="1" /></label>
-              <label>Payment method <input id="merchPaymentMethod" /></label>
-              <button class="btn btn-primary" type="submit">Pay merchandise order</button>
-            </form>
           </div>
         </section>
 
         <section id="tab-orders" class="tab-panel hidden">
+          <p id="ordersTransactionBanner" class="hint hidden" style="margin-top: 0;"></p>
+          <div class="panel">
+            <h3 style="margin-top: 0;">Orders</h3>
+            <p class="hint" style="margin: 0;">Dining, merchandise, and ticket purchases. For <strong>Ticket</strong> orders, click <strong>View Items</strong> to see the ticket issued for that payment (and raw line items below).</p>
+          </div>
           <div style="overflow:auto;"><table><thead><tr><th>Order ID</th><th>Type</th><th>Total</th><th>Payment</th><th>Items</th></tr></thead><tbody id="ordersTbody"></tbody></table></div>
-          <div class="panel" style="margin-top:14px;"><h3>Order items preview</h3><pre id="orderItemsPreview" style="white-space: pre-wrap;"></pre></div>
+          <div id="orderTicketReservationPanel" class="panel hidden" style="margin-top:14px;">
+            <h3 style="margin-top: 0;">Ticket &amp; reservations</h3>
+            <p id="orderTicketReservationHint" class="hint" style="margin-top: 0;"></p>
+            <h4 style="margin-top: 12px; margin-bottom: 6px;">Ticket from this order</h4>
+            <div style="overflow:auto;"><table><thead><tr><th>ID</th><th>Type</th><th>Discount</th><th>Price</th><th>Expiry</th><th>Status</th></tr></thead><tbody id="orderDetailTicketsTbody"></tbody></table></div>
+            <h4 style="margin-top: 16px; margin-bottom: 6px;">Your upcoming reservations</h4>
+            <p class="hint" style="margin-top: 0;">Reservations do not create a payment order. Cancel or update them from <strong>Tickets &amp; Reservations</strong>.</p>
+            <div style="overflow:auto;"><table><thead><tr><th>ID</th><th>Type</th><th>Target</th><th>Date</th><th>Slot</th><th>Status</th></tr></thead><tbody id="orderDetailReservationsTbody"></tbody></table></div>
+          </div>
+          <div class="panel" style="margin-top:14px;"><h3>Order items (raw)</h3><pre id="orderItemsPreview" style="white-space: pre-wrap;"></pre></div>
         </section>
 
         <section id="tab-feedback" class="tab-panel hidden">
