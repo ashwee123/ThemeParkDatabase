@@ -25,15 +25,13 @@ const server = http.createServer((req, res) => {
 
 let cleanPath = url.pathname;
 
-// remove leading /retailfront if it exists
 cleanPath = cleanPath.replace("/retailfront", "");
 
-// default route
 if (cleanPath === "/") {
     cleanPath = "/index.html";
 }
 
-const filePath = path.join(__dirname, "retailfront", cleanPath);
+const filePath = path.join(process.cwd(), "retailfront", cleanPath);
 
 // security check
 if (!filePath.startsWith(path.join(__dirname, "retailfront"))) {
