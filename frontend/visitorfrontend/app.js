@@ -372,9 +372,23 @@ function hashStringToIndex(str, modulo) {
   return Math.abs(h) % modulo;
 }
 
+/** Map curly/smart apostrophes to ASCII so DB/API strings match prompt URL keys. */
+function normalizeHorrorNameKey(name) {
+  return String(name || "")
+    .trim()
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035\u02BC]/g, "'");
+}
+
+/** Escape & and " so Pollinations query strings stay intact inside double-quoted HTML attributes. */
+function htmlAttrEscapeUrl(url) {
+  return String(url || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;");
+}
+
 /** Fixed Pollinations URLs for known attraction/event names (exact or case-insensitive match). */
 function resolveFixedHorrorImageUrl(name) {
-  const key = String(name || "").trim();
+  const key = normalizeHorrorNameKey(name);
   if (!key) return null;
   if (HORROR_IMAGE_URL_BY_NAME[key]) return HORROR_IMAGE_URL_BY_NAME[key];
   const lower = key.toLowerCase();
@@ -385,7 +399,7 @@ function resolveFixedHorrorImageUrl(name) {
 }
 
 function cardImageUrl(name) {
-  const key = String(name || "").trim();
+  const key = normalizeHorrorNameKey(name);
   const fixed = resolveFixedHorrorImageUrl(key);
   if (fixed) return fixed;
   const prompt = HORROR_IMAGE_PROMPTS_BY_NAME[key] || `${key}, horror theme park attraction poster, cinematic dark style`;
@@ -469,8 +483,8 @@ function renderGeneratedArtImage(name, width, height, alt) {
       <div class="image-skeleton"></div>
       <img
         class="generated-art"
-        src="${src}"
-        data-fallback-src="${fallback}"
+        src="${htmlAttrEscapeUrl(src)}"
+        data-fallback-src="${htmlAttrEscapeUrl(fallback)}"
         alt="${alt}"
         loading="eager"
         decoding="async"
@@ -839,13 +853,12 @@ async function renderAttractions() {
         <div class="image-skeleton"></div>
         <img
           class="generated-art attraction-image"
-          src="${cardImageUrl(a.AttractionName)}"
-          data-fallback-src="${fallbackImageUrl(a.AttractionName, 640, 360)}"
+          src="${htmlAttrEscapeUrl(cardImageUrl(a.AttractionName))}"
+          data-fallback-src="${htmlAttrEscapeUrl(fallbackImageUrl(a.AttractionName, 640, 360))}"
           alt="${a.AttractionName}"
           loading="eager"
           decoding="async"
           style="width:100%; height:200px; object-fit:cover;"
-          onerror="this.src='${fallbackImageUrl(a.AttractionName, 640, 360)}'"
         />
       </div>
       <div class="attraction-name">${a.AttractionName}</div>
@@ -874,13 +887,12 @@ async function renderParksAndEvents() {
         <div class="image-skeleton"></div>
         <img
           class="generated-art event-image"
-          src="${cardImageUrl(e.EventName)}"
-          data-fallback-src="${fallbackImageUrl(e.EventName, 640, 360)}"
+          src="${htmlAttrEscapeUrl(cardImageUrl(e.EventName))}"
+          data-fallback-src="${htmlAttrEscapeUrl(fallbackImageUrl(e.EventName, 640, 360))}"
           alt="${e.EventName}"
           loading="eager"
           decoding="async"
           style="width:100%; height:200px; object-fit:cover;"
-          onerror="this.src='${fallbackImageUrl(e.EventName, 640, 360)}'"
         />
       </div>
       <div class="event-name">${e.EventName}</div>

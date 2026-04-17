@@ -382,7 +382,9 @@ async function listSpecialEvents() {
   const allowedShowNames = [
     "Broadcast Hijack",
     "Harvest Festival",
+    "Looping Day",
     "Pastor John's Sermon",
+    "Smile Protocol",
     "The Last Transmission",
     "Camper Safety Orientation",
     "Emergency Broadcast Live",
