@@ -404,7 +404,7 @@
       <section id="appSection" class="panel hidden" style="margin-top: 16px;">
         <div class="tabs">
           <button class="tab-btn btn active" data-tab="account" type="button">Account</button>
-          <button class="tab-btn btn" data-tab="park" type="button">Park & Attractions</button>
+          <button class="tab-btn btn" data-tab="park" type="button">Attractions & Events</button>
           <button class="tab-btn btn" data-tab="tickets" type="button">Tickets & Reservations</button>
           <button class="tab-btn btn" data-tab="planning" type="button">Planning</button>
           <button class="tab-btn btn" data-tab="dining" type="button">Dining & Shopping</button>
@@ -428,8 +428,18 @@
         </section>
 
         <section id="tab-park" class="tab-panel hidden">
-          <div class="two-col grid"><div class="panel"><h3>Parks and hours</h3><ul id="parksList"></ul></div><div class="panel"><h3>Special events schedule</h3><ul id="eventsList"></ul></div></div>
-          <div style="overflow:auto; margin-top: 14px;"><table><thead><tr><th>Attraction</th><th>Description</th><th>Height (cm)</th><th>Duration (mins)</th><th>Thrill</th><th>Status</th><th>Wait Time</th></tr></thead><tbody id="attractionsTbody"></tbody></table></div>
+          <div class="panel">
+            <h3>Events</h3>
+            <ul id="eventsList"></ul>
+          </div>
+          <div style="overflow:auto; margin-top: 14px;">
+            <table>
+              <thead>
+                <tr><th>Image</th><th>Attraction</th><th>Description</th><th>Height (cm)</th><th>Duration (mins)</th><th>Thrill</th><th>Status</th><th>Wait Time</th></tr>
+              </thead>
+              <tbody id="attractionsTbody"></tbody>
+            </table>
+          </div>
         </section>
 
         <section id="tab-tickets" class="tab-panel hidden">
@@ -438,7 +448,8 @@
               <h3>Purchase ticket</h3>
               <label>Ticket plan <select id="ticketPlan"><option value="SingleDay">Single day</option><option value="MultiDay">Multi-day</option><option value="SeasonPass">Season pass</option></select></label>
               <label>Ticket category <select id="ticketCategory"><option value="General">General</option><option value="Senior">Discounted - Seniors</option><option value="Veteran">Discounted - Veterans</option><option value="Child">Discounted - Children</option><option value="Membership">Membership</option></select></label>
-              <label>Price <input id="ticketPrice" type="number" min="0" step="0.01" required /></label>
+              <label>Price (auto-set) <input id="ticketPrice" type="number" min="0" step="0.01" readonly /></label>
+              <p id="ticketBenefits" class="hint" style="margin: 0;">Price: $40.00.</p>
               <label>Expiry date <input id="ticketExpiry" type="date" required /></label>
               <label>Promo code <input id="ticketPromo" /></label>
               <label>Payment method <input id="ticketPaymentMethod" /></label>
@@ -478,7 +489,29 @@
         </section>
 
         <section id="tab-dining" class="tab-panel hidden">
-          <div class="two-col grid"><div class="panel"><h3>Dining options and menus</h3><ul id="diningList"></ul></div><div class="panel"><h3>Merchandise options</h3><ul id="merchList"></ul></div></div>
+          <div class="row" style="margin-bottom: 12px;">
+            <button id="btnDiningViewMenu" class="btn btn-primary" type="button">Dining Menu</button>
+            <button id="btnDiningViewMerch" class="btn" type="button">Merchandise Shop</button>
+          </div>
+
+          <section id="diningMenuSection" class="panel">
+            <h3>Dining options and menus</h3>
+            <label>
+              Search foods / dining
+              <input id="diningSearch" type="text" placeholder="Search by name, cuisine, menu, area..." />
+            </label>
+            <ul id="diningList"></ul>
+          </section>
+
+          <section id="merchMenuSection" class="panel hidden" style="margin-top: 14px;">
+            <h3>Merchandise options</h3>
+            <label>
+              Search merchandise
+              <input id="merchSearch" type="text" placeholder="Search by item, shop, area..." />
+            </label>
+            <ul id="merchList"></ul>
+          </section>
+
           <div class="two-col grid" style="margin-top:16px;">
             <form id="diningOrderForm" class="panel grid">
               <h3>Pay for dining</h3>

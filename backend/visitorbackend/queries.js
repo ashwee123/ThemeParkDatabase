@@ -449,6 +449,18 @@ async function createTicket(VisitorID, { TicketType, DiscountFor, Price, ExpiryD
   return rows[0] || null;
 }
 
+const MEMBERSHIP_PERKS = [
+  "Skip lines",
+  "Exclusive zones",
+  "Priority access",
+];
+
+function getTicketBasePrice(category) {
+  if (category === "General") return 40;
+  // Senior, Veteran, Child all count as discounted tickets.
+  return 30;
+}
+
 function mapTicketPayload(payload) {
   const plan = String(payload.TicketPlan || "SingleDay");
   const category = String(payload.TicketCategory || "General");
@@ -460,7 +472,9 @@ function mapTicketPayload(payload) {
     TicketType = "Discount";
     DiscountFor = category;
   }
-  return { TicketType, DiscountFor };
+  const BasePrice = TicketType === "Membership" ? 100 : getTicketBasePrice(category);
+  const MembershipPerks = TicketType === "Membership" ? MEMBERSHIP_PERKS : [];
+  return { TicketType, DiscountFor, BasePrice, MembershipPerks };
 }
 
 async function findPromoCode(code) {
@@ -495,11 +509,14 @@ function applyPromo(total, promo) {
 
 async function purchaseTicketForVisitor(
   VisitorID,
-  { TicketPlan, TicketCategory, Price, ExpiryDate, PromoCode, PaymentMethod }
+  { TicketPlan, TicketCategory, ExpiryDate, PromoCode, PaymentMethod }
 ) {
   const promo = await findPromoCode(PromoCode);
-  const { total, discountAmount } = applyPromo(Price, promo);
-  const { TicketType, DiscountFor } = mapTicketPayload({ TicketPlan, TicketCategory });
+  const { TicketType, DiscountFor, BasePrice, MembershipPerks } = mapTicketPayload({
+    TicketPlan,
+    TicketCategory,
+  });
+  const { total, discountAmount } = applyPromo(BasePrice, promo);
 
   const ticket = await createTicket(VisitorID, { TicketType, DiscountFor, Price: total, ExpiryDate });
   const [orderResult] = await pool.execute(
@@ -512,11 +529,18 @@ async function purchaseTicketForVisitor(
     `INSERT INTO visitor_order_item
       (OrderID, ItemType, ItemRefID, ItemName, Quantity, UnitPrice, TotalPrice)
      VALUES (?, 'Ticket', ?, ?, 1, ?, ?)`,
-    [orderResult.insertId, ticket.TicketNumber, `${TicketPlan} (${TicketCategory})`, total, total]
+    [orderResult.insertId, ticket.TicketNumber, `${TicketPlan} (${TicketCategory})`, BasePrice, total]
   );
 
   await addVisitHistory(VisitorID, "TicketPurchase", `Purchased ${TicketPlan} ticket (${TicketCategory})`);
-  return { ticket, orderId: orderResult.insertId, appliedPromo: promo ? promo.Code : null, discountAmount };
+  return {
+    ticket,
+    orderId: orderResult.insertId,
+    appliedPromo: promo ? promo.Code : null,
+    discountAmount,
+    basePrice: BasePrice,
+    membershipPerks: MembershipPerks,
+  };
 }
 
 async function createReservationForVisitor(

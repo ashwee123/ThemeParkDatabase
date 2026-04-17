@@ -49,6 +49,7 @@ if (form) {
     const submitLogin = document.getElementById("submitLogin");
     const isVisitorLogin =
       !email.includes("admin") &&
+      !email.includes("manager") &&
       !email.includes("employee") &&
       !email.includes("retail") &&
       !email.includes("hr") &&
@@ -86,6 +87,8 @@ if (form) {
       } else if (email === "maintenance@nightmarenexus.com") {
         window.location.href = "/maintenance";
       } else if (email.includes("admin")) {
+        window.location.href = "/admin";
+      } else if (email.includes("manager")) {
         window.location.href = "/admin";
       } else if (email.includes("employee")) {
         window.location.href = "/employee";

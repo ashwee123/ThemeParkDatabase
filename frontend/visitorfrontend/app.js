@@ -1,11 +1,20 @@
 const API_BASE = "https://visitors-portal-backend.onrender.com";
 const TOKEN_KEY = "token";
+const TICKET_PRICES = {
+  General: 40,
+  Senior: 30,
+  Veteran: 30,
+  Child: 30,
+  Membership: 100,
+};
+const MEMBERSHIP_PERKS_TEXT = "Membership perks: skip lines, exclusive zones, and priority access.";
 const state = {
   areas: [],
   parks: [],
   attractions: [],
   dining: [],
   merchandise: [],
+  diningShopView: "dining",
 };
 
 function $(id) {
@@ -103,6 +112,129 @@ function fillSelect(id, items, valueKey, labelKey, includeBlank = false) {
   }
 }
 
+function updateTicketPricingPreview() {
+  const category = $("ticketCategory").value || "General";
+  const plan = $("ticketPlan").value || "SingleDay";
+  const isMembership = category === "Membership" || plan === "SeasonPass";
+  const price = isMembership ? 100 : (TICKET_PRICES[category] ?? 30);
+  $("ticketPrice").value = price.toFixed(2);
+
+  const info = $("ticketBenefits");
+  if (!info) return;
+  if (isMembership) {
+    info.textContent = `Price: $${price.toFixed(2)}. ${MEMBERSHIP_PERKS_TEXT}`;
+  } else {
+    info.textContent = `Price: $${price.toFixed(2)}.`;
+  }
+}
+
+// Horror-themed stock art per attraction/event name (Pexels). Unknown names use hash fallback.
+const HORROR_ART_IMAGE_BY_NAME = {
+  "Broadcast Hijack": "https://images.pexels.com/photos/6044925/pexels-photo-6044925.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Escape the Backrooms": "https://images.pexels.com/photos/2387866/pexels-photo-2387866.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Alternate Invasion": "https://images.pexels.com/photos/3692669/pexels-photo-3692669.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Looping Day": "https://images.pexels.com/photos/1270184/pexels-photo-1270184.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Smile Protocol": "https://images.pexels.com/photos/2886213/pexels-photo-2886213.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Harvest Festival": "https://images.pexels.com/photos/3408746/pexels-photo-3408746.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Pastor John's Sermon": "https://images.pexels.com/photos/1236701/pexels-photo-1236701.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "The Offering": "https://images.pexels.com/photos/1697912/pexels-photo-1697912.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Forest of Whispers": "https://images.pexels.com/photos/1574073/pexels-photo-1574073.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "AI Override": "https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "The Last Transmission": "https://images.pexels.com/photos/2657669/pexels-photo-2657669.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Containment Breach": "https://images.pexels.com/photos/2835436/pexels-photo-2835436.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Zero-Gravity Situation": "https://images.pexels.com/photos/5997154/pexels-photo-5997154.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Watchtower Drop": "https://images.pexels.com/photos/3584579/pexels-photo-3584579.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Cryptid Hunt": "https://images.pexels.com/photos/7688460/pexels-photo-7688460.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Trail Tour": "https://images.pexels.com/photos/417074/pexels-photo-417074.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Lake Terror": "https://images.pexels.com/photos/764182/pexels-photo-764182.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Camper Safety Orientation": "https://images.pexels.com/photos/1367192/pexels-photo-1367192.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Psych Ward Tour": "https://images.pexels.com/photos/775001/pexels-photo-775001.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Midnight Stalker": "https://images.pexels.com/photos/5310354/pexels-photo-5310354.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Final Girl: The Chase": "https://images.pexels.com/photos/5310352/pexels-photo-5310352.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Execution Alley": "https://images.pexels.com/photos/2581926/pexels-photo-2581926.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Body Count": "https://images.pexels.com/photos/4240572/pexels-photo-4240572.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Outbreak: Day Zero": "https://images.pexels.com/photos/5900508/pexels-photo-5900508.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Evacuation Protocol": "https://images.pexels.com/photos/6044198/pexels-photo-6044198.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Emergency Broadcast Live": "https://images.pexels.com/photos/4337123/pexels-photo-4337123.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Containment Collapse": "https://images.pexels.com/photos/3820970/pexels-photo-3820970.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "Last Stand Barricade": "https://images.pexels.com/photos/1913607/pexels-photo-1913607.jpeg?auto=compress&cs=tinysrgb&w=640",
+};
+
+const HORROR_FALLBACK_IMAGES = [
+  "https://images.pexels.com/photos/2081139/pexels-photo-2081139.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "https://images.pexels.com/photos/1679776/pexels-photo-1679776.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "https://images.pexels.com/photos/2346216/pexels-photo-2346216.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "https://images.pexels.com/photos/775943/pexels-photo-775943.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "https://images.pexels.com/photos/5310353/pexels-photo-5310353.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "https://images.pexels.com/photos/6044925/pexels-photo-6044925.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "https://images.pexels.com/photos/2387866/pexels-photo-2387866.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "https://images.pexels.com/photos/3692669/pexels-photo-3692669.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "https://images.pexels.com/photos/1270184/pexels-photo-1270184.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "https://images.pexels.com/photos/2886213/pexels-photo-2886213.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "https://images.pexels.com/photos/3408746/pexels-photo-3408746.jpeg?auto=compress&cs=tinysrgb&w=640",
+  "https://images.pexels.com/photos/1236701/pexels-photo-1236701.jpeg?auto=compress&cs=tinysrgb&w=640",
+];
+
+function hashStringToIndex(str, modulo) {
+  let h = 0;
+  for (let i = 0; i < str.length; i += 1) {
+    h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h) % modulo;
+}
+
+function cardImageUrl(name) {
+  const key = String(name || "").trim();
+  if (HORROR_ART_IMAGE_BY_NAME[key]) return HORROR_ART_IMAGE_BY_NAME[key];
+  const idx = hashStringToIndex(key || "default", HORROR_FALLBACK_IMAGES.length);
+  return HORROR_FALLBACK_IMAGES[idx];
+}
+
+function textMatchesSearch(value, query) {
+  return String(value || "").toLowerCase().includes(query);
+}
+
+function setDiningShopView(view) {
+  state.diningShopView = view === "merch" ? "merch" : "dining";
+  const showingDining = state.diningShopView === "dining";
+  $("diningMenuSection").classList.toggle("hidden", !showingDining);
+  $("merchMenuSection").classList.toggle("hidden", showingDining);
+  $("btnDiningViewMenu").classList.toggle("btn-primary", showingDining);
+  $("btnDiningViewMerch").classList.toggle("btn-primary", !showingDining);
+}
+
+function renderDiningList() {
+  const query = String(($("diningSearch") && $("diningSearch").value) || "").trim().toLowerCase();
+  const rows = state.dining.filter((d) => {
+    if (!query) return true;
+    return (
+      textMatchesSearch(d.DiningName, query) ||
+      textMatchesSearch(d.CuisineType, query) ||
+      textMatchesSearch(d.MenuSummary, query) ||
+      textMatchesSearch(d.AreaName, query) ||
+      textMatchesSearch(d.ParkName, query)
+    );
+  });
+  $("diningList").innerHTML = rows
+    .map((d) => `<li><strong>${d.DiningName}</strong> (${d.CuisineType || "Cuisine"}) - ${d.MenuSummary || "Menu available at park."}</li>`)
+    .join("");
+}
+
+function renderMerchList() {
+  const query = String(($("merchSearch") && $("merchSearch").value) || "").trim().toLowerCase();
+  const rows = state.merchandise.filter((m) => {
+    if (!query) return true;
+    return (
+      textMatchesSearch(m.ItemName, query) ||
+      textMatchesSearch(m.RetailName, query) ||
+      textMatchesSearch(m.AreaName, query)
+    );
+  });
+  $("merchList").innerHTML = rows
+    .map((m) => `<li><strong>${m.ItemName}</strong> @ ${m.RetailName} - $${Number(m.DiscountPrice || m.SellPrice).toFixed(2)}</li>`)
+    .join("");
+}
+
 async function loadLookups(token) {
   const [areas, parks, attractions, dining, merchandise] = await Promise.all([
     api("/api/areas", { token }),
@@ -155,6 +287,7 @@ async function renderAttractions() {
   $("attractionsTbody").innerHTML = rows
     .map(
       (a) => `<tr>
+      <td><img src="${cardImageUrl(a.AttractionName)}" alt="${a.AttractionName}" style="width: 140px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);" /></td>
       <td>${a.AttractionName}</td>
       <td>${a.Description || "-"}</td>
       <td>${a.HeightRequirementCm || "-"}</td>
@@ -168,12 +301,14 @@ async function renderAttractions() {
 }
 
 async function renderParksAndEvents() {
-  const [parks, events] = await Promise.all([api("/api/parks", { token: getToken() }), api("/api/events", { token: getToken() })]);
-  $("parksList").innerHTML = parks
-    .map((p) => `<li><strong>${p.ParkName}</strong> - ${p.LocationText || "N/A"} | ${p.OpeningTime || "?"} to ${p.ClosingTime || "?"}</li>`)
-    .join("");
+  const events = await api("/api/events", { token: getToken() });
   $("eventsList").innerHTML = events
-    .map((e) => `<li><strong>${e.EventName}</strong> (${e.EventDate}) ${e.StartTime || ""}-${e.EndTime || ""} - ${e.EventDescription || ""}</li>`)
+    .map(
+      (e) => `<li style="display:flex; gap:10px; align-items:flex-start; margin-bottom:10px;">
+      <img src="${cardImageUrl(e.EventName)}" alt="${e.EventName}" style="width: 120px; height: 70px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);" />
+      <div><strong>${e.EventName}</strong> (${e.EventDate}) ${e.StartTime || ""}-${e.EndTime || ""} - ${e.EventDescription || ""}</div>
+    </li>`
+    )
     .join("");
 }
 
@@ -210,10 +345,10 @@ async function renderItinerary() {
 
 async function renderDiningAndMerch() {
   const [dining, merch] = await Promise.all([api("/api/dining", { token: getToken() }), api("/api/merchandise", { token: getToken() })]);
-  $("diningList").innerHTML = dining.map((d) => `<li><strong>${d.DiningName}</strong> (${d.CuisineType || "Cuisine"}) - ${d.MenuSummary || "Menu available at park."}</li>`).join("");
-  $("merchList").innerHTML = merch
-    .map((m) => `<li><strong>${m.ItemName}</strong> @ ${m.RetailName} - $${Number(m.DiscountPrice || m.SellPrice).toFixed(2)}</li>`)
-    .join("");
+  state.dining = dining;
+  state.merchandise = merch;
+  renderDiningList();
+  renderMerchList();
 }
 
 async function renderOrders() {
@@ -311,6 +446,13 @@ function bindAppActions() {
     await fullRefresh();
   });
 
+  $("ticketCategory").addEventListener("change", updateTicketPricingPreview);
+  $("ticketPlan").addEventListener("change", updateTicketPricingPreview);
+  $("btnDiningViewMenu").addEventListener("click", () => setDiningShopView("dining"));
+  $("btnDiningViewMerch").addEventListener("click", () => setDiningShopView("merch"));
+  $("diningSearch").addEventListener("input", renderDiningList);
+  $("merchSearch").addEventListener("input", renderMerchList);
+
   $("ticketPurchaseForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     await api("/api/tickets/purchase", {
@@ -319,7 +461,6 @@ function bindAppActions() {
       body: {
         TicketPlan: $("ticketPlan").value,
         TicketCategory: $("ticketCategory").value,
-        Price: Number($("ticketPrice").value),
         ExpiryDate: $("ticketExpiry").value,
         PromoCode: $("ticketPromo").value || null,
         PaymentMethod: $("ticketPaymentMethod").value || null,
@@ -464,5 +605,7 @@ async function bootApp() {
 
 bindAuthForms();
 bindAppActions();
+updateTicketPricingPreview();
+setDiningShopView("dining");
 bootApp();
 

@@ -30,6 +30,12 @@ const PORT = process.env.PORT
   : 3002;
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
 const ALLOWED_ORIGIN = process.env.FRONTEND_URL || process.env.CORS_ORIGIN || "*";
+const RESERVED_VISITOR_EMAIL_TERMS = ["admin", "manager", "employee"];
+
+function containsReservedVisitorEmailTerm(email) {
+  const normalized = String(email || "").trim().toLowerCase();
+  return RESERVED_VISITOR_EMAIL_TERMS.some((term) => normalized.includes(term));
+}
 
 function getContentType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -113,19 +119,24 @@ async function handleApi(req, res, method, pathname, query) {
       sendJson(res, 400, { error: "Missing required fields: Name, Email, Password" });
       return true;
     }
+    const email = String(body.Email).trim().toLowerCase();
+    if (containsReservedVisitorEmailTerm(email)) {
+      sendJson(res, 400, { error: "Visitor email cannot contain admin, manager, or employee." });
+      return true;
+    }
 
     const PasswordHash = pbkdf2Hash(body.Password);
     try {
       const { VisitorID } = await q.createVisitor({
         Name: String(body.Name).trim(),
         Phone: body.Phone ? String(body.Phone).trim() : null,
-        Email: String(body.Email).trim().toLowerCase(),
+        Email: email,
         PasswordHash,
         Gender: body.Gender || null,
         Age: body.Age === "" || body.Age == null ? null : Number(body.Age),
       });
 
-      const token = createJwt({ sub: VisitorID, email: body.Email }, JWT_SECRET);
+      const token = createJwt({ sub: VisitorID, email }, JWT_SECRET);
       sendJson(res, 201, { token });
     } catch (err) {
       if (String(err && err.code).startsWith("ER_DUP_ENTRY")) {
@@ -145,6 +156,10 @@ async function handleApi(req, res, method, pathname, query) {
     }
 
     const email = String(body.Email).trim().toLowerCase();
+    if (containsReservedVisitorEmailTerm(email)) {
+      sendJson(res, 400, { error: "Visitor email cannot contain admin, manager, or employee." });
+      return true;
+    }
     const visitor = await q.getVisitorByEmail(email);
     if (!visitor || visitor.IsActive !== 1) {
       sendJson(res, 401, { error: "Invalid email or password" });
@@ -273,14 +288,13 @@ async function handleApi(req, res, method, pathname, query) {
 
   if (pathname === "/api/tickets/purchase" && method === "POST") {
     const body = await readJson(req);
-    if (!body || !body.TicketPlan || !body.TicketCategory || body.Price == null || !body.ExpiryDate) {
-      sendJson(res, 400, { error: "TicketPlan, TicketCategory, Price, ExpiryDate are required" });
+    if (!body || !body.TicketPlan || !body.TicketCategory || !body.ExpiryDate) {
+      sendJson(res, 400, { error: "TicketPlan, TicketCategory, ExpiryDate are required" });
       return true;
     }
     const created = await q.purchaseTicketForVisitor(visitor.VisitorID, {
       TicketPlan: String(body.TicketPlan),
       TicketCategory: String(body.TicketCategory),
-      Price: Number(body.Price),
       ExpiryDate: String(body.ExpiryDate),
       PromoCode: body.PromoCode ? String(body.PromoCode) : null,
       PaymentMethod: body.PaymentMethod ? String(body.PaymentMethod) : null,
