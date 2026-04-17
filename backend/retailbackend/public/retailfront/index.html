@@ -222,6 +222,11 @@
       <div class="card form-card">
         <h3>Profit Report</h3>
         <div class="grid-form">
+          <label>Store
+            <select id="report-store">
+              <option value="">All Stores</option>
+            </select>
+          </label>
           <label>Start Date
             <input type="date" id="report-start" />
           </label>
@@ -261,11 +266,27 @@
         <table class="data-table" id="tbl-damaged">
           <thead>
             <tr>
+              <th>Store</th>
               <th>Item</th>
               <th>Type</th>
               <th>Quantity</th>
               <th>Date</th>
               <th>Time</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- Item Amount Bought Report -->
+      <h3 class="subheading">Item Amount Bought</h3>
+      <div class="table-wrap">
+        <table class="data-table" id="tbl-items-bought">
+          <thead>
+            <tr>
+              <th>Store</th>
+              <th>Item</th>
+              <th>Total Bought</th>
             </tr>
           </thead>
           <tbody></tbody>
