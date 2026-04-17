@@ -151,6 +151,14 @@ function setTab(name) {
   if (panel) panel.classList.remove("hidden");
 }
 
+function showMyBookingsAfter(message) {
+  const b = $("mybookingsBanner");
+  if (b) b.textContent = message || "";
+  setTab("mybookings");
+  const panel = $("tab-mybookings");
+  if (panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function fillSelect(id, items, valueKey, labelKey, includeBlank = false) {
   const select = $(id);
   if (!select) return;
@@ -951,6 +959,7 @@ function bindAppActions() {
     syncTicketFormForPlan();
     updateTicketPricingPreview();
     await fullRefresh();
+    showMyBookingsAfter("Payment complete. Your new ticket is listed below.");
   });
 
   $("reservationForm").addEventListener("submit", async (e) => {
@@ -970,7 +979,14 @@ function bindAppActions() {
     });
     showStatus("Reservation saved.");
     e.target.reset();
-    await renderReservations();
+    await fullRefresh();
+    showMyBookingsAfter("Your reservation is confirmed. See it under Upcoming reservations below.");
+  });
+
+  $("btnGoToTicketForms").addEventListener("click", () => {
+    const b = $("mybookingsBanner");
+    if (b) b.textContent = "";
+    setTab("tickets");
   });
 
   $("reservationsTbody").addEventListener("click", async (e) => {
