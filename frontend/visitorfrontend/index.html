@@ -219,6 +219,29 @@
       }
       .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
       .hidden { display: none !important; }
+      .order-items-stack { display: grid; gap: 14px; margin-top: 10px; }
+      .order-item-card {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 14px 16px;
+        align-items: start;
+        padding: 14px 16px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(12, 12, 16, 0.65);
+      }
+      .order-item-emoji { font-size: 2rem; line-height: 1; padding-top: 2px; }
+      .order-item-title { font-size: 1.15rem; font-weight: 600; margin: 0 0 4px; }
+      .order-item-kind { color: rgba(230, 226, 234, 0.65); font-size: 0.95rem; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 10px; }
+      .order-item-meta {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 6px 16px;
+        margin: 0;
+        font-size: 0.95rem;
+      }
+      .order-item-meta dt { margin: 0; color: rgba(230, 226, 234, 0.55); font-weight: 500; }
+      .order-item-meta dd { margin: 0; font-weight: 600; }
       table { width: 100%; border-collapse: collapse; }
       th, td { border-bottom: 1px solid rgba(255,255,255,0.08); padding: 10px 8px; text-align: left; }
       th { color: var(--sick-glow); font-weight: 600; letter-spacing: 0.03em; }
@@ -498,6 +521,67 @@
 
       .auth-switch { margin-bottom: 10px; }
       @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+      .payment-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        display: grid;
+        place-items: center;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+      .payment-modal.hidden {
+        display: none !important;
+      }
+      .payment-modal-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        backdrop-filter: blur(6px);
+      }
+      .payment-modal-card {
+        position: relative;
+        z-index: 1;
+        max-width: 420px;
+        width: 100%;
+        margin: 0;
+      }
+      .payment-modal-headline {
+        font-family: "Butcherman", cursive;
+        font-size: 1.5rem;
+        margin: 0 0 10px;
+        color: #c8f0c4;
+        text-shadow: 0 0 14px rgba(110, 176, 106, 0.35);
+      }
+      .payment-modal-tagline {
+        margin: 0 0 18px;
+        font-size: 1rem;
+        line-height: 1.45;
+        color: rgba(230, 226, 234, 0.92);
+      }
+      .payment-modal-details {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px 18px;
+        margin: 0;
+        font-size: 0.95rem;
+      }
+      .payment-modal-details dt {
+        margin: 0;
+        color: rgba(230, 226, 234, 0.55);
+        font-weight: 600;
+      }
+      .payment-modal-details dd {
+        margin: 0;
+        font-weight: 600;
+        color: var(--ghost);
+      }
+      .payment-modal-close {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+      }
     </style>
   </head>
   <body>
@@ -630,26 +714,32 @@
               <button class="btn btn-primary" type="submit">Book reservation</button>
             </form>
           </div>
-          <p class="hint" style="margin-top: 14px;">After you pay for a ticket, you will be taken to <strong>Payments &amp; Orders</strong>. Click <strong>View Items</strong> on that order to see the ticket from that purchase. Your tickets and upcoming reservations are always listed below.</p>
-          <h3 style="margin-top:16px;">Tickets</h3>
-          <div style="overflow:auto;"><table><thead><tr><th>ID</th><th>Type</th><th>Discount</th><th>Price</th><th>Expiry</th><th>Status</th></tr></thead><tbody id="ticketsTbody"></tbody></table></div>
-          <h3 style="margin-top:16px;">Upcoming reservations</h3>
-          <div style="overflow:auto;"><table><thead><tr><th>ID</th><th>Type</th><th>Target</th><th>Date</th><th>Slot</th><th>Status</th><th>Action</th></tr></thead><tbody id="reservationsTbody"></tbody></table></div>
+          <p class="hint" style="margin-top: 14px;">After you pay for a ticket, you will be taken to <strong>Payments &amp; Orders</strong>. Click <strong>View Items</strong> on your order to see purchase details. Upcoming reservations you book are listed under <strong>Planning</strong>.</p>
         </section>
 
         <section id="tab-planning" class="tab-panel hidden">
+          <form id="itineraryForm" class="panel grid" style="margin-bottom: 14px;">
+            <h3>Add to itinerary or wishlist</h3>
+            <label>Type <select id="itineraryType"><option value="Wishlist">Wishlist</option><option value="Itinerary">Itinerary</option></select></label>
+            <label>Attraction <select id="itineraryAttraction"></select></label>
+            <label>Park <select id="itineraryPark"></select></label>
+            <label>Planned date <input id="itineraryDate" type="date" /></label>
+            <label>Notes <input id="itineraryNotes" /></label>
+            <button class="btn btn-primary" type="submit">Add planning item</button>
+          </form>
           <div class="two-col grid">
-            <form id="itineraryForm" class="panel grid">
-              <h3>Build itinerary / wishlist</h3>
-              <label>Type <select id="itineraryType"><option value="Wishlist">Wishlist</option><option value="Itinerary">Itinerary</option></select></label>
-              <label>Attraction <select id="itineraryAttraction"></select></label>
-              <label>Park <select id="itineraryPark"></select></label>
-              <label>Planned date <input id="itineraryDate" type="date" /></label>
-              <label>Notes <input id="itineraryNotes" /></label>
-              <button class="btn btn-primary" type="submit">Add planning item</button>
-            </form>
-            <div class="panel"><h3>Your itinerary / wishlist</h3><ul id="itineraryList"></ul></div>
+            <div class="panel">
+              <h3>Itinerary</h3>
+              <ul id="itineraryListItinerary"></ul>
+            </div>
+            <div class="panel">
+              <h3>Wishlist</h3>
+              <ul id="itineraryListWishlist"></ul>
+            </div>
           </div>
+          <h3 style="margin-top:16px;">Upcoming reservations</h3>
+          <p class="hint" style="margin-top: 4px;">Booked from <strong>Tickets &amp; Reservations</strong>. Cancel here when plans change.</p>
+          <div style="overflow:auto;"><table><thead><tr><th>ID</th><th>Type</th><th>Target</th><th>Date</th><th>Slot</th><th>Status</th><th>Action</th></tr></thead><tbody id="reservationsTbody"></tbody></table></div>
         </section>
 
         <section id="tab-dining" class="tab-panel hidden">
@@ -698,6 +788,12 @@
             <div class="cart-panel">
               <h3 style="margin-bottom: 8px;">Dining cart</h3>
               <div id="diningCartItems"></div>
+              <label style="margin-top: 10px;">Payment method
+                <select id="diningPaymentMethod" required>
+                  <option value="Debit card">Debit card</option>
+                  <option value="Credit card" selected>Credit card</option>
+                </select>
+              </label>
               <div class="row" style="justify-content: space-between; margin-top: 8px;">
                 <strong>Total: <span id="diningCartTotal">$0.00</span></strong>
                 <div class="row">
@@ -745,6 +841,12 @@
             <div class="cart-panel">
               <h3 style="margin-bottom: 8px;">Mini cart</h3>
               <div id="merchCartItems"></div>
+              <label style="margin-top: 10px;">Payment method
+                <select id="merchPaymentMethod" required>
+                  <option value="Debit card">Debit card</option>
+                  <option value="Credit card" selected>Credit card</option>
+                </select>
+              </label>
               <div class="row" style="justify-content: space-between; margin-top: 8px;">
                 <strong>Total: <span id="merchCartTotal">$0.00</span></strong>
                 <div class="row">
@@ -757,7 +859,6 @@
               <h3>Pay for merchandise</h3>
               <label>Merch item <select id="merchOrderItem"></select></label>
               <label>Quantity <input id="merchOrderQty" type="number" min="1" value="1" /></label>
-              <label>Payment method <input id="merchPaymentMethod" /></label>
               <button class="btn btn-primary" type="submit">Pay merchandise order</button>
             </form>
             <ul id="merchList" class="hidden"></ul>
@@ -769,7 +870,6 @@
               <label>Dining option <select id="diningOrderDining"></select></label>
               <label>Quantity <input id="diningOrderQty" type="number" min="1" value="1" /></label>
               <label>Unit price <input id="diningOrderUnitPrice" type="number" min="0" step="0.01" required /></label>
-              <label>Payment method <input id="diningPaymentMethod" /></label>
               <button class="btn btn-primary" type="submit">Pay dining order</button>
             </form>
           </div>
@@ -779,19 +879,13 @@
           <p id="ordersTransactionBanner" class="hint hidden" style="margin-top: 0;"></p>
           <div class="panel">
             <h3 style="margin-top: 0;">Orders</h3>
-            <p class="hint" style="margin: 0;">Dining, merchandise, and ticket purchases. For <strong>Ticket</strong> orders, click <strong>View Items</strong> to see the ticket issued for that payment (and raw line items below).</p>
+            <p class="hint" style="margin: 0;">Dining, merchandise, and ticket purchases. Click <strong>View Items</strong> to see each line in a receipt-style layout.</p>
           </div>
           <div style="overflow:auto;"><table><thead><tr><th>Order ID</th><th>Type</th><th>Total</th><th>Payment</th><th>Items</th></tr></thead><tbody id="ordersTbody"></tbody></table></div>
-          <div id="orderTicketReservationPanel" class="panel hidden" style="margin-top:14px;">
-            <h3 style="margin-top: 0;">Ticket &amp; reservations</h3>
-            <p id="orderTicketReservationHint" class="hint" style="margin-top: 0;"></p>
-            <h4 style="margin-top: 12px; margin-bottom: 6px;">Ticket from this order</h4>
-            <div style="overflow:auto;"><table><thead><tr><th>ID</th><th>Type</th><th>Discount</th><th>Price</th><th>Expiry</th><th>Status</th></tr></thead><tbody id="orderDetailTicketsTbody"></tbody></table></div>
-            <h4 style="margin-top: 16px; margin-bottom: 6px;">Your upcoming reservations</h4>
-            <p class="hint" style="margin-top: 0;">Reservations do not create a payment order. Cancel or update them from <strong>Tickets &amp; Reservations</strong>.</p>
-            <div style="overflow:auto;"><table><thead><tr><th>ID</th><th>Type</th><th>Target</th><th>Date</th><th>Slot</th><th>Status</th></tr></thead><tbody id="orderDetailReservationsTbody"></tbody></table></div>
+          <div id="orderItemsPanel" class="panel hidden" style="margin-top:14px;">
+            <h3 style="margin-top: 0;">Order items</h3>
+            <div id="orderItemsDisplay" class="order-items-stack"></div>
           </div>
-          <div class="panel" style="margin-top:14px;"><h3>Order items (raw)</h3><pre id="orderItemsPreview" style="white-space: pre-wrap;"></pre></div>
         </section>
 
         <section id="tab-feedback" class="tab-panel hidden">
@@ -809,6 +903,24 @@
         </section>
       </section>
     </div>
+
+    <div id="paymentConfirmModal" class="payment-modal hidden" role="dialog" aria-modal="true" aria-labelledby="paymentConfirmTitle">
+      <div class="payment-modal-backdrop" id="paymentConfirmModalBackdrop" tabindex="-1"></div>
+      <div class="payment-modal-card panel">
+        <button type="button" class="btn small payment-modal-close" id="paymentConfirmModalClose">Close</button>
+        <h2 id="paymentConfirmTitle" class="payment-modal-headline">Payment confirmed!</h2>
+        <p id="paymentConfirmTagline" class="payment-modal-tagline">Your booking is all set. See you at the park!</p>
+        <dl class="payment-modal-details">
+          <dt>Order #</dt>
+          <dd id="paymentConfirmOrderNum"></dd>
+          <dt>Amount charged</dt>
+          <dd id="paymentConfirmAmount"></dd>
+          <dt>Confirmation email</dt>
+          <dd id="paymentConfirmEmailLine"></dd>
+        </dl>
+      </div>
+    </div>
+
     <script src="/visitor/app.js"></script>
   </body>
 </html>
