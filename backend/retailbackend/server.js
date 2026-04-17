@@ -23,21 +23,20 @@ const server = http.createServer((req, res) => {
 // STATIC FILE SERVING
 // ======================
 
+const PUBLIC_DIR = path.join(__dirname, "public", "frontend");
+
 let cleanPath = url.pathname;
 
-cleanPath = cleanPath.replace("/retailfront", "");
-
-if (cleanPath === "/") {
+if (cleanPath === "/" || cleanPath === "") {
     cleanPath = "/index.html";
 }
 
-const filePath = path.join(process.cwd(), "retailfront", cleanPath);
+const filePath = path.join(PUBLIC_DIR, cleanPath);
 
-// security check
-if (!filePath.startsWith(path.join(__dirname, "retailfront"))) {
+// SECURITY CHECK (fixed)
+if (!filePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403);
-    res.end("Forbidden");
-    return;
+    return res.end("Forbidden");
 }
 
 if (fs.existsSync(filePath) && fs.lstatSync(filePath).isFile()) {
@@ -54,9 +53,11 @@ if (fs.existsSync(filePath) && fs.lstatSync(filePath).isFile()) {
         ".svg": "image/svg+xml"
     };
 
-    res.writeHead(200, { "Content-Type": contentTypes[ext] || "application/octet-stream" });
-    fs.createReadStream(filePath).pipe(res);
-    return;
+    res.writeHead(200, {
+        "Content-Type": contentTypes[ext] || "application/octet-stream"
+    });
+
+    return fs.createReadStream(filePath).pipe(res);
 }
 
     // ======================
