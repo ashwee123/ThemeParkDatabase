@@ -3,7 +3,54 @@ const fs     = require("fs");
 const path   = require("path");
 const routes = require("./routes");
 
+// ======================
+// HELPERS (moved outside request handler)
+// ======================
+const sendJSON = (res, status, data) => {
+    res.writeHead(status, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(data));
+};
+
+const parseBody = (req, callback) => {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => {
+        try { callback(JSON.parse(body)); }
+        catch { callback(null); }
+    });
+};
+
+// ======================
+// STATIC FILE SERVING
+// ======================
+const PUBLIC_DIR = path.join(__dirname, "public", "retailfront");
+
+const CONTENT_TYPES = {
+    ".html": "text/html",
+    ".css":  "text/css",
+    ".js":   "application/javascript",
+    ".json": "application/json",
+    ".png":  "image/png",
+    ".jpg":  "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".svg":  "image/svg+xml"
+};
+
+const serveStatic = (res, filePath) => {
+    const ext = path.extname(filePath).toLowerCase();
+    res.writeHead(200, {
+        "Content-Type": CONTENT_TYPES[ext] || "application/octet-stream"
+    });
+    const stream = fs.createReadStream(filePath);
+    stream.on("error", () => {
+        res.writeHead(500);
+        res.end("Internal Server Error");
+    });
+    stream.pipe(res);
+};
+
 const server = http.createServer((req, res) => {
+
     // ======================
     // CORS
     // ======================
@@ -18,69 +65,32 @@ const server = http.createServer((req, res) => {
     }
 
     const url = new URL(req.url, `http://${req.headers.host}`);
+    let cleanPath = url.pathname;
 
-// ======================
-// STATIC FILE SERVING
-// ======================
+    // Default to index.html
+    if (cleanPath === "/" || cleanPath === "") {
+        cleanPath = "/index.html";
+    }
 
-const PUBLIC_DIR = path.join(__dirname, "public", "retailfront");
+    const filePath = path.join(PUBLIC_DIR, cleanPath);
 
-let cleanPath = url.pathname;
+    // Security check
+    if (!filePath.startsWith(PUBLIC_DIR + path.sep)) {
+        res.writeHead(403);
+        return res.end("Forbidden");
+    }
 
-if (cleanPath === "/" || cleanPath === "") {
-    cleanPath = "/index.html";
-}
+    // Serve static file if it exists
+    fs.stat(filePath, (err, stat) => {
+        if (!err && stat.isFile()) {
+            return serveStatic(res, filePath);
+        }
 
-const filePath = path.join(PUBLIC_DIR, cleanPath);
-
-// SECURITY CHECK (fixed)
-if (!filePath.startsWith(PUBLIC_DIR)) {
-    res.writeHead(403);
-    return res.end("Forbidden");
-}
-
-if (fs.existsSync(filePath) && fs.lstatSync(filePath).isFile()) {
-    const ext = path.extname(filePath).toLowerCase();
-
-    const contentTypes = {
-        ".html": "text/html",
-        ".css": "text/css",
-        ".js": "application/javascript",
-        ".json": "application/json",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".svg": "image/svg+xml"
-    };
-
-    res.writeHead(200, {
-        "Content-Type": contentTypes[ext] || "application/octet-stream"
+        // ======================
+        // API ROUTES
+        // ======================
+        routes(req, res, url, sendJSON, parseBody);
     });
-
-    return fs.createReadStream(filePath).pipe(res);
-}
-
-    // ======================
-    // HELPERS
-    // ======================
-    const sendJSON = (res, status, data) => {
-        res.writeHead(status, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(data));
-    };
-
-    const parseBody = (req, callback) => {
-        let body = "";
-        req.on("data", chunk => body += chunk);
-        req.on("end", () => {
-            try { callback(JSON.parse(body)); }
-            catch { callback(null); }
-        });
-    };
-
-    // ======================
-    // API ROUTES
-    // ======================
-    routes(req, res, url, sendJSON, parseBody);
 });
 
 // ======================
