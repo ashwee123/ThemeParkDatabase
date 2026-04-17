@@ -40,6 +40,7 @@ document.querySelectorAll(".tab").forEach(tab => {
             case "inventory":    loadInventory();    break;
             case "transactions": loadTransactions(); break;
             case "restock":      loadRestock();      break;
+            case "reports":      loadStores();       break;
             case "stores":       loadStores();       break;
         }
     });
@@ -66,6 +67,12 @@ function formatCurrency(val) {
 
 function formatDate(val) {
     return val ? val.split("T")[0] : "";
+}
+
+function buildReportQuery(startDate, endDate, retailID) {
+    const params = new URLSearchParams({ startDate, endDate });
+    if (retailID) params.set("retailID", retailID);
+    return params.toString();
 }
 
 function stockStatus(qty, threshold) {
@@ -330,16 +337,22 @@ document.getElementById("btn-log-restock").addEventListener("click", async () =>
 document.getElementById("btn-run-report").addEventListener("click", async () => {
     const startDate = document.getElementById("report-start").value;
     const endDate   = document.getElementById("report-end").value;
+    const retailID  = document.getElementById("report-store").value;
 
     if (!startDate || !endDate) return showToast("Please select a date range", true);
 
-    const [reportRes, damagedRes] = await Promise.all([
-        fetch(`${API_BASE}/report?startDate=${startDate}&endDate=${endDate}`,         { headers: authHeader() }),
-        fetch(`${API_BASE}/damaged-stolen?startDate=${startDate}&endDate=${endDate}`, { headers: authHeader() })
+    const reportQuery = buildReportQuery(startDate, endDate, retailID);
+    const [reportRes, damagedRes, boughtRes] = await Promise.all([
+        fetch(`${API_BASE}/report?${reportQuery}`,         { headers: authHeader() }),
+        fetch(`${API_BASE}/damaged-stolen?${reportQuery}`, { headers: authHeader() }),
+        fetch(`${API_BASE}/items-bought?${reportQuery}`,   { headers: authHeader() })
     ]);
 
-    const report  = await reportRes.json();
-    const damaged = await damagedRes.json();
+    const [report, damaged, bought] = await Promise.all([
+        reportRes.json(),
+        damagedRes.json(),
+        boughtRes.json()
+    ]);
 
     const reportBody = document.querySelector("#tbl-report tbody");
     reportBody.innerHTML = report.length ? report.map(r => `
@@ -360,13 +373,23 @@ document.getElementById("btn-run-report").addEventListener("click", async () => 
     const damagedBody = document.querySelector("#tbl-damaged tbody");
     damagedBody.innerHTML = damaged.length ? damaged.map(d => `
         <tr>
+            <td>${d.RetailName}</td>
             <td>${d.ItemName}</td>
             <td>${txnType(d.Type)}</td>
             <td>${d.Quantity}</td>
             <td>${formatDate(d.Date)}</td>
             <td>${d.Time}</td>
         </tr>
-    `).join("") : `<tr><td colspan="5" style="color:var(--text-dim)">No damaged or stolen items in range</td></tr>`;
+    `).join("") : `<tr><td colspan="6" style="color:var(--text-dim)">No damaged or stolen items in range</td></tr>`;
+
+    const boughtBody = document.querySelector("#tbl-items-bought tbody");
+    boughtBody.innerHTML = bought.length ? bought.map(b => `
+        <tr>
+            <td>${b.RetailName}</td>
+            <td>${b.ItemName}</td>
+            <td>${b.TotalQuantityBought}</td>
+        </tr>
+    `).join("") : `<tr><td colspan="3" style="color:var(--text-dim)">No purchased items in range</td></tr>`;
 });
 
 // =============================================================
@@ -384,6 +407,16 @@ async function loadStores() {
             <td>${s.RetailName}</td>
         </tr>
     `).join("") : `<tr><td colspan="2" style="color:var(--text-dim)">No stores found</td></tr>`;
+
+    const reportStoreSelect = document.getElementById("report-store");
+    const selectedValue = reportStoreSelect.value;
+    reportStoreSelect.innerHTML = [
+        `<option value="">All Stores</option>`,
+        ...stores.map(s => `<option value="${s.RetailID}">${s.RetailName}</option>`)
+    ].join("");
+    if (selectedValue) {
+        reportStoreSelect.value = selectedValue;
+    }
 }
 
 document.getElementById("btn-add-store").addEventListener("click", async () => {
