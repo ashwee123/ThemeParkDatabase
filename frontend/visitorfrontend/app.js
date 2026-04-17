@@ -8,6 +8,53 @@ const TICKET_PRICES = {
   Membership: 100,
 };
 const MEMBERSHIP_PERKS_TEXT = "Membership perks: skip lines, exclusive zones, and priority access.";
+const PARK_ZONES = [
+  "Uncanny Valley",
+  "Bloodmoon Village",
+  "Space Station X",
+  "Camp Blackwood",
+  "Dead End District",
+  "Isolation Ward",
+];
+const DINING_MENU_ITEMS = [
+  { zone: "Uncanny Valley", venue: "Artificial Appetite Cafe", name: "Symmetry Burger", price: 13.99 },
+  { zone: "Uncanny Valley", venue: "Artificial Appetite Cafe", name: "Repeated Ravioli Plate", price: 12.49 },
+  { zone: "Uncanny Valley", venue: "Artificial Appetite Cafe", name: "Synthetic Steak Cut", price: 18.99 },
+  { zone: "Uncanny Valley", venue: "The TV Dinner Lounge", name: "Fried Chicken TV Dinner", price: 11.49 },
+  { zone: "Uncanny Valley", venue: "The TV Dinner Lounge", name: "Mac & Cheese Combo Tray", price: 10.49 },
+  { zone: "Bloodmoon Village", venue: "Great Feast Hall", name: "Roasted Beast Feast", price: 19.99 },
+  { zone: "Bloodmoon Village", venue: "Great Feast Hall", name: "Feast of the Chosen (Sampler)", price: 18.49 },
+  { zone: "Bloodmoon Village", venue: "Great Feast Hall", name: "Sacrificial Lamb Plate", price: 16.99 },
+  { zone: "Bloodmoon Village", venue: "Crimson Tavern", name: "Dark Harvest Plate", price: 13.99 },
+  { zone: "Bloodmoon Village", venue: "Witch's Brew Stand", name: "Mystery Brew", price: 4.99 },
+  { zone: "Bloodmoon Village", venue: "Witch's Brew Stand", name: "Potion Flight (Sampler)", price: 6.99 },
+  { zone: "Space Station X", venue: "Orbit Mess Hall", name: "Space Station Burger", price: 13.49 },
+  { zone: "Space Station X", venue: "Orbit Mess Hall", name: "Zero-G Taco Plate", price: 12.49 },
+  { zone: "Space Station X", venue: "Orbit Mess Hall", name: "Galaxy Sampler Tray", price: 13.99 },
+  { zone: "Space Station X", venue: "The Airlock Lounge", name: "Black Hole Cocktail", price: 8.99 },
+  { zone: "Space Station X", venue: "The Airlock Lounge", name: "Airlock Sliders", price: 6.99 },
+  { zone: "Space Station X", venue: "Cryo Cafe", name: "Cryo Ice Cream Sphere", price: 5.49 },
+  { zone: "Camp Blackwood", venue: "Dockside Grill", name: "Grilled Fish Basket", price: 13.49 },
+  { zone: "Camp Blackwood", venue: "Dockside Grill", name: "Dockside BBQ Plate", price: 14.99 },
+  { zone: "Camp Blackwood", venue: "Smores Stand", name: "Classic Chocolate S’more", price: 4.49 },
+  { zone: "Camp Blackwood", venue: "Smores Stand", name: "S’mores Party Platter", price: 9.99 },
+  { zone: "Dead End District", venue: "Freddy Fazbears Pizzaria", name: "Classic Cheese Pizza", price: 10.49 },
+  { zone: "Dead End District", venue: "Freddy Fazbears Pizzaria", name: "Pepperoni Pizza", price: 11.49 },
+  { zone: "Dead End District", venue: "Freddy Fazbears Pizzaria", name: "Fazbear Special Pizza", price: 13.99 },
+  { zone: "Dead End District", venue: "Billy's Butcher Shop", name: "Meat Lover's Platter", price: 16.99 },
+  { zone: "Dead End District", venue: "Billy's Butcher Shop", name: "Red Sauce Special Drink", price: 4.29 },
+  { zone: "Dead End District", venue: "Midnight Snack Shack", name: "After Hours Deal", price: 6.99 },
+  { zone: "Dead End District", venue: "Midnight Snack Shack", name: "Last Call Special", price: 9.49 },
+  { zone: "Isolation Ward", venue: "Ration Station", name: "Canned Chili", price: 5.49 },
+  { zone: "Isolation Ward", venue: "Ration Station", name: "Protein Ration Pack", price: 6.49 },
+  { zone: "Isolation Ward", venue: "Contamination Cafe", name: "Pickled Veggie Cup", price: 2.99 },
+  { zone: "Isolation Ward", venue: "Contamination Cafe", name: "Mutant Mac & Cheese", price: 6.99 },
+  { zone: "Isolation Ward", venue: "Contamination Cafe", name: "Pandemic Pizza Slice", price: 5.49 },
+  { zone: "Isolation Ward", venue: "Contamination Cafe", name: "Quarantine Quesadilla", price: 7.49 },
+  { zone: "Isolation Ward", venue: "Contamination Cafe", name: "Radioactive Lemonade", price: 3.99 },
+  { zone: "Isolation Ward", venue: "Field Medic Kitchen", name: "Medic Chicken Soup", price: 6.49 },
+  { zone: "Isolation Ward", venue: "Field Medic Kitchen", name: "Restorative Combo", price: 8.99 },
+];
 const state = {
   areas: [],
   parks: [],
@@ -15,6 +62,9 @@ const state = {
   dining: [],
   merchandise: [],
   diningShopView: "dining",
+  parkContentView: "attractions",
+  merchCart: [],
+  diningCart: [],
 };
 
 function $(id) {
@@ -128,52 +178,36 @@ function updateTicketPricingPreview() {
   }
 }
 
-// Horror-themed stock art per attraction/event name (Pexels). Unknown names use hash fallback.
-const HORROR_ART_IMAGE_BY_NAME = {
-  "Broadcast Hijack": "https://images.pexels.com/photos/6044925/pexels-photo-6044925.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Escape the Backrooms": "https://images.pexels.com/photos/2387866/pexels-photo-2387866.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Alternate Invasion": "https://images.pexels.com/photos/3692669/pexels-photo-3692669.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Looping Day": "https://images.pexels.com/photos/1270184/pexels-photo-1270184.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Smile Protocol": "https://images.pexels.com/photos/2886213/pexels-photo-2886213.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Harvest Festival": "https://images.pexels.com/photos/3408746/pexels-photo-3408746.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Pastor John's Sermon": "https://images.pexels.com/photos/1236701/pexels-photo-1236701.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "The Offering": "https://images.pexels.com/photos/1697912/pexels-photo-1697912.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Forest of Whispers": "https://images.pexels.com/photos/1574073/pexels-photo-1574073.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "AI Override": "https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "The Last Transmission": "https://images.pexels.com/photos/2657669/pexels-photo-2657669.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Containment Breach": "https://images.pexels.com/photos/2835436/pexels-photo-2835436.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Zero-Gravity Situation": "https://images.pexels.com/photos/5997154/pexels-photo-5997154.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Watchtower Drop": "https://images.pexels.com/photos/3584579/pexels-photo-3584579.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Cryptid Hunt": "https://images.pexels.com/photos/7688460/pexels-photo-7688460.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Trail Tour": "https://images.pexels.com/photos/417074/pexels-photo-417074.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Lake Terror": "https://images.pexels.com/photos/764182/pexels-photo-764182.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Camper Safety Orientation": "https://images.pexels.com/photos/1367192/pexels-photo-1367192.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Psych Ward Tour": "https://images.pexels.com/photos/775001/pexels-photo-775001.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Midnight Stalker": "https://images.pexels.com/photos/5310354/pexels-photo-5310354.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Final Girl: The Chase": "https://images.pexels.com/photos/5310352/pexels-photo-5310352.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Execution Alley": "https://images.pexels.com/photos/2581926/pexels-photo-2581926.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Body Count": "https://images.pexels.com/photos/4240572/pexels-photo-4240572.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Outbreak: Day Zero": "https://images.pexels.com/photos/5900508/pexels-photo-5900508.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Evacuation Protocol": "https://images.pexels.com/photos/6044198/pexels-photo-6044198.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Emergency Broadcast Live": "https://images.pexels.com/photos/4337123/pexels-photo-4337123.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Containment Collapse": "https://images.pexels.com/photos/3820970/pexels-photo-3820970.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "Last Stand Barricade": "https://images.pexels.com/photos/1913607/pexels-photo-1913607.jpeg?auto=compress&cs=tinysrgb&w=640",
+const HORROR_IMAGE_PROMPTS_BY_NAME = {
+  "Broadcast Hijack": "A flickering, static-filled TV screen in a dark studio, emergency broadcast colors red and black glitching across monitors, a shadowy figure visible through static, warning text scrolling at the bottom, cinematic horror poster style.",
+  "Escape the Backrooms": "Endless fluorescent-lit yellow hallways stretching into darkness, peeling wallpaper, buzzing dying lights overhead, infinite liminal space, ominous horror atmosphere, cinematic.",
+  "Alternate Invasion": "A reality tear splitting open in the sky above a suburban street, dark mirror-like figures stepping through, distorted familiar objects, purple and black dimensional rift energy, cinematic horror.",
+  "Looping Day": "A broken cracked clock face, the same suburban street repeated infinitely, a person frozen mid-scream, blood on the sidewalk, an impossible new door, uncanny time-loop horror scene.",
+  "Smile Protocol": "Pitch black background with only a wide unnatural smile, too many asymmetrical teeth glowing faint white, security camera overlay and timestamp, analog horror style.",
+  "Harvest Festival": "Torchlit cornfield at dusk, scarecrows in a ritual circle around an altar, robed figures chanting, offerings of rotting fruit and bones, smoke rising into a blood-red sky.",
+  "Pastor John's Sermon": "Dim wooden church interior, glassy-eyed congregation in pews, preacher with hollow black eyes at pulpit, candles as only light, burned bible pages scattered on floor, religious horror.",
+  "The Offering": "Stone altar in a dark forest clearing, moonlight through trees, bound figure surrounded by hooded silhouettes, ancient symbols carved into ground glowing red.",
+  "Forest of Whispers": "Dense foggy forest at midnight, faces pressed inside tree bark, ghostly hands reaching from roots, dead leaves suspended in air, one lantern path leading deeper.",
+  "AI Override": "Server room in cold blue light, screens showing corrupted code and faces, robotic arms reaching from walls, a single red eye in a cracked center monitor, sci-fi horror.",
+  "The Last Transmission": "Lone radio operator in bunker surrounded by dead screens, forbidden signal incoming, face pressing through radio waveform visualization, static spelling warning message.",
+  "Containment Breach": "Government research facility with blown-out blast doors, red emergency lighting, biohazard symbols everywhere, reinforced walls torn open by unseen creature, wet footprints into darkness.",
+  "Zero-Gravity Situation": "Astronaut floating helplessly in dark space station corridor, blood droplets and debris drifting in zero gravity, something moving in vents above, Earth visible through cracked window.",
+  "Watchtower Drop": "Rusted forest ranger watchtower at night, massive creature circling in treeline below, tower shaking, claw marks on wooden rail, abandoned ranger equipment scattered.",
+  "Cryptid Hunt": "Dense Appalachian wilderness, trail camera flashes catching enormous figure between trees, abandoned hunting gear on path, multiple pairs of glowing eyes in darkness.",
+  "Trail Tour": "A scenic forest trail turning wrong, signs pointing impossible directions, animal skulls hanging from trees, narrowing path, tour guide frozen in fear pointing off trail.",
+  "Lake Terror": "Still black lake at midnight with enormous dark mass beneath surface, capsized rowboat floating center, dock lights flickering, wet handprints leading onto shore.",
+  "Camper Safety Orientation": "Cheerful 1980s camp safety video aesthetic gone wrong, smiling counselor glitching into monstrous face, sinister safety tips, campfire revealing silhouettes closing in.",
+  "Psych Ward Tour": "Decaying psychiatric hospital hallway, peeling paint, barred windows with moonlight, wheelchair at corridor end facing away, patient files scattered, scratching behind locked door.",
+  "Midnight Stalker": "Dark suburban neighborhood at night, one house lit while all others dark, silhouette in every window, figure standing still under streetlight, knife reflecting light nearby.",
+  "Final Girl: The Chase": "Terrified young woman running through dark house, massive masked figure chasing, overturned furniture, only light from flickering phone screen, dead-end door ahead.",
+  "Execution Alley": "Narrow brick alley lined with nooses and rusted electric chairs, red light and long shadows, hooded executioner silhouette at far end, walls scratched with tallies and last words.",
+  "Body Count": "Crime scene room with chalk body outlines, evidence markers by blood pools, detective board with photos linked by red string, killer shadow behind frosted glass door.",
+  "Outbreak: Day Zero": "Hospital emergency room overrun, biohazard tape over doors, infected patients turning, lone doctor in hazmat suit reading clipboard in despair, red emergency lighting.",
+  "Evacuation Protocol": "Gridlocked highway of abandoned cars, distant sirens, families fleeing on foot with belongings left behind, military blockade ahead, smoke from city skyline, sign reads TURN BACK.",
+  "Emergency Broadcast Live": "News anchor desk with two anchors, one visibly infected, the other realizing on live camera, panicked breaking news ticker, crew fleeing in background.",
+  "Containment Collapse": "Research facility perimeter fence torn open from inside, overturned military vehicles, hazmat soldiers running, massive hole in facility wall, warning sirens and red emergency lights.",
+  "Last Stand Barricade": "Fortified convenience store at night with boarded windows, survivors visible through gaps with weapons, huge infected horde pressing outside, flickering OPEN sign, supplies running low.",
 };
-
-const HORROR_FALLBACK_IMAGES = [
-  "https://images.pexels.com/photos/2081139/pexels-photo-2081139.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "https://images.pexels.com/photos/1679776/pexels-photo-1679776.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "https://images.pexels.com/photos/2346216/pexels-photo-2346216.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "https://images.pexels.com/photos/775943/pexels-photo-775943.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "https://images.pexels.com/photos/5310353/pexels-photo-5310353.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "https://images.pexels.com/photos/6044925/pexels-photo-6044925.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "https://images.pexels.com/photos/2387866/pexels-photo-2387866.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "https://images.pexels.com/photos/3692669/pexels-photo-3692669.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "https://images.pexels.com/photos/1270184/pexels-photo-1270184.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "https://images.pexels.com/photos/2886213/pexels-photo-2886213.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "https://images.pexels.com/photos/3408746/pexels-photo-3408746.jpeg?auto=compress&cs=tinysrgb&w=640",
-  "https://images.pexels.com/photos/1236701/pexels-photo-1236701.jpeg?auto=compress&cs=tinysrgb&w=640",
-];
 
 function hashStringToIndex(str, modulo) {
   let h = 0;
@@ -185,13 +219,71 @@ function hashStringToIndex(str, modulo) {
 
 function cardImageUrl(name) {
   const key = String(name || "").trim();
-  if (HORROR_ART_IMAGE_BY_NAME[key]) return HORROR_ART_IMAGE_BY_NAME[key];
-  const idx = hashStringToIndex(key || "default", HORROR_FALLBACK_IMAGES.length);
-  return HORROR_FALLBACK_IMAGES[idx];
+  const prompt = HORROR_IMAGE_PROMPTS_BY_NAME[key] || `${key}, horror theme park attraction poster, cinematic dark style`;
+  const seed = hashStringToIndex(key || "default", 999999) + 1;
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=640&height=360&seed=${seed}&model=flux&nologo=true`;
+}
+
+function fallbackImageUrl(name, width, height) {
+  const label = encodeURIComponent(`${name || "Horror Attraction"}\nImage Loading`);
+  return `https://placehold.co/${width}x${height}/111014/e6e2ea?text=${label}`;
+}
+
+function renderGeneratedArtImage(name, width, height, alt) {
+  const src = cardImageUrl(name);
+  const fallback = fallbackImageUrl(name, width, height);
+  return `
+    <div class="image-frame" style="width:${width}px; height:${height}px;">
+      <div class="image-skeleton"></div>
+      <img
+        class="generated-art"
+        src="${src}"
+        data-fallback-src="${fallback}"
+        alt="${alt}"
+        loading="lazy"
+        decoding="async"
+        style="width:${width}px; height:${height}px;"
+      />
+    </div>
+  `;
+}
+
+function wireGeneratedImages(root = document) {
+  const images = root.querySelectorAll("img.generated-art:not([data-wired='1'])");
+  images.forEach((img) => {
+    img.dataset.wired = "1";
+
+    img.addEventListener("load", () => {
+      const frame = img.closest(".image-frame");
+      if (frame) frame.classList.add("loaded");
+    });
+
+    img.addEventListener("error", () => {
+      if (!img.dataset.fallbackUsed) {
+        img.dataset.fallbackUsed = "1";
+        img.src = img.dataset.fallbackSrc || "";
+        return;
+      }
+      const frame = img.closest(".image-frame");
+      if (frame) frame.classList.add("loaded");
+    });
+  });
 }
 
 function textMatchesSearch(value, query) {
   return String(value || "").toLowerCase().includes(query);
+}
+
+function normalizeZoneName(rawZone) {
+  const z = String(rawZone || "").trim().toLowerCase();
+  if (!z) return "Uncanny Valley";
+  if (z.includes("uncanny")) return "Uncanny Valley";
+  if (z.includes("bloodmoon") || z.includes("cult")) return "Bloodmoon Village";
+  if (z.includes("space") || z.includes("sci-fi") || z.includes("scifi")) return "Space Station X";
+  if (z.includes("blackwood") || z.includes("camp")) return "Camp Blackwood";
+  if (z.includes("dead end") || z.includes("slasher")) return "Dead End District";
+  if (z.includes("isolation") || z.includes("outbreak") || z.includes("biohazard")) return "Isolation Ward";
+  return "Uncanny Valley";
 }
 
 function setDiningShopView(view) {
@@ -199,40 +291,232 @@ function setDiningShopView(view) {
   const showingDining = state.diningShopView === "dining";
   $("diningMenuSection").classList.toggle("hidden", !showingDining);
   $("merchMenuSection").classList.toggle("hidden", showingDining);
-  $("btnDiningViewMenu").classList.toggle("btn-primary", showingDining);
-  $("btnDiningViewMerch").classList.toggle("btn-primary", !showingDining);
+  if ($("diningShopViewSelect")) $("diningShopViewSelect").value = state.diningShopView;
+}
+
+function setParkContentView(view) {
+  state.parkContentView = view === "events" ? "events" : "attractions";
+  const showEvents = state.parkContentView === "events";
+  $("eventsSection").classList.toggle("hidden", !showEvents);
+  $("attractionsSection").classList.toggle("hidden", showEvents);
 }
 
 function renderDiningList() {
   const query = String(($("diningSearch") && $("diningSearch").value) || "").trim().toLowerCase();
-  const rows = state.dining.filter((d) => {
-    if (!query) return true;
-    return (
-      textMatchesSearch(d.DiningName, query) ||
-      textMatchesSearch(d.CuisineType, query) ||
-      textMatchesSearch(d.MenuSummary, query) ||
-      textMatchesSearch(d.AreaName, query) ||
-      textMatchesSearch(d.ParkName, query)
-    );
+  const zone = (($("diningZoneFilter") && $("diningZoneFilter").value) || "all").toLowerCase();
+  const sortBy = ($("diningSort") && $("diningSort").value) || "name-asc";
+  const maxPrice = Number(($("diningMaxPrice") && $("diningMaxPrice").value) || "");
+  const hasMaxPrice = Number.isFinite(maxPrice) && maxPrice > 0;
+
+  const rows = DINING_MENU_ITEMS.filter((d) => {
+    const matchesSearch = !query || textMatchesSearch(d.name, query) || textMatchesSearch(d.venue, query) || textMatchesSearch(d.zone, query);
+    if (!matchesSearch) return false;
+    if (zone !== "all" && String(d.zone || "").toLowerCase() !== zone) return false;
+    if (hasMaxPrice && Number(d.price || 0) > maxPrice) return false;
+    return true;
   });
+
+  rows.sort((a, b) => {
+    if (sortBy === "price-asc") return a.price - b.price;
+    if (sortBy === "price-desc") return b.price - a.price;
+    return String(a.name || "").localeCompare(String(b.name || ""));
+  });
+
+  const prices = rows.map((r) => Number(r.price || 0));
+  const low = prices.length ? Math.min(...prices) : 0;
+  const high = prices.length ? Math.max(...prices) : 0;
+  $("diningTotalItems").textContent = String(rows.length);
+  $("diningLowestPrice").textContent = `$${low.toFixed(2)}`;
+  $("diningHighestPrice").textContent = `$${high.toFixed(2)}`;
+
+  $("diningCards").innerHTML = rows
+    .map((d) => `<article class="merch-card">
+      <div class="zone">${d.zone}</div>
+      <div class="item-name">${d.name}</div>
+      <div class="shop-name">${d.venue}</div>
+      <div class="price-row">
+        <strong>$${Number(d.price).toFixed(2)}</strong>
+        <button class="btn small" type="button"
+          data-add-dining-name="${String(d.name).replace(/"/g, "&quot;")}"
+          data-add-dining-zone="${String(d.zone).replace(/"/g, "&quot;")}"
+          data-add-dining-venue="${String(d.venue).replace(/"/g, "&quot;")}"
+          data-add-dining-price="${Number(d.price).toFixed(2)}"
+        >+ Add</button>
+      </div>
+    </article>`)
+    .join("");
+
   $("diningList").innerHTML = rows
-    .map((d) => `<li><strong>${d.DiningName}</strong> (${d.CuisineType || "Cuisine"}) - ${d.MenuSummary || "Menu available at park."}</li>`)
+    .map((d) => `<li><strong>${d.name}</strong> @ ${d.venue} - $${Number(d.price).toFixed(2)}</li>`)
     .join("");
 }
 
 function renderMerchList() {
   const query = String(($("merchSearch") && $("merchSearch").value) || "").trim().toLowerCase();
+  const zone = (($("merchZoneFilter") && $("merchZoneFilter").value) || "all").toLowerCase();
+  const sortBy = ($("merchSort") && $("merchSort").value) || "name-asc";
+  const maxPrice = Number(($("merchMaxPrice") && $("merchMaxPrice").value) || "");
+  const hasMaxPrice = Number.isFinite(maxPrice) && maxPrice > 0;
+
   const rows = state.merchandise.filter((m) => {
-    if (!query) return true;
-    return (
+    const zoneName = normalizeZoneName(m.AreaName);
+    const price = Number(m.DiscountPrice || m.SellPrice || 0);
+    const matchesSearch = !query || (
       textMatchesSearch(m.ItemName, query) ||
       textMatchesSearch(m.RetailName, query) ||
-      textMatchesSearch(m.AreaName, query)
+      textMatchesSearch(zoneName, query)
     );
+    if (!matchesSearch) return false;
+    if (zone !== "all" && zoneName.toLowerCase() !== zone) return false;
+    if (hasMaxPrice && price > maxPrice) return false;
+    return true;
   });
-  $("merchList").innerHTML = rows
-    .map((m) => `<li><strong>${m.ItemName}</strong> @ ${m.RetailName} - $${Number(m.DiscountPrice || m.SellPrice).toFixed(2)}</li>`)
+
+  rows.sort((a, b) => {
+    const an = String(a.ItemName || "").toLowerCase();
+    const bn = String(b.ItemName || "").toLowerCase();
+    const ap = Number(a.DiscountPrice || a.SellPrice || 0);
+    const bp = Number(b.DiscountPrice || b.SellPrice || 0);
+    if (sortBy === "price-asc") return ap - bp;
+    if (sortBy === "price-desc") return bp - ap;
+    return an.localeCompare(bn);
+  });
+
+  const uniqueShops = new Set(rows.map((m) => String(m.RetailName || "Unknown")));
+  const prices = rows.map((m) => Number(m.DiscountPrice || m.SellPrice || 0));
+  const lowest = prices.length ? Math.min(...prices) : 0;
+  const highest = prices.length ? Math.max(...prices) : 0;
+  $("merchTotalItems").textContent = String(rows.length);
+  $("merchTotalShops").textContent = String(uniqueShops.size);
+  $("merchLowestPrice").textContent = `$${lowest.toFixed(2)}`;
+  $("merchHighestPrice").textContent = `$${highest.toFixed(2)}`;
+
+  $("merchCards").innerHTML = rows
+    .map((m) => {
+      const zoneName = normalizeZoneName(m.AreaName);
+      const price = Number(m.DiscountPrice || m.SellPrice || 0);
+      return `<article class="merch-card">
+        <div class="zone">${zoneName}</div>
+        <div class="item-name">${m.ItemName}</div>
+        <div class="shop-name">${m.RetailName || "Unknown Shop"}</div>
+        <div class="price-row">
+          <strong>$${price.toFixed(2)}</strong>
+          <button
+            class="btn small"
+            type="button"
+            data-add-merch="${Number(m.ItemID)}"
+            data-add-merch-name="${String(m.ItemName || "").replace(/"/g, "&quot;")}"
+            data-add-merch-shop="${String(m.RetailName || "").replace(/"/g, "&quot;")}"
+            data-add-merch-price="${price.toFixed(2)}"
+          >+ Add</button>
+        </div>
+      </article>`;
+    })
     .join("");
+}
+
+function cartTotal() {
+  return state.merchCart.reduce((sum, it) => sum + (Number(it.price) * Number(it.qty)), 0);
+}
+
+function renderMerchCart() {
+  const root = $("merchCartItems");
+  if (!root) return;
+  if (!state.merchCart.length) {
+    root.innerHTML = `<p class="hint" style="margin:0;">Your cart is empty.</p>`;
+    $("merchCartTotal").textContent = "$0.00";
+    return;
+  }
+
+  root.innerHTML = state.merchCart
+    .map(
+      (it) => `<div class="cart-item">
+      <div>
+        <div><strong>${it.name}</strong></div>
+        <div class="hint" style="font-size:12px;">${it.shop || "Unknown shop"}</div>
+      </div>
+      <div>$${Number(it.price).toFixed(2)}</div>
+      <div class="cart-qty">
+        <button class="btn small" type="button" data-cart-dec="${it.itemId}">-</button>
+        <span>${it.qty}</span>
+        <button class="btn small" type="button" data-cart-inc="${it.itemId}">+</button>
+      </div>
+      <button class="btn small" type="button" data-cart-remove="${it.itemId}">Remove</button>
+    </div>`
+    )
+    .join("");
+  $("merchCartTotal").textContent = `$${cartTotal().toFixed(2)}`;
+}
+
+function addToMerchCart(item) {
+  const existing = state.merchCart.find((it) => it.itemId === item.itemId);
+  if (existing) existing.qty += 1;
+  else state.merchCart.push({ ...item, qty: 1 });
+  renderMerchCart();
+}
+
+function updateCartItemQty(itemId, delta) {
+  const target = state.merchCart.find((it) => it.itemId === itemId);
+  if (!target) return;
+  target.qty += delta;
+  if (target.qty <= 0) state.merchCart = state.merchCart.filter((it) => it.itemId !== itemId);
+  renderMerchCart();
+}
+
+function removeCartItem(itemId) {
+  state.merchCart = state.merchCart.filter((it) => it.itemId !== itemId);
+  renderMerchCart();
+}
+
+function diningCartTotal() {
+  return state.diningCart.reduce((sum, it) => sum + (Number(it.price) * Number(it.qty)), 0);
+}
+
+function renderDiningCart() {
+  const root = $("diningCartItems");
+  if (!root) return;
+  if (!state.diningCart.length) {
+    root.innerHTML = `<p class="hint" style="margin:0;">Your dining cart is empty.</p>`;
+    $("diningCartTotal").textContent = "$0.00";
+    return;
+  }
+  root.innerHTML = state.diningCart
+    .map((it) => `<div class="cart-item">
+      <div>
+        <div><strong>${it.name}</strong></div>
+        <div class="hint" style="font-size:12px;">${it.venue} (${it.zone})</div>
+      </div>
+      <div>$${Number(it.price).toFixed(2)}</div>
+      <div class="cart-qty">
+        <button class="btn small" type="button" data-dining-cart-dec="${it.key}">-</button>
+        <span>${it.qty}</span>
+        <button class="btn small" type="button" data-dining-cart-inc="${it.key}">+</button>
+      </div>
+      <button class="btn small" type="button" data-dining-cart-remove="${it.key}">Remove</button>
+    </div>`)
+    .join("");
+  $("diningCartTotal").textContent = `$${diningCartTotal().toFixed(2)}`;
+}
+
+function addToDiningCart(item) {
+  const key = `${item.name}|${item.venue}|${item.zone}`;
+  const existing = state.diningCart.find((it) => it.key === key);
+  if (existing) existing.qty += 1;
+  else state.diningCart.push({ ...item, key, qty: 1 });
+  renderDiningCart();
+}
+
+function updateDiningCartQty(key, delta) {
+  const target = state.diningCart.find((it) => it.key === key);
+  if (!target) return;
+  target.qty += delta;
+  if (target.qty <= 0) state.diningCart = state.diningCart.filter((it) => it.key !== key);
+  renderDiningCart();
+}
+
+function removeDiningCartItem(key) {
+  state.diningCart = state.diningCart.filter((it) => it.key !== key);
+  renderDiningCart();
 }
 
 async function loadLookups(token) {
@@ -256,6 +540,22 @@ async function loadLookups(token) {
   fillSelect("feedbackAttraction", attractions, "AttractionID", "AttractionName", true);
   fillSelect("diningOrderDining", dining, "DiningID", "DiningName", false);
   fillSelect("merchOrderItem", merchandise, "ItemID", "ItemName", false);
+
+  const zones = Array.from(
+    new Set(PARK_ZONES)
+  );
+  if ($("merchZoneFilter")) {
+    $("merchZoneFilter").innerHTML =
+      `<option value="all">All zones</option>` +
+      zones.map((z) => `<option value="${z.toLowerCase()}">${z}</option>`).join("");
+  }
+
+  const diningZones = Array.from(new Set(PARK_ZONES));
+  if ($("diningZoneFilter")) {
+    $("diningZoneFilter").innerHTML =
+      `<option value="all">All zones</option>` +
+      diningZones.map((z) => `<option value="${z.toLowerCase()}">${z}</option>`).join("");
+  }
 }
 
 function showAuth(isAuthView) {
@@ -287,7 +587,7 @@ async function renderAttractions() {
   $("attractionsTbody").innerHTML = rows
     .map(
       (a) => `<tr>
-      <td><img src="${cardImageUrl(a.AttractionName)}" alt="${a.AttractionName}" style="width: 140px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);" /></td>
+      <td>${renderGeneratedArtImage(a.AttractionName, 140, 80, a.AttractionName)}</td>
       <td>${a.AttractionName}</td>
       <td>${a.Description || "-"}</td>
       <td>${a.HeightRequirementCm || "-"}</td>
@@ -298,6 +598,7 @@ async function renderAttractions() {
     </tr>`
     )
     .join("");
+  wireGeneratedImages($("attractionsTbody"));
 }
 
 async function renderParksAndEvents() {
@@ -305,11 +606,12 @@ async function renderParksAndEvents() {
   $("eventsList").innerHTML = events
     .map(
       (e) => `<li style="display:flex; gap:10px; align-items:flex-start; margin-bottom:10px;">
-      <img src="${cardImageUrl(e.EventName)}" alt="${e.EventName}" style="width: 120px; height: 70px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);" />
+      ${renderGeneratedArtImage(e.EventName, 120, 70, e.EventName)}
       <div><strong>${e.EventName}</strong> (${e.EventDate}) ${e.StartTime || ""}-${e.EndTime || ""} - ${e.EventDescription || ""}</div>
     </li>`
     )
     .join("");
+  wireGeneratedImages($("eventsList"));
 }
 
 async function renderTickets() {
@@ -448,10 +750,16 @@ function bindAppActions() {
 
   $("ticketCategory").addEventListener("change", updateTicketPricingPreview);
   $("ticketPlan").addEventListener("change", updateTicketPricingPreview);
-  $("btnDiningViewMenu").addEventListener("click", () => setDiningShopView("dining"));
-  $("btnDiningViewMerch").addEventListener("click", () => setDiningShopView("merch"));
+  $("diningShopViewSelect").addEventListener("change", (e) => setDiningShopView(e.target.value));
   $("diningSearch").addEventListener("input", renderDiningList);
+  $("diningZoneFilter").addEventListener("change", renderDiningList);
+  $("diningSort").addEventListener("change", renderDiningList);
+  $("diningMaxPrice").addEventListener("input", renderDiningList);
   $("merchSearch").addEventListener("input", renderMerchList);
+  $("merchZoneFilter").addEventListener("change", renderMerchList);
+  $("merchSort").addEventListener("change", renderMerchList);
+  $("merchMaxPrice").addEventListener("input", renderMerchList);
+  $("parkContentView").addEventListener("change", (e) => setParkContentView(e.target.value));
 
   $("ticketPurchaseForm").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -546,6 +854,64 @@ function bindAppActions() {
     await renderOrders();
   });
 
+  $("diningCards").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-add-dining-name]");
+    if (!btn) return;
+    const name = btn.dataset.addDiningName || "Dining item";
+    const zone = btn.dataset.addDiningZone || "General";
+    const venue = btn.dataset.addDiningVenue || "Park Dining";
+    const price = Number(btn.dataset.addDiningPrice || 0);
+    addToDiningCart({ name, zone, venue, price });
+    $("diningOrderUnitPrice").value = price.toFixed(2);
+    showStatus(`${name} added to dining cart ($${price.toFixed(2)}).`);
+  });
+
+  $("diningCartItems").addEventListener("click", (e) => {
+    const inc = e.target.closest("[data-dining-cart-inc]");
+    if (inc) return updateDiningCartQty(inc.dataset.diningCartInc, 1);
+    const dec = e.target.closest("[data-dining-cart-dec]");
+    if (dec) return updateDiningCartQty(dec.dataset.diningCartDec, -1);
+    const remove = e.target.closest("[data-dining-cart-remove]");
+    if (remove) return removeDiningCartItem(remove.dataset.diningCartRemove);
+  });
+
+  $("btnClearDiningCart").addEventListener("click", () => {
+    state.diningCart = [];
+    renderDiningCart();
+    showStatus("Dining cart cleared.");
+  });
+
+  $("btnCheckoutDiningCart").addEventListener("click", async () => {
+    if (!state.diningCart.length) {
+      showStatus("Your dining cart is empty.", true);
+      return;
+    }
+    const paymentMethod = $("diningPaymentMethod").value || "Card";
+    const promoCode = $("diningPromo").value || null;
+    const fallbackDiningId = Number($("diningOrderDining").value || 0);
+    if (!fallbackDiningId) {
+      showStatus("Select a dining option before checkout.", true);
+      return;
+    }
+    for (const item of state.diningCart) {
+      await api("/api/orders/dining", {
+        method: "POST",
+        token: getToken(),
+        body: {
+          DiningID: fallbackDiningId,
+          Quantity: Number(item.qty),
+          UnitPrice: Number(item.price),
+          PromoCode: promoCode,
+          PaymentMethod: paymentMethod,
+        },
+      });
+    }
+    state.diningCart = [];
+    renderDiningCart();
+    await renderOrders();
+    showStatus("Dining cart checkout complete.");
+  });
+
   $("merchOrderForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     await api("/api/orders/merchandise", {
@@ -559,6 +925,60 @@ function bindAppActions() {
       },
     });
     await renderOrders();
+  });
+
+  $("merchCards").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-add-merch]");
+    if (!btn) return;
+    const itemId = Number(btn.dataset.addMerch);
+    const itemName = btn.dataset.addMerchName || "Merch item";
+    const shopName = btn.dataset.addMerchShop || "Unknown shop";
+    const price = Number(btn.dataset.addMerchPrice || 0);
+    addToMerchCart({ itemId, name: itemName, shop: shopName, price });
+    $("merchOrderItem").value = String(itemId);
+    showStatus(`${itemName} added to quick order ($${price.toFixed(2)}). Complete payment below.`);
+  });
+
+  $("merchCartItems").addEventListener("click", (e) => {
+    const inc = e.target.closest("[data-cart-inc]");
+    if (inc) return updateCartItemQty(Number(inc.dataset.cartInc), 1);
+    const dec = e.target.closest("[data-cart-dec]");
+    if (dec) return updateCartItemQty(Number(dec.dataset.cartDec), -1);
+    const remove = e.target.closest("[data-cart-remove]");
+    if (remove) return removeCartItem(Number(remove.dataset.cartRemove));
+  });
+
+  $("btnClearMerchCart").addEventListener("click", () => {
+    state.merchCart = [];
+    renderMerchCart();
+    showStatus("Merch cart cleared.");
+  });
+
+  $("btnCheckoutMerchCart").addEventListener("click", async () => {
+    if (!state.merchCart.length) {
+      showStatus("Your merch cart is empty.", true);
+      return;
+    }
+    const paymentMethod = $("merchPaymentMethod").value || "Card";
+    const promoCode = $("merchPromo").value || null;
+
+    for (const item of state.merchCart) {
+      await api("/api/orders/merchandise", {
+        method: "POST",
+        token: getToken(),
+        body: {
+          ItemID: Number(item.itemId),
+          Quantity: Number(item.qty),
+          PromoCode: promoCode,
+          PaymentMethod: paymentMethod,
+        },
+      });
+    }
+
+    state.merchCart = [];
+    renderMerchCart();
+    await renderOrders();
+    showStatus("Merch cart checkout complete.");
   });
 
   $("ordersTbody").addEventListener("click", async (e) => {
@@ -607,5 +1027,8 @@ bindAuthForms();
 bindAppActions();
 updateTicketPricingPreview();
 setDiningShopView("dining");
+setParkContentView("attractions");
+renderMerchCart();
+renderDiningCart();
 bootApp();
 

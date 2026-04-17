@@ -273,7 +273,76 @@
         border: 1px solid rgba(110, 176, 106, 0.28);
         color: var(--sick-glow);
       }
+      .image-frame {
+        position: relative;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.12);
+        overflow: hidden;
+        background: rgba(16, 16, 20, 0.9);
+      }
+      .image-skeleton {
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(90deg, rgba(196, 30, 58, 0.08) 0%, rgba(230, 226, 234, 0.2) 45%, rgba(196, 30, 58, 0.08) 100%),
+          linear-gradient(180deg, rgba(42, 18, 26, 0.8), rgba(18, 14, 18, 0.85));
+        background-size: 220% 100%, 100% 100%;
+        animation: image-skeleton-shimmer 1.5s linear infinite;
+      }
+      .generated-art {
+        display: block;
+        opacity: 0;
+        object-fit: cover;
+        transition: opacity 280ms ease-in-out;
+      }
+      .image-frame.loaded .generated-art { opacity: 1; }
+      .image-frame.loaded .image-skeleton { display: none; }
+      @keyframes image-skeleton-shimmer {
+        0% { background-position: 200% 0, 0 0; }
+        100% { background-position: -20% 0, 0 0; }
+      }
       .hint { color: rgba(230, 226, 234, 0.68); line-height: 1.45; }
+      .shop-controls { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 10px; }
+      .shop-stats { display: flex; gap: 12px; flex-wrap: wrap; margin: 10px 0 6px; }
+      .shop-stat {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        padding: 8px 10px;
+        background: rgba(15, 15, 18, 0.8);
+      }
+      .merch-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 10px; }
+      .merch-card {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(15, 15, 18, 0.85);
+      }
+      .cart-panel {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(10, 10, 13, 0.9);
+        margin-top: 12px;
+      }
+      .cart-item {
+        display: grid;
+        grid-template-columns: 1fr auto auto auto;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .cart-item:last-child { border-bottom: none; }
+      .cart-qty {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .cart-qty button { min-width: 26px; }
+      .merch-card .zone { color: var(--sick-glow); font-size: 12px; letter-spacing: 0.04em; }
+      .merch-card .item-name { font-weight: 600; margin: 4px 0 2px; }
+      .merch-card .shop-name { color: rgba(230, 226, 234, 0.75); font-size: 13px; }
+      .merch-card .price-row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
       .status {
         margin-top: 10px;
         padding: 8px 10px;
@@ -429,10 +498,19 @@
 
         <section id="tab-park" class="tab-panel hidden">
           <div class="panel">
+            <label>
+              Choose view
+              <select id="parkContentView">
+                <option value="attractions">Attractions</option>
+                <option value="events">Events</option>
+              </select>
+            </label>
+          </div>
+          <div id="eventsSection" class="panel hidden" style="margin-top: 14px;">
             <h3>Events</h3>
             <ul id="eventsList"></ul>
           </div>
-          <div style="overflow:auto; margin-top: 14px;">
+          <div id="attractionsSection" style="overflow:auto; margin-top: 14px;">
             <table>
               <thead>
                 <tr><th>Image</th><th>Attraction</th><th>Description</th><th>Height (cm)</th><th>Duration (mins)</th><th>Thrill</th><th>Status</th><th>Wait Time</th></tr>
@@ -489,27 +567,107 @@
         </section>
 
         <section id="tab-dining" class="tab-panel hidden">
-          <div class="row" style="margin-bottom: 12px;">
-            <button id="btnDiningViewMenu" class="btn btn-primary" type="button">Dining Menu</button>
-            <button id="btnDiningViewMerch" class="btn" type="button">Merchandise Shop</button>
+          <div class="panel">
+            <label>
+              Choose section
+              <select id="diningShopViewSelect">
+                <option value="dining">Dining Menu</option>
+                <option value="merch">Merchandise Shop</option>
+              </select>
+            </label>
           </div>
 
-          <section id="diningMenuSection" class="panel">
+          <section id="diningMenuSection" class="panel" style="margin-top: 12px;">
             <h3>Dining options and menus</h3>
-            <label>
-              Search foods / dining
-              <input id="diningSearch" type="text" placeholder="Search by name, cuisine, menu, area..." />
-            </label>
+            <div class="shop-controls">
+              <label>
+                Search foods / dining
+                <input id="diningSearch" type="text" placeholder="Search by menu item, venue, zone..." />
+              </label>
+              <label>
+                Zone
+                <select id="diningZoneFilter">
+                  <option value="all">All zones</option>
+                </select>
+              </label>
+              <label>
+                Sort
+                <select id="diningSort">
+                  <option value="name-asc">Name (A-Z)</option>
+                  <option value="price-asc">Price (Lowest)</option>
+                  <option value="price-desc">Price (Highest)</option>
+                </select>
+              </label>
+              <label>
+                Max price
+                <input id="diningMaxPrice" type="number" min="0" step="0.01" placeholder="No max" />
+              </label>
+            </div>
+            <div class="shop-stats">
+              <div class="shop-stat">Total item: <strong id="diningTotalItems">0</strong></div>
+              <div class="shop-stat">Lowest price: <strong id="diningLowestPrice">$0.00</strong></div>
+              <div class="shop-stat">Highest price: <strong id="diningHighestPrice">$0.00</strong></div>
+            </div>
+            <div id="diningCards" class="merch-grid"></div>
+            <div class="cart-panel">
+              <h3 style="margin-bottom: 8px;">Dining cart</h3>
+              <div id="diningCartItems"></div>
+              <div class="row" style="justify-content: space-between; margin-top: 8px;">
+                <strong>Total: <span id="diningCartTotal">$0.00</span></strong>
+                <div class="row">
+                  <button id="btnClearDiningCart" type="button" class="btn">Clear cart</button>
+                  <button id="btnCheckoutDiningCart" type="button" class="btn btn-primary">Checkout cart</button>
+                </div>
+              </div>
+            </div>
             <ul id="diningList"></ul>
           </section>
 
           <section id="merchMenuSection" class="panel hidden" style="margin-top: 14px;">
             <h3>Merchandise options</h3>
-            <label>
-              Search merchandise
-              <input id="merchSearch" type="text" placeholder="Search by item, shop, area..." />
-            </label>
-            <ul id="merchList"></ul>
+            <div class="shop-controls">
+              <label>
+                Search merchandise
+                <input id="merchSearch" type="text" placeholder="Search by item, shop, zone..." />
+              </label>
+              <label>
+                Zone
+                <select id="merchZoneFilter">
+                  <option value="all">All zones</option>
+                </select>
+              </label>
+              <label>
+                Sort
+                <select id="merchSort">
+                  <option value="name-asc">Name (A-Z)</option>
+                  <option value="price-asc">Price (Lowest)</option>
+                  <option value="price-desc">Price (Highest)</option>
+                </select>
+              </label>
+              <label>
+                Max price
+                <input id="merchMaxPrice" type="number" min="0" step="0.01" placeholder="No max" />
+              </label>
+            </div>
+            <div class="shop-stats">
+              <div class="shop-stat">Total items: <strong id="merchTotalItems">0</strong></div>
+              <div class="shop-stat">Shops: <strong id="merchTotalShops">0</strong></div>
+              <div class="shop-stat">Lowest price: <strong id="merchLowestPrice">$0.00</strong></div>
+              <div class="shop-stat">Highest price: <strong id="merchHighestPrice">$0.00</strong></div>
+            </div>
+            <div id="merchCards" class="merch-grid"></div>
+            <div class="cart-panel">
+              <h3 style="margin-bottom: 8px;">Mini cart</h3>
+              <div id="merchCartItems"></div>
+              <div class="row" style="justify-content: space-between; margin-top: 8px;">
+                <strong>Total: <span id="merchCartTotal">$0.00</span></strong>
+                <div class="row">
+                  <button id="btnClearMerchCart" type="button" class="btn">Clear cart</button>
+                  <button id="btnCheckoutMerchCart" type="button" class="btn btn-primary">Checkout cart</button>
+                </div>
+              </div>
+            </div>
+            <ul id="merchList" class="hidden"></ul>
           </section>
 
           <div class="two-col grid" style="margin-top:16px;">
