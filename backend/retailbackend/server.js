@@ -24,6 +24,7 @@ const parseBody = (req, callback) => {
 // STATIC FILE SERVING
 // ======================
 const PUBLIC_DIR = path.join(__dirname, "public", "retailfront");
+const FRONTEND_MOUNTS = new Set(["retailfront", "portal", "retailportal", "retail-portal"]);
 
 const CONTENT_TYPES = {
     ".html": "text/html",
@@ -66,38 +67,62 @@ const server = http.createServer((req, res) => {
 
     const url = new URL(req.url, `http://${req.headers.host}`);
     let cleanPath = url.pathname;
+    let isFrontendMountRequest = false;
 
     // Default to index.html
     if (cleanPath === "/" || cleanPath === "") {
         cleanPath = "/index.html";
     }
 
-    // Support serving the frontend at both "/" and "/retailfront".
-    // Example: "/retailfront/app.js" -> "/app.js"
-    if (cleanPath === "/retailfront" || cleanPath === "/retailfront/") {
-        cleanPath = "/index.html";
-    } else if (cleanPath.startsWith("/retailfront/")) {
-        cleanPath = cleanPath.slice("/retailfront".length);
+    // Support serving the frontend from known mount points, case-insensitively.
+    // Examples:
+    // "/portal/app.js" -> "/app.js"
+    // "/Portal/200/dashboard" -> "/200/dashboard"
+    const pathSegments = cleanPath.split("/").filter(Boolean);
+    const mountSegment = pathSegments[0]?.toLowerCase();
+    if (mountSegment && FRONTEND_MOUNTS.has(mountSegment)) {
+        isFrontendMountRequest = true;
+        const remainder = pathSegments.slice(1).join("/");
+        cleanPath = remainder ? `/${remainder}` : "/index.html";
     }
 
-    const relativePath = cleanPath.replace(/^\/+/, "");
-    const filePath = path.resolve(PUBLIC_DIR, relativePath);
-
-    // Security check
     const publicRoot = path.resolve(PUBLIC_DIR);
-    if (!filePath.startsWith(publicRoot + path.sep)) {
-        res.writeHead(403);
-        return res.end("Forbidden");
+    const relativePath = cleanPath.replace(/^\/+/, "");
+    const staticCandidates = [relativePath];
+
+    // Allow area-scoped URLs (e.g. /portal/12/app.js) to resolve root assets.
+    if (isFrontendMountRequest) {
+        const segments = relativePath.split("/").filter(Boolean);
+        if (segments.length > 1) {
+            staticCandidates.push(segments.slice(1).join("/"));
+        }
     }
 
-    // Serve static file if it exists
-    fs.stat(filePath, (err, stat) => {
-        if (!err && stat.isFile()) {
-            return serveStatic(res, filePath);
+    const tryServeStatic = (index = 0) => {
+        if (index >= staticCandidates.length) {
+            // SPA fallback for portal deep-links (e.g. /portal/dashboard).
+            if (req.method === "GET" && isFrontendMountRequest && !path.extname(cleanPath)) {
+                return serveStatic(res, path.join(PUBLIC_DIR, "index.html"));
+            }
+            return routes(req, res, url, sendJSON, parseBody);
         }
 
-        routes(req, res, url, sendJSON, parseBody);
-    });
+        const filePath = path.resolve(PUBLIC_DIR, staticCandidates[index]);
+        const isInsidePublicDir = filePath === publicRoot || filePath.startsWith(publicRoot + path.sep);
+        if (!isInsidePublicDir) {
+            res.writeHead(403);
+            return res.end("Forbidden");
+        }
+
+        fs.stat(filePath, (err, stat) => {
+            if (!err && stat.isFile()) {
+                return serveStatic(res, filePath);
+            }
+            return tryServeStatic(index + 1);
+        });
+    };
+
+    tryServeStatic();
 });
 
 // ======================
