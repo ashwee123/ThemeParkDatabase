@@ -1,0 +1,14 @@
+{
+  "redirects": [
+    {
+      "source": "/retail",
+      "destination": "https://retail-portal-backend-pg0i.onrender.com/retail",
+      "permanent": false
+    },
+    {
+      "source": "/retail/:path*",
+      "destination": "https://retail-portal-backend-pg0i.onrender.com/retail/:path*",
+      "permanent": false
+    }
+  ]
+}
