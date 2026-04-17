@@ -82,15 +82,20 @@ const server = http.createServer((req, res) => {
 
     // Serve static file if it exists
     fs.stat(filePath, (err, stat) => {
-        if (!err && stat.isFile()) {
-            return serveStatic(res, filePath);
-        }
+    console.log("=== STATIC FILE DEBUG ===");
+    console.log("pathname   :", cleanPath);
+    console.log("PUBLIC_DIR :", PUBLIC_DIR);
+    console.log("filePath   :", filePath);
+    console.log("stat err   :", err?.code);
+    console.log("isFile     :", stat?.isFile());
+    console.log("=========================");
 
-        // ======================
-        // API ROUTES
-        // ======================
-        routes(req, res, url, sendJSON, parseBody);
-    });
+    if (!err && stat.isFile()) {
+        return serveStatic(res, filePath);
+    }
+
+    routes(req, res, url, sendJSON, parseBody);
+});
 });
 
 // ======================
