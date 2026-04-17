@@ -72,30 +72,32 @@ const server = http.createServer((req, res) => {
         cleanPath = "/index.html";
     }
 
-    const filePath = path.join(PUBLIC_DIR, cleanPath);
+    // Support serving the frontend at both "/" and "/retailfront".
+    // Example: "/retailfront/app.js" -> "/app.js"
+    if (cleanPath === "/retailfront" || cleanPath === "/retailfront/") {
+        cleanPath = "/index.html";
+    } else if (cleanPath.startsWith("/retailfront/")) {
+        cleanPath = cleanPath.slice("/retailfront".length);
+    }
+
+    const relativePath = cleanPath.replace(/^\/+/, "");
+    const filePath = path.resolve(PUBLIC_DIR, relativePath);
 
     // Security check
-    if (!filePath.startsWith(PUBLIC_DIR + path.sep)) {
+    const publicRoot = path.resolve(PUBLIC_DIR);
+    if (!filePath.startsWith(publicRoot + path.sep)) {
         res.writeHead(403);
         return res.end("Forbidden");
     }
 
     // Serve static file if it exists
     fs.stat(filePath, (err, stat) => {
-    console.log("=== STATIC FILE DEBUG ===");
-    console.log("pathname   :", cleanPath);
-    console.log("PUBLIC_DIR :", PUBLIC_DIR);
-    console.log("filePath   :", filePath);
-    console.log("stat err   :", err?.code);
-    console.log("isFile     :", stat?.isFile());
-    console.log("=========================");
+        if (!err && stat.isFile()) {
+            return serveStatic(res, filePath);
+        }
 
-    if (!err && stat.isFile()) {
-        return serveStatic(res, filePath);
-    }
-
-    routes(req, res, url, sendJSON, parseBody);
-});
+        routes(req, res, url, sendJSON, parseBody);
+    });
 });
 
 // ======================
