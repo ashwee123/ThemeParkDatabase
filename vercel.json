@@ -5,7 +5,7 @@
     { "source": "/admin", "destination": "/frontend/adminFrontend/index.html" },
     { "source": "/employee", "destination": "/frontend/employeefrontend/index.html" },
     { "source": "/retail", "destination": "/frontend/retailfrontend/index.html" },
-    { "source": "/hr", "destination": "/frontend/hrFrontend/index.html" },
+    { "source": "/hr", "destination": "/backend/hrmanagerbackend/public/frontend/index.html" },
     { "source": "/visitor", "destination": "/frontend/visitorfrontend/index.html" },
 
     { "source": "/maintenance/:file*", "destination": "/frontend/maintenanceFrontend/:file*" },
