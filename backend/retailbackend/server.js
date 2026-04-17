@@ -24,7 +24,7 @@ const parseBody = (req, callback) => {
 // STATIC FILE SERVING
 // ======================
 const PUBLIC_DIR = path.join(__dirname, "public", "retailfront");
-const FRONTEND_MOUNTS = new Set(["retailfront", "portal", "retailportal", "retail-portal"]);
+const FRONTEND_MOUNTS = new Set(["retail", "retailfront", "portal", "retailportal", "retail-portal"]);
 
 const CONTENT_TYPES = {
     ".html": "text/html",
