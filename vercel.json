@@ -10,13 +10,11 @@
     { "source": "/employee", "destination": "/frontend/employeefrontend/index.html" },
     { "source": "/hr", "destination": "/backend/hrmanagerbackend/public/frontend/index.html" },
     { "source": "/visitor", "destination": "/frontend/visitorfrontend/index.html" },
-
     { "source": "/maintenance/:file*", "destination": "/frontend/maintenanceFrontend/:file*" },
     { "source": "/admin/:file*", "destination": "/frontend/adminFrontend/:file*" },
     { "source": "/employee/:file*", "destination": "/frontend/employeefrontend/:file*" },
-    { "source": "/hr/:file*", "destination": "/frontend/hrFrontend/:file*" },
+    { "source": "/hr/:file*", "destination": "/backend/hrmanagerbackend/public/frontend/:file*" },
     { "source": "/visitor/:file*", "destination": "/frontend/visitorfrontend/:file*" },
-
     { "source": "/:file*", "destination": "/frontend/homepageFrontend/:file*" }
   ]
 }
