@@ -2,7 +2,7 @@ const http   = require("http");
 const fs     = require("fs");
 const path   = require("path");
 const routes = require("./routes");
-
+ 
 // ======================
 // HELPERS (moved outside request handler)
 // ======================
@@ -10,7 +10,7 @@ const sendJSON = (res, status, data) => {
     res.writeHead(status, { "Content-Type": "application/json" });
     res.end(JSON.stringify(data));
 };
-
+ 
 const parseBody = (req, callback) => {
     let body = "";
     req.on("data", chunk => body += chunk);
@@ -19,13 +19,13 @@ const parseBody = (req, callback) => {
         catch { callback(null); }
     });
 };
-
+ 
 // ======================
 // STATIC FILE SERVING
 // ======================
 const PUBLIC_DIR = path.join(__dirname, "public", "retailfront");
 const FRONTEND_MOUNTS = new Set(["retail", "retailfront", "portal", "retailportal", "retail-portal"]);
-
+ 
 const CONTENT_TYPES = {
     ".html": "text/html",
     ".css":  "text/css",
@@ -36,7 +36,7 @@ const CONTENT_TYPES = {
     ".jpeg": "image/jpeg",
     ".svg":  "image/svg+xml"
 };
-
+ 
 const serveStatic = (res, filePath) => {
     const ext = path.extname(filePath).toLowerCase();
     res.writeHead(200, {
@@ -49,31 +49,31 @@ const serveStatic = (res, filePath) => {
     });
     stream.pipe(res);
 };
-
+ 
 const server = http.createServer((req, res) => {
-
+ 
     // ======================
     // CORS
     // ======================
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Area-ID");
+ 
     if (req.method === "OPTIONS") {
         res.writeHead(204);
         res.end();
         return;
     }
-
+ 
     const url = new URL(req.url, `http://${req.headers.host}`);
     let cleanPath = url.pathname;
     let isFrontendMountRequest = false;
-
+ 
     // Default to index.html
     if (cleanPath === "/" || cleanPath === "") {
         cleanPath = "/index.html";
     }
-
+ 
     // Support serving the frontend from known mount points, case-insensitively.
     // Examples:
     // "/portal/app.js" -> "/app.js"
@@ -85,11 +85,11 @@ const server = http.createServer((req, res) => {
         const remainder = pathSegments.slice(1).join("/");
         cleanPath = remainder ? `/${remainder}` : "/index.html";
     }
-
+ 
     const publicRoot = path.resolve(PUBLIC_DIR);
     const relativePath = cleanPath.replace(/^\/+/, "");
     const staticCandidates = [relativePath];
-
+ 
     // Allow area-scoped URLs (e.g. /portal/12/app.js) to resolve root assets.
     if (isFrontendMountRequest) {
         const segments = relativePath.split("/").filter(Boolean);
@@ -97,7 +97,7 @@ const server = http.createServer((req, res) => {
             staticCandidates.push(segments.slice(1).join("/"));
         }
     }
-
+ 
     const tryServeStatic = (index = 0) => {
         if (index >= staticCandidates.length) {
             // SPA fallback for portal deep-links (e.g. /portal/dashboard).
@@ -106,14 +106,14 @@ const server = http.createServer((req, res) => {
             }
             return routes(req, res, url, sendJSON, parseBody);
         }
-
+ 
         const filePath = path.resolve(PUBLIC_DIR, staticCandidates[index]);
         const isInsidePublicDir = filePath === publicRoot || filePath.startsWith(publicRoot + path.sep);
         if (!isInsidePublicDir) {
             res.writeHead(403);
             return res.end("Forbidden");
         }
-
+ 
         fs.stat(filePath, (err, stat) => {
             if (!err && stat.isFile()) {
                 return serveStatic(res, filePath);
@@ -121,10 +121,10 @@ const server = http.createServer((req, res) => {
             return tryServeStatic(index + 1);
         });
     };
-
+ 
     tryServeStatic();
 });
-
+ 
 // ======================
 // START SERVER
 // ======================
