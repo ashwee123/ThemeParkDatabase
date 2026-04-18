@@ -93,7 +93,38 @@ if (form) {
       } else if (email.includes("employee")) {
         window.location.href = "/employee";
       } else if (email.includes("retail")) {
-        window.location.href = "/retail";
+        const areaId =
+          data.areaID ??
+          data.areaId ??
+          data.AreaID ??
+          data.user?.areaID ??
+          data.user?.areaId ??
+          data.user?.AreaID ??
+          (email.match(/retail(\d+)/)?.[1] ?? null);
+ 
+        const areaName =
+          data.areaName ??
+          data.AreaName ??
+          data.user?.areaName ??
+          "";
+ 
+        const managerName =
+          data.managerName ??
+          data.ManagerName ??
+          data.user?.managerName ??
+          data.user?.name ??
+          "";
+ 
+        const params = new URLSearchParams({
+          token: data.token,
+          ...(areaId !== null ? { areaID: String(areaId) } : {}),
+          ...(areaName ? { areaName } : {}),
+          ...(managerName ? { managerName } : {}),
+        });
+ 
+        const retailPath = areaId !== null ? `/retail/${areaId}` : "/retail";
+        window.location.href = `https://retail-portal-backend-pg0i.onrender.com${retailPath}?${params.toString()}`;
+
       } else if (email.includes("hr")) {
         window.location.href = "/hr";
       } else {
