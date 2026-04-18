@@ -1,14 +1,69 @@
 const API_BASE = "https://retail-portal-backend-pg0i.onrender.com";
+const HOME_URL = "https://theme-park-database.vercel.app/";
 
-// Redirect to home if no token
+function hydrateAuthFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    let hydrated = false;
+
+    const tokenFromQuery = params.get("token") || params.get("authToken");
+    if (tokenFromQuery) {
+        localStorage.setItem("token", tokenFromQuery);
+        hydrated = true;
+    }
+
+    const areaIdFromQuery = params.get("areaID") || params.get("areaId");
+    if (areaIdFromQuery) {
+        sessionStorage.setItem("areaID", areaIdFromQuery);
+        sessionStorage.setItem("areaId", areaIdFromQuery);
+        hydrated = true;
+    }
+
+    const areaNameFromQuery = params.get("areaName");
+    if (areaNameFromQuery) {
+        sessionStorage.setItem("areaName", areaNameFromQuery);
+        hydrated = true;
+    }
+
+    const managerNameFromQuery = params.get("managerName");
+    if (managerNameFromQuery) {
+        sessionStorage.setItem("managerName", managerNameFromQuery);
+        hydrated = true;
+    }
+
+    if (hydrated) {
+        const cleanUrl = `${window.location.origin}${window.location.pathname}${window.location.hash || ""}`;
+        window.history.replaceState({}, document.title, cleanUrl);
+    }
+}
+
+hydrateAuthFromQuery();
+
 const token = localStorage.getItem("token");
 if (!token) {
-    window.location.href = "/";
+    window.location.replace(HOME_URL);
+    throw new Error("Missing authentication token for retail portal");
 }
 
 // Get area info from session set by main site
 const AREA_NAME    = sessionStorage.getItem("areaName");
 const MANAGER_NAME = sessionStorage.getItem("managerName");
+
+function extractAreaIdFromPath() {
+    const segments = window.location.pathname.split("/").filter(Boolean);
+    if (segments.length < 2) return null;
+    const possibleAreaId = Number.parseInt(segments[1], 10);
+    return Number.isNaN(possibleAreaId) ? null : possibleAreaId;
+}
+
+const AREA_ID = (
+    sessionStorage.getItem("areaID")
+    || sessionStorage.getItem("areaId")
+    || extractAreaIdFromPath()
+);
+if (AREA_ID) {
+    sessionStorage.setItem("areaID", String(AREA_ID));
+    sessionStorage.setItem("areaId", String(AREA_ID));
+}
 
 // Set portal title
 document.getElementById("portal-title").textContent = `${AREA_NAME || "Retail"} Retail`;
@@ -18,10 +73,15 @@ document.getElementById("portal-title").textContent = `${AREA_NAME || "Retail"} 
 // =============================================================
 
 function authHeader() {
-    return {
+    const headers = {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json"
     };
+    if (AREA_ID) {
+        // Helps backend resolve manager area when token payload does not include user id.
+        headers["X-Area-ID"] = String(AREA_ID);
+    }
+    return headers;
 }
 
 // =============================================================
