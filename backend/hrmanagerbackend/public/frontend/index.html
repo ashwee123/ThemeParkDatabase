@@ -10,41 +10,102 @@
 </head>
 
 <body>
-  <div class="noise"></div>
+  <div class="noise" aria-hidden="true"></div>
   <div id="toast" class="toast"></div>
 
+  <!-- HEADER -->
   <header class="site-header">
     <h1>HR Manager Portal</h1>
-    <p class="tagline">Employees Dashboard</p>
+    <p class="tagline">Employees, assignments, maintenance, and performance</p>
   </header>
 
+  <!-- TABS -->
+  <nav class="tabs">
+    <button class="tab active" data-tab="employees">Employees</button>
+    <button class="tab" data-tab="by-area">By Area</button>
+    <button class="tab" data-tab="assign">Assign Manager</button>
+    <button class="tab" data-tab="maintenance">Maintenance</button>
+    <button class="tab" data-tab="performance">Performance</button>
+  </nav>
+
+  <!-- MAIN -->
   <main>
-    <div class="card">
-      <h2>Add Employee</h2>
 
-      <!-- ✅ FIXED FORM -->
-      <form id="form-add">
-        <input name="Name" placeholder="Name" required />
-        <input name="Position" placeholder="Position" required />
-        <input name="Salary" type="number" placeholder="Salary" required />
-        <input name="HireDate" type="date" required />
-        <button class="btn btn-primary">Add</button>
-      </form>
-    </div>
+    <!-- EMPLOYEES PANEL -->
+    <section id="panel-employees" class="panel active">
 
-    <div class="card">
-      <h2>Employees</h2>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Position</th>
-            <th>Salary</th>
-          </tr>
-        </thead>
-        <tbody id="table-body"></tbody>
-      </table>
-    </div>
+      <div class="toolbar">
+        <h2>Employees</h2>
+        <button class="btn btn-primary" id="btn-refresh-employees">Refresh</button>
+      </div>
+
+      <!-- ADD FORM -->
+      <div class="card form-card">
+        <h3>Add Employee</h3>
+
+        <!-- ✅ FIXED FORM -->
+        <form id="form-add-employee" onsubmit="event.preventDefault()" class="grid-form">
+          <label>Name<input name="Name" required></label>
+          <label>Position<input name="Position" required></label>
+          <label>Salary<input name="Salary" type="number" required></label>
+          <label>Hire Date<input name="HireDate" type="date" required></label>
+          <label>Manager ID<input name="ManagerID"></label>
+          <label>Area ID<input name="AreaID"></label>
+
+          <div class="form-actions">
+            <button class="btn btn-primary">Add</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- EDIT FORM -->
+      <div id="card-edit-employee" class="card form-card hidden">
+        <h3>Edit Employee</h3>
+
+        <form id="form-edit-employee" onsubmit="event.preventDefault()" class="grid-form">
+          <input type="hidden" name="EmployeeID">
+
+          <label>Name<input name="Name" required></label>
+          <label>Position<input name="Position" required></label>
+          <label>Salary<input name="Salary" type="number" required></label>
+          <label>Hire Date<input name="HireDate" type="date" required></label>
+          <label>Manager ID<input name="ManagerID"></label>
+          <label>Area ID<input name="AreaID"></label>
+
+          <div class="form-actions">
+            <button class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-ghost" id="btn-cancel-edit">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- TABLE -->
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Position</th>
+              <th>Salary</th>
+              <th>Hire</th>
+              <th>Mgr</th>
+              <th>Area</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-employees"></tbody>
+        </table>
+      </div>
+
+    </section>
+
+    <!-- PLACEHOLDER PANELS -->
+    <section id="panel-by-area" class="panel"><h2>By Area</h2></section>
+    <section id="panel-assign" class="panel"><h2>Assign Manager</h2></section>
+    <section id="panel-maintenance" class="panel"><h2>Maintenance</h2></section>
+    <section id="panel-performance" class="panel"><h2>Performance</h2></section>
+
   </main>
 
   <!-- ✅ FIXED PATH -->
