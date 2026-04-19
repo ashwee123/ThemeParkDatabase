@@ -1,7 +1,7 @@
 "use strict";
 
 /** Same host as homepage login (Render). Override via <meta name="admin-api-origin" content="https://..."> */
-const DEFAULT_REMOTE_API_ORIGIN = "https://themeparkdatabase-w2b6.onrender.com";
+const DEFAULT_REMOTE_API_ORIGIN = "https://admin-portal-backend-c051.onrender.com";
 
 function getApiBase() {
   const meta = document.querySelector('meta[name="admin-api-origin"]');
