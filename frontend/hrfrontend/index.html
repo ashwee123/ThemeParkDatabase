@@ -67,6 +67,36 @@
         </table>
       </div>
     </section>
+
+    <section id="activity" class="panel">
+      <div class="card">
+        <h3>Portal activity</h3>
+        <p class="hint">Logins and changes made from this HR portal (stored in <code>hr_portal_activity</code>).</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>When</th><th>Action</th><th>Detail</th></tr>
+          </thead>
+          <tbody id="activityTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="salary" class="panel">
+      <div class="card">
+        <h3>Salary overview</h3>
+        <p class="hint">Employees use pay from <code>employee.Salary</code>. Managers are listed for roster context; this schema does not store manager pay.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Name</th><th>Type</th><th>Title / role</th><th>Salary</th></tr>
+          </thead>
+          <tbody id="salaryTable"></tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
   <script src="/hr/app.js"></script>
