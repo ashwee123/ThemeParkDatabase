@@ -1,6 +1,12 @@
+# Dependencies - never commit these
 node_modules/
 **/node_modules/
+
+# Environment files - never commit these
 .env
 **/.env
-rm -r --cached backend/homepageBackend/node_modules*/.env.example
+!**/.env.example
+
+# OS files
 .DS_Store
+Thumbs.db
