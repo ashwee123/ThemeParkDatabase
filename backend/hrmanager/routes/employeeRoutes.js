@@ -7,13 +7,15 @@ export async function getEmployees(res, send) {
 }
 
 export async function addEmployee(res, send, body) {
+  const hireDate = body.hireDate || null;
   const [result] = await pool.query(
     `INSERT INTO employee (Name, Position, Salary, HireDate, ManagerID, AreaID)
-     VALUES (?, ?, ?, CURDATE(), ?, ?)`,
+     VALUES (?, ?, ?, COALESCE(?, CURDATE()), ?, ?)`,
     [
       body.name,
       body.position,
       body.salary,
+      hireDate,
       body.managerId,
       body.areaId
     ]
@@ -23,7 +25,7 @@ export async function addEmployee(res, send, body) {
   try {
     await logPortalActivity(
       "Employee added",
-      `${body.name} (ID ${Number.isFinite(newId) ? newId : "?"}) — ${body.position || "position unset"}; salary ${body.salary ?? "—"}`
+      `${body.name} (ID ${Number.isFinite(newId) ? newId : "?"}) — ${body.position || "position unset"}; salary ${body.salary ?? "—"}; hire date ${hireDate ?? "today"}`
     );
   } catch (e) {
     console.error("hr_portal_activity log failed:", e);
