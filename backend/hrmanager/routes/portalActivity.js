@@ -1,24 +1,23 @@
 import pool from "../db.js";
-import { logPortalActivity } from "./portalActivity.js";
 
-export async function getActivity(res, send) {
-  const [rows] = await pool.query(`
-    SELECT ActivityID AS id, CreatedAt AS created_at, Action AS action, Detail AS detail
-    FROM hr_portal_activity
-    ORDER BY created_at DESC, id DESC
-    LIMIT 200
-  `);
+const CREATE_SQL = `
+CREATE TABLE IF NOT EXISTS hr_portal_activity (
+  ActivityID INT NOT NULL AUTO_INCREMENT,
+  CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  \`Action\` VARCHAR(120) NOT NULL,
+  Detail VARCHAR(500) DEFAULT NULL,
+  PRIMARY KEY (ActivityID),
+  KEY idx_hr_activity_created (CreatedAt)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+`;
 
-  send(res, 200, rows);
+export async function ensurePortalActivityTable() {
+  await pool.query(CREATE_SQL);
 }
 
-export async function addActivity(res, send, body) {
-  const action = (body.action || body.Activity || "").trim();
-  const detail = body.detail ?? body.notes ?? null;
-  if (!action) {
-    return send(res, 400, { error: "action is required" });
-  }
-
-  await logPortalActivity(action, detail);
-  send(res, 200, { message: "Activity recorded" });
+export async function logPortalActivity(action, detail) {
+  await pool.query(
+    `INSERT INTO hr_portal_activity (\`Action\`, Detail) VALUES (?, ?)`,
+    [action, detail ?? null]
+  );
 }
