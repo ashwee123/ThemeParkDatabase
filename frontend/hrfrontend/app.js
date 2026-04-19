@@ -17,6 +17,15 @@ function isHrAuthenticated() {
     return localStorage.getItem("loggedIn") === "true" || Boolean(localStorage.getItem("token"));
 }
 
+function formatDateOnly(value) {
+    if (!value) return "—";
+    const s = String(value);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return s;
+    return d.toISOString().slice(0, 10);
+}
+
 /* ================= AUTH & LOGIN ================= */
 async function login() {
     const email = document.getElementById("email").value;
@@ -57,6 +66,7 @@ async function loadEmployees() {
                     <td>${e.Name || "Unknown"}</td>
                     <td>${e.Position && String(e.Position).trim() ? e.Position : '<span style="color:gray">N/A</span>'}</td>
                     <td>${e.Salary != null && e.Salary !== "" ? '$' + Number(e.Salary).toLocaleString() : '—'}</td>
+                    <td>${formatDateOnly(e.HireDate)}</td>
                     <td>${Number.isFinite(Number(e.EmployeeID))
                         ? `
                           <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
@@ -278,6 +288,7 @@ async function addEmployee() {
     const name = document.getElementById("empName").value.trim();
     const position = document.getElementById("empRole").value.trim();
     const salaryRaw = document.getElementById("empSalary").value;
+    const hireDate = document.getElementById("empHireDate").value;
     const managerIdRaw = document.getElementById("empManager").value.trim();
     const areaIdRaw = document.getElementById("empArea").value.trim();
     const salary = Number(salaryRaw);
@@ -296,6 +307,10 @@ async function addEmployee() {
         showEmployeeFormMessage("Please enter a valid non-negative salary.");
         return;
     }
+    if (!hireDate) {
+        showEmployeeFormMessage("Please select hire date.");
+        return;
+    }
     if (managerIdRaw && (!Number.isInteger(Number(managerIdRaw)) || Number(managerIdRaw) < 1)) {
         showEmployeeFormMessage("Manager ID must be a positive whole number.");
         return;
@@ -309,6 +324,7 @@ async function addEmployee() {
         name,
         position,
         salary,
+        hireDate,
         managerId: managerIdRaw ? Number(managerIdRaw) : null,
         areaId: areaIdRaw ? Number(areaIdRaw) : null
     };
@@ -325,11 +341,12 @@ async function addEmployee() {
             alert("Employee added to the Nexus!");
             appendLocalActivity(
                 "Employee added",
-                `${body.name} — ${body.position || "position unset"}; salary ${body.salary || "—"}`
+                `${body.name} — ${body.position || "position unset"}; salary ${body.salary || "—"}; hired ${body.hireDate}`
             );
             document.getElementById("empName").value = "";
             document.getElementById("empRole").value = "";
             document.getElementById("empSalary").value = "";
+            document.getElementById("empHireDate").value = "";
             document.getElementById("empManager").value = "";
             document.getElementById("empArea").value = "";
             loadEmployees();
