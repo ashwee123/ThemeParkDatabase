@@ -620,7 +620,9 @@ document.getElementById("btn-logout").addEventListener("click", () => {
 const tabPanelAliases = {
     items: "inventory",
     "transaction-history": "transactions",
-    "restock-orders": "restock"
+    "restock-orders": "restock",
+    report: "reports",
+    store: "stores"
 };
 
 const tabLoaders = {
@@ -631,13 +633,37 @@ const tabLoaders = {
     "transaction-history": async () => Promise.all([loadStores(), loadTransactions()]),
     restock: async () => Promise.all([loadStores(), loadRestock()]),
     "restock-orders": async () => Promise.all([loadStores(), loadRestock()]),
+    report: async () => {
+        await loadStores();
+        ensureReportDateRangeDefaults();
+        await loadReports();
+    },
     reports: async () => {
         await loadStores();
         ensureReportDateRangeDefaults();
         await loadReports();
     },
+    store: async () => loadStores(),
     stores: async () => loadStores()
 };
+
+function resolvePanelForTab(requestedKey, panelKey) {
+    const candidates = [
+        `tab-${panelKey}`,
+        `tab-${requestedKey}`,
+        `tab-${panelKey.replace(/s$/, "")}`,
+        `tab-${panelKey}s`,
+        `tab-${requestedKey.replace(/s$/, "")}`,
+        `tab-${requestedKey}s`
+    ];
+
+    for (const id of candidates) {
+        const panel = document.getElementById(id);
+        if (panel) return panel;
+    }
+
+    return null;
+}
 
 document.querySelectorAll(".tab").forEach(tab => {
     tab.addEventListener("click", async () => {
@@ -646,7 +672,7 @@ document.querySelectorAll(".tab").forEach(tab => {
         tab.classList.add("active");
         const requestedKey = tab.dataset.tab;
         const panelKey = tabPanelAliases[requestedKey] || requestedKey;
-        const panel = document.getElementById(`tab-${panelKey}`);
+        const panel = resolvePanelForTab(requestedKey, panelKey);
         if (panel) {
             panel.classList.add("active");
         }
