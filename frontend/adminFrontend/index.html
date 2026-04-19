@@ -10,16 +10,19 @@
   <div class="noise" aria-hidden="true"></div>
   <header class="site-header">
     <h1>Admin Portal</h1>
-    <p class="tagline">Theme Park · operations overview (from your MySQL schema)</p>
+    <p class="tagline">Park-wide command center · live data from MySQL · wire MFA, SSO, and audit storage in production</p>
   </header>
-  <nav class="tabs" role="tablist">
+  <nav class="tabs" role="tablist" aria-label="Admin sections">
     <button type="button" class="tab active" data-tab="dash">Dashboard</button>
-    <button type="button" class="tab" data-tab="attractions">Attractions</button>
-    <button type="button" class="tab" data-tab="staff">Staff</button>
-    <button type="button" class="tab" data-tab="maint">Maintenance</button>
+    <button type="button" class="tab" data-tab="users">Users &amp; access</button>
+    <button type="button" class="tab" data-tab="visitors">Visitors</button>
     <button type="button" class="tab" data-tab="retail">Retail</button>
-    <button type="button" class="tab" data-tab="incidents">Incidents</button>
-    <button type="button" class="tab" data-tab="weather">Weather</button>
+    <button type="button" class="tab" data-tab="hr">HR &amp; staff</button>
+    <button type="button" class="tab" data-tab="maint">Maintenance</button>
+    <button type="button" class="tab" data-tab="park">Park &amp; rides</button>
+    <button type="button" class="tab" data-tab="reports">Reports</button>
+    <button type="button" class="tab" data-tab="system">System</button>
+    <button type="button" class="tab" data-tab="security">Security</button>
   </nav>
   <main>
     <section id="panel-dash" class="panel active" role="tabpanel">
@@ -27,30 +30,33 @@
         <h2>Dashboard</h2>
         <button type="button" id="btn-refresh-dash" class="btn btn-ghost">Refresh</button>
       </div>
-      <p class="hint">Counts from <code>employee</code>, <code>visitor</code>, <code>attraction</code>, <code>maintenancealert</code>, <code>maintenanceassignment</code>, <code>retailitem</code>, <code>incidentreport</code>.</p>
+      <p class="hint">Live counts from <code>employee</code>, <code>visitor</code>, <code>attraction</code>, <code>maintenancealert</code>, <code>maintenanceassignment</code>, <code>retailitem</code>, <code>incidentreport</code>.</p>
       <div id="stat-grid" class="stat-grid"></div>
     </section>
-    <section id="panel-attractions" class="panel" role="tabpanel" hidden>
+
+    <section id="panel-users" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
-        <h2>Attractions</h2>
-        <button type="button" id="btn-refresh-att" class="btn btn-ghost">Refresh</button>
+        <h2>User &amp; access management</h2>
+        <button type="button" id="btn-refresh-users" class="btn btn-ghost">Refresh</button>
       </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ID</th><th>Name</th><th>Type</th><th>Area</th><th>Status</th><th>Queue</th><th>Severity</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-att"></tbody>
-        </table>
+      <div class="callout callout-warn">
+        <strong>Production checklist:</strong> enforce MFA, least-privilege roles per portal (visitor, retail, employee, HR, maintenance), centralized password reset flows, and a durable <code>admin_audit_log</code> table for every mutating action. This build exposes <em>internal staff directory</em> plus retail <code>notificationlog</code> as a sample audit stream.
       </div>
-    </section>
-    <section id="panel-staff" class="panel" role="tabpanel" hidden>
-      <div class="toolbar">
-        <h2>Employees</h2>
-        <button type="button" id="btn-refresh-staff" class="btn btn-ghost">Refresh</button>
+      <div class="capa-grid">
+        <div class="capa-card">
+          <h3>Accounts</h3>
+          <p>Create / edit / deactivate users per portal; assign roles; reset passwords (integrate with each backend’s auth module).</p>
+        </div>
+        <div class="capa-card">
+          <h3>Session &amp; risk</h3>
+          <p>View login activity; revoke tokens; flag suspicious IPs (requires gateway or IdP integration).</p>
+        </div>
+        <div class="capa-card">
+          <h3>Audit</h3>
+          <p>Full audit trails below are a starting point — extend to capture admin overrides across all portals.</p>
+        </div>
       </div>
+      <h3 class="subheading">Internal staff directory (<code>employee</code>)</h3>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
@@ -58,14 +64,113 @@
               <th>ID</th><th>Name</th><th>Position</th><th>Salary</th><th>Hire</th><th>Mgr</th><th>Area</th>
             </tr>
           </thead>
-          <tbody id="tbody-staff"></tbody>
+          <tbody id="tbody-internal-users"></tbody>
+        </table>
+      </div>
+      <h3 class="subheading">Retail notification log (<code>notificationlog</code>)</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>ID</th><th>Message</th><th>Shop</th><th>Item</th><th>When</th></tr>
+          </thead>
+          <tbody id="tbody-admin-notifications"></tbody>
         </table>
       </div>
     </section>
+
+    <section id="panel-visitors" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Visitor management (oversight)</h2>
+        <div class="toolbar-actions">
+          <input type="search" id="visitor-search-q" class="input-search" placeholder="Search name, email, phone…" autocomplete="off" />
+          <button type="button" id="btn-visitor-search" class="btn btn-ghost">Search</button>
+          <button type="button" id="btn-refresh-visitors" class="btn btn-ghost">Refresh</button>
+        </div>
+      </div>
+      <div class="callout">
+        <strong>Scope:</strong> search visitors, review ticket purchases, deactivate accounts (ban) or reactivate. Refunds, reservation overrides, and incident links require extending <code>visitor_order</code> / <code>visitor_reservation</code> APIs from the visitor backend — hooks are documented here for parity.
+      </div>
+      <h3 class="subheading">Visitors (<code>visitor</code>)</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Gender</th><th>Age</th><th>Status</th><th>Created</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-visitors"></tbody>
+        </table>
+      </div>
+      <h3 class="subheading">Tickets (<code>ticket</code>)</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Visitor</th><th>Email</th><th>Type</th><th>Discount</th><th>Price</th><th>Issued</th><th>Expires</th><th>Active</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-visitor-tickets"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-retail" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Retail management (oversight)</h2>
+        <button type="button" id="btn-refresh-retail" class="btn btn-ghost">Refresh</button>
+      </div>
+      <div class="callout">
+        <strong>Inventory &amp; pricing:</strong> this grid is read-only from <code>retailitem</code>. Add PATCH/POST routes for price changes, promotions, thresholds, and vendor/POS config. Revenue rollups use <code>transactionlog</code> in <strong>Reports</strong>.
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Item</th><th>Shop</th><th>Area</th><th>Qty</th><th>Low at</th><th>Buy</th><th>Sell</th><th>Discount</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-retail"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-hr" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Employee &amp; HR (oversight)</h2>
+        <button type="button" id="btn-refresh-hr" class="btn btn-ghost">Refresh</button>
+      </div>
+      <div class="callout">
+        <strong>Oversight:</strong> park-wide roster below. Extend with HR manager approvals, disciplinary records, and department reorgs via dedicated HR service routes.
+      </div>
+      <h3 class="subheading">Employees</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Name</th><th>Position</th><th>Salary</th><th>Hire</th><th>Mgr</th><th>Area</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-hr-staff"></tbody>
+        </table>
+      </div>
+      <h3 class="subheading">Shift schedule (<code>shift</code>)</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Shift ID</th><th>Emp ID</th><th>Name</th><th>Date</th><th>Start</th><th>End</th></tr>
+          </thead>
+          <tbody id="tbody-shifts"></tbody>
+        </table>
+      </div>
+    </section>
+
     <section id="panel-maint" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
-        <h2>Maintenance alerts &amp; tasks</h2>
+        <h2>Maintenance management (oversight)</h2>
         <button type="button" id="btn-refresh-maint" class="btn btn-ghost">Refresh</button>
+      </div>
+      <div class="callout">
+        <strong>Work orders:</strong> prioritize or reassign in a full rollout by PATCHing <code>maintenanceassignment</code>. Inspection compliance and certifications need additional tables or integrations.
       </div>
       <h3 class="subheading">Open alerts (<code>maintenancealert</code>)</h3>
       <div class="table-wrap">
@@ -90,27 +195,66 @@
         </table>
       </div>
     </section>
-    <section id="panel-retail" class="panel" role="tabpanel" hidden>
+
+    <section id="panel-park" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
-        <h2>Retail inventory</h2>
-        <button type="button" id="btn-refresh-retail" class="btn btn-ghost">Refresh</button>
+        <h2>Park &amp; attractions</h2>
+        <button type="button" id="btn-refresh-park" class="btn btn-ghost">Refresh</button>
+      </div>
+      <div class="callout">
+        <strong>Zones:</strong> <span id="park-areas-list" class="area-chip-row"></span> — hours, capacity, and map assets live in visitor seed tables (<code>visitor_park</code>, <code>visitor_attraction_detail</code>); expose CRUD here when those admin routes exist. Use the status dropdown for <em>emergency-style</em> ride closure at the <code>attraction</code> row level.
       </div>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
             <tr>
-              <th>Item</th><th>Shop</th><th>Area</th><th>Qty</th><th>Low at</th><th>Buy</th><th>Sell</th><th>Discount</th>
+              <th>ID</th><th>Name</th><th>Type</th><th>Area</th><th>Status</th><th>Queue</th><th>Severity</th>
             </tr>
           </thead>
-          <tbody id="tbody-retail"></tbody>
+          <tbody id="tbody-park-att"></tbody>
         </table>
       </div>
     </section>
-    <section id="panel-incidents" class="panel" role="tabpanel" hidden>
+
+    <section id="panel-reports" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
-        <h2>Incident reports</h2>
-        <button type="button" id="btn-refresh-inc" class="btn btn-ghost">Refresh</button>
+        <h2>Reporting &amp; analytics</h2>
+        <button type="button" id="btn-refresh-reports" class="btn btn-ghost">Refresh</button>
       </div>
+      <div class="callout">
+        Cross-portal snapshot below. Set KPI alerts (capacity, revenue) in your monitoring stack or extend <code>/api/reports/snapshot</code>. PDF export can wrap these CSVs server-side.
+      </div>
+      <div id="report-snapshot-grid" class="stat-grid"></div>
+      <h3 class="subheading">Export (CSV)</h3>
+      <div class="toolbar-actions" style="margin-top:12px;">
+        <button type="button" id="btn-export-visitors" class="btn btn-ghost">Visitors</button>
+        <button type="button" id="btn-export-tickets" class="btn btn-ghost">Tickets</button>
+        <button type="button" id="btn-export-incidents" class="btn btn-ghost">Incidents</button>
+      </div>
+    </section>
+
+    <section id="panel-system" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>System configuration</h2>
+      </div>
+      <ul class="checklist">
+        <li><strong>Park hours &amp; seasons:</strong> <code>visitor_park</code> + special events tables — manage via SQL or future PATCH bundle.</li>
+        <li><strong>Ticket pricing tiers:</strong> visitor portal constants + <code>ticket</code>; centralize in config service.</li>
+        <li><strong>Backups / restore:</strong> use managed MySQL snapshots (RDS, PlanetScale, etc.); document RPO/RTO here for ops.</li>
+        <li><strong>Notifications:</strong> route <code>notificationlog</code> + email/SMS webhooks per environment.</li>
+        <li><strong>Branding:</strong> per-portal CSS and messaging in each frontend; promote shared design tokens when refactoring.</li>
+      </ul>
+    </section>
+
+    <section id="panel-security" class="panel" role="tabpanel" hidden>
+      <div class="toolbar">
+        <h2>Security &amp; compliance</h2>
+        <button type="button" id="btn-refresh-security" class="btn btn-ghost">Refresh</button>
+      </div>
+      <div class="callout callout-warn">
+        <strong>GDPR / CCPA:</strong> honor data export &amp; deletion for visitors through the visitor API (hash stripping, ticket anonymization). Retention policies belong in legal config + scheduled jobs.
+      </div>
+      <h3 class="subheading">Incident reports</h3>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
@@ -118,24 +262,24 @@
               <th>ID</th><th>Employee</th><th>Type</th><th>Attr</th><th>Item</th><th>When</th><th>Description</th>
             </tr>
           </thead>
-          <tbody id="tbody-inc"></tbody>
+          <tbody id="tbody-security-incidents"></tbody>
         </table>
       </div>
-    </section>
-    <section id="panel-weather" class="panel" role="tabpanel" hidden>
-      <div class="toolbar">
-        <h2>Weather log</h2>
-        <button type="button" id="btn-refresh-weather" class="btn btn-ghost">Refresh</button>
-      </div>
-      <p class="hint">Inserts here run trigger <code>trg_weather_shutdown</code> on your DB (ride / park status).</p>
+      <h3 class="subheading">Weather-driven ops status</h3>
+      <p class="hint">Weather rows may drive <code>trg_weather_shutdown</code> on your database.</p>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
-            <tr>
-              <th>ID</th><th>Date</th><th>High</th><th>Low</th><th>Severity</th><th>Ops status</th>
-            </tr>
+            <tr><th>ID</th><th>Date</th><th>High</th><th>Low</th><th>Severity</th><th>Ops status</th></tr>
           </thead>
-          <tbody id="tbody-weather"></tbody>
+          <tbody id="tbody-security-weather"></tbody>
+        </table>
+      </div>
+      <h3 class="subheading">Recent retail notifications (sample audit)</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>ID</th><th>Message</th><th>When</th></tr></thead>
+          <tbody id="tbody-security-notifications"></tbody>
         </table>
       </div>
     </section>

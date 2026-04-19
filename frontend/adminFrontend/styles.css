@@ -277,6 +277,79 @@ input:focus, select:focus, textarea:focus {
 .badge-warn { color: #ffb4b4; }
 .badge-ok { color: var(--ash); }
 
+.callout {
+  background: rgba(201, 168, 76, 0.08);
+  border: 1px solid rgba(201, 168, 76, 0.28);
+  border-radius: var(--radius);
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--text-main);
+}
+.callout-warn {
+  background: rgba(139, 0, 0, 0.12);
+  border-color: rgba(139, 0, 0, 0.35);
+}
+.capa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.capa-card {
+  background: var(--dark-card);
+  border: 1px solid rgba(139, 0, 0, 0.2);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+}
+.capa-card h3 {
+  font-family: "Cinzel Decorative", serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+}
+.capa-card p { font-size: 0.88rem; color: var(--ash); line-height: 1.45; }
+
+.input-search {
+  min-width: 200px;
+  max-width: 320px;
+  flex: 1;
+}
+
+.area-chip-row { display: inline; }
+.area-chip {
+  display: inline-block;
+  margin: 0 0.35rem 0.35rem 0;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(139, 0, 0, 0.35);
+  font-size: 0.78rem;
+  color: var(--bone);
+}
+
+.att-status-select {
+  min-width: 10rem;
+  font-size: 0.82rem;
+}
+
+.checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.checklist li {
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.6rem;
+  background: var(--dark-card);
+  border: 1px solid rgba(139, 0, 0, 0.18);
+  border-radius: var(--radius);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
 @media (max-width: 700px) {
   main { padding: 1rem; }
   .tabs { padding: 0 0.7rem; }
