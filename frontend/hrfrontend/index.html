@@ -32,13 +32,14 @@
           <input id="empManager" placeholder="Manager ID">
           <input id="empArea" placeholder="Area ID">
         </div>
+        <p id="empFormMessage" class="hint" style="display:none; margin-top:0.75rem;"></p>
         <button class="btn btn-primary" onclick="addEmployee()">Add Employee</button>
       </div>
 
       <div class="table-wrap">
         <table class="data-table">
           <thead>
-            <tr><th>ID</th><th>Name</th><th>Role</th><th>Salary</th><th>-</th></tr>
+            <tr><th>ID</th><th>Name</th><th>Role</th><th>Salary</th><th>Actions</th></tr>
           </thead>
           <tbody id="empTable"></tbody>
         </table>
