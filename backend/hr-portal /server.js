@@ -1,51 +1,119 @@
-import express from "express";
-import cors from "cors";
+import http from "http";
+import { URL } from "url";
+import mysql from "mysql2/promise";
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-// In-memory DB
-let employees = [];
-let managers = [];
-let activities = [];
-let salaries = [];
-
-/* ---------------- EMPLOYEES ---------------- */
-app.get("/employees", (req, res) => res.json(employees));
-
-app.post("/employees", (req, res) => {
-  const emp = { id: Date.now(), ...req.body };
-  employees.push(emp);
-  res.json(emp);
+/* -------- DB CONNECTION (YOUR AZURE DB) -------- */
+const pool = mysql.createPool({
+  host: "themepark6.mysql.database.azure.com",
+  user: "admin1", // your username
+  password: "YOUR_PASSWORD",
+  database: "newthemepark",
+  port: 3306,
+  ssl: { rejectUnauthorized: false }
 });
 
-/* ---------------- MANAGERS ---------------- */
-app.get("/managers", (req, res) => res.json(managers));
+/* -------- HELPERS -------- */
+function send(res, status, data) {
+  res.writeHead(status, {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type"
+  });
+  res.end(JSON.stringify(data));
+}
 
-app.post("/managers", (req, res) => {
-  const manager = { id: Date.now(), ...req.body };
-  managers.push(manager);
-  res.json(manager);
+function parseBody(req) {
+  return new Promise(resolve => {
+    let body = "";
+    req.on("data", chunk => body += chunk);
+    req.on("end", () => resolve(JSON.parse(body || "{}")));
+  });
+}
+
+/* -------- SERVER -------- */
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const path = url.pathname;
+
+  if (req.method === "OPTIONS") return send(res, 200, {});
+
+  try {
+
+    /* ================= EMPLOYEES ================= */
+    if (path === "/employees" && req.method === "GET") {
+      const [rows] = await pool.query("SELECT * FROM employee");
+      return send(res, 200, rows);
+    }
+
+    if (path === "/employees" && req.method === "POST") {
+      const body = await parseBody(req);
+
+      await pool.query(
+        `INSERT INTO employee (Name, Position, Salary, HireDate, ManagerID, AreaID)
+         VALUES (?, ?, ?, CURDATE(), ?, ?)`,
+        [body.name, body.position, body.salary, body.managerId, body.areaId]
+      );
+
+      return send(res, 200, { message: "Employee added" });
+    }
+
+    /* ================= MANAGERS ================= */
+    if (path === "/managers" && req.method === "GET") {
+      const [rows] = await pool.query("SELECT * FROM manager");
+      return send(res, 200, rows);
+    }
+
+    if (path === "/managers" && req.method === "POST") {
+      const body = await parseBody(req);
+
+      await pool.query(
+        `INSERT INTO manager (ManagerID, ManagerName)
+         VALUES (?, ?)`,
+        [body.id, body.name]
+      );
+
+      return send(res, 200, { message: "Manager added" });
+    }
+
+    /* ================= PERFORMANCE / ACTIVITY ================= */
+    if (path === "/activity" && req.method === "GET") {
+      const [rows] = await pool.query(`
+        SELECT e.Name, p.PerformanceScore, p.WorkloadNotes
+        FROM employeeperformance p
+        JOIN employee e ON e.EmployeeID = p.EmployeeID
+      `);
+      return send(res, 200, rows);
+    }
+
+    if (path === "/activity" && req.method === "POST") {
+      const body = await parseBody(req);
+
+      await pool.query(
+        `INSERT INTO employeeperformance 
+         (EmployeeID, ReviewDate, PerformanceScore, WorkloadNotes)
+         VALUES (?, CURDATE(), ?, ?)`,
+        [body.employeeId, body.score, body.notes]
+      );
+
+      return send(res, 200, { message: "Activity added" });
+    }
+
+    /* ================= SALARY ================= */
+    if (path === "/salary" && req.method === "GET") {
+      const [rows] = await pool.query(`
+        SELECT Name, Salary FROM employee
+      `);
+      return send(res, 200, rows);
+    }
+
+    send(res, 404, { error: "Not Found" });
+
+  } catch (err) {
+    console.error(err);
+    send(res, 500, { error: err.message });
+  }
 });
 
-/* ---------------- ACTIVITIES ---------------- */
-app.get("/activities", (req, res) => res.json(activities));
-
-app.post("/activities", (req, res) => {
-  const act = { id: Date.now(), ...req.body };
-  activities.push(act);
-  res.json(act);
-});
-
-/* ---------------- SALARY ---------------- */
-app.get("/salary", (req, res) => res.json(salaries));
-
-app.post("/salary", (req, res) => {
-  const sal = { id: Date.now(), ...req.body };
-  salaries.push(sal);
-  res.json(sal);
-});
-
-const PORT = 5000;
-app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`Running on ${PORT}`));
