@@ -1,8 +1,9 @@
 import http from "http";
 import { URL } from "url";
 
-import { getEmployees, addEmployee } from "./routes/employeeRoutes.js";
-import { getManagers, addManager } from "./routes/managerRoutes.js";
+import { ensurePortalActivityTable, logPortalActivity } from "./routes/portalActivity.js";
+import { getEmployees, addEmployee, deleteEmployee } from "./routes/employeeRoutes.js";
+import { getManagers, addManager, deleteManager } from "./routes/managerRoutes.js";
 import { getActivity, addActivity } from "./routes/activityRoutes.js";
 import { getSalary } from "./routes/salaryRoutes.js";
 
@@ -11,7 +12,7 @@ function send(res, status, data) {
   res.writeHead(status, {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type"
   });
   res.end(JSON.stringify(data));
@@ -43,6 +44,11 @@ const server = http.createServer(async (req, res) => {
 
       // hardcoded login
       if (email === "hr@nightmarenexus.com" && password === "hr123") {
+        try {
+          await logPortalActivity("HR login", email);
+        } catch (e) {
+          console.error("hr_portal_activity log failed:", e);
+        }
         return send(res, 200, {
           message: "Login successful",
           role: "hr"
@@ -61,6 +67,10 @@ const server = http.createServer(async (req, res) => {
       const body = await parseBody(req);
       return await addEmployee(res, send, body);
     }
+    if (req.method === "DELETE" && /^\/employees\/\d+$/.test(path)) {
+      const employeeId = Number(path.split("/")[2]);
+      return await deleteEmployee(res, send, employeeId);
+    }
 
     /* ================= MANAGERS ================= */
     if (path === "/managers" && req.method === "GET") {
@@ -70,6 +80,10 @@ const server = http.createServer(async (req, res) => {
     if (path === "/managers" && req.method === "POST") {
       const body = await parseBody(req);
       return await addManager(res, send, body);
+    }
+    if (req.method === "DELETE" && /^\/managers\/\d+$/.test(path)) {
+      const managerId = Number(path.split("/")[2]);
+      return await deleteManager(res, send, managerId);
     }
 
     /* ================= ACTIVITY ================= */
@@ -98,6 +112,8 @@ const server = http.createServer(async (req, res) => {
 
 /* -------- start -------- */
 const PORT = process.env.PORT || 5000;
+
+await ensurePortalActivityTable();
 
 server.listen(PORT, () => {
   console.log(`Server running on ${PORT}`);
