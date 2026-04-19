@@ -19,17 +19,15 @@ export async function addEmployee(res, send, body) {
     ]
   );
 
+  const newId = Number(result.insertId);
   try {
     await logPortalActivity(
       "Employee added",
-      `${body.name} (ID ${result.insertId}) — ${body.position || "position unset"}; salary ${body.salary ?? "—"}`
+      `${body.name} (ID ${Number.isFinite(newId) ? newId : "?"}) — ${body.position || "position unset"}; salary ${body.salary ?? "—"}`
     );
   } catch (e) {
     console.error("hr_portal_activity log failed:", e);
   }
 
-  send(res, 200, { message: "Employee added", employeeId: result.insertId });
-}
-
-  send(res, 200, { message: "Employee added" });
+  send(res, 200, { message: "Employee added", employeeId: newId });
 }
