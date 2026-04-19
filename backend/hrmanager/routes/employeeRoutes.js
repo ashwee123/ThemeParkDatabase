@@ -1,4 +1,5 @@
 import pool from "../db.js";
+import { logPortalActivity } from "./portalActivity.js";
 
 export async function getEmployees(res, send) {
   const [rows] = await pool.query("SELECT * FROM employee");
@@ -6,7 +7,7 @@ export async function getEmployees(res, send) {
 }
 
 export async function addEmployee(res, send, body) {
-  await pool.query(
+  const [result] = await pool.query(
     `INSERT INTO employee (Name, Position, Salary, HireDate, ManagerID, AreaID)
      VALUES (?, ?, ?, CURDATE(), ?, ?)`,
     [
@@ -17,6 +18,18 @@ export async function addEmployee(res, send, body) {
       body.areaId
     ]
   );
+
+  try {
+    await logPortalActivity(
+      "Employee added",
+      `${body.name} (ID ${result.insertId}) — ${body.position || "position unset"}; salary ${body.salary ?? "—"}`
+    );
+  } catch (e) {
+    console.error("hr_portal_activity log failed:", e);
+  }
+
+  send(res, 200, { message: "Employee added", employeeId: result.insertId });
+}
 
   send(res, 200, { message: "Employee added" });
 }

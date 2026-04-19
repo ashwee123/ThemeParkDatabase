@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>HR Portal | Theme Park Database</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="/hr/styles.css" />
 </head>
 <body>
   <div class="noise"></div>
@@ -48,18 +48,58 @@
     <section id="managers" class="panel">
        <div class="card">
         <h3>Add Manager</h3>
-        <input id="mgrId" placeholder="Manager ID">
-        <input id="mgrName" placeholder="Name">
+        <p class="hint">After the retail schema migration, <code>manager</code> rows must include email, username, and password (used for retail manager login).</p>
+        <div class="form-grid">
+          <input id="mgrId" type="number" placeholder="Manager ID">
+          <input id="mgrName" placeholder="Name">
+          <input id="mgrEmail" type="email" placeholder="Manager email">
+          <input id="mgrUsername" placeholder="Username">
+          <input id="mgrPassword" type="password" placeholder="Password">
+        </div>
         <button class="btn btn-primary" onclick="addManager()">Add Manager</button>
       </div>
       <div class="table-wrap">
         <table class="data-table">
+          <thead>
+            <tr><th>ID</th><th>Name</th><th>Email</th></tr>
+          </thead>
           <tbody id="mgrTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="activity" class="panel">
+      <div class="card">
+        <h3>Portal activity</h3>
+        <p class="hint">Logins and changes made from this HR portal (stored in <code>hr_portal_activity</code>).</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>When</th><th>Action</th><th>Detail</th></tr>
+          </thead>
+          <tbody id="activityTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="salary" class="panel">
+      <div class="card">
+        <h3>Salary overview</h3>
+        <p class="hint">Employees use pay from <code>employee.Salary</code>. Managers are listed for roster context; this schema does not store manager pay.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Name</th><th>Type</th><th>Title / role</th><th>Salary</th></tr>
+          </thead>
+          <tbody id="salaryTable"></tbody>
         </table>
       </div>
     </section>
   </main>
 
-  <script src="app.js"></script>
+  <script src="/hr/app.js"></script>
 </body>
 </html>
+
