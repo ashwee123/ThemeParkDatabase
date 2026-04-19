@@ -108,7 +108,9 @@ async function ensureApiReady(force) {
       error: true,
       showRetry: true,
     });
-    throw new Error(BACKEND_WAKEUP_ERROR);
+    // Do not hard-fail here; allow the actual API request to run.
+    // This prevents false negatives when warm-up probes fail but data routes are reachable.
+    return;
   })();
 
   try {
@@ -131,6 +133,8 @@ async function apiGet(path) {
     const m = data && data.error ? data.error : res.statusText;
     throw new Error(m);
   }
+  apiReady = true;
+  setBackendStatus("", { visible: false });
   return data;
 }
 
@@ -149,6 +153,8 @@ async function apiPatch(path, body) {
     catch (e) { data = { error: text }; }
   }
   if (!res.ok) throw new Error(data.error || res.statusText);
+  apiReady = true;
+  setBackendStatus("", { visible: false });
   return data;
 }
 
