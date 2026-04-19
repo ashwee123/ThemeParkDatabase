@@ -1,7 +1,10 @@
 import pool from "../db.js";
+import { logPortalActivity } from "./portalActivity.js";
 
 export async function getManagers(res, send) {
-  const [rows] = await pool.query("SELECT * FROM manager");
+  const [rows] = await pool.query(
+    "SELECT ManagerID, ManagerName, ManagerEmail FROM manager"
+  );
   send(res, 200, rows);
 }
 
@@ -19,6 +22,15 @@ export async function addManager(res, send, body) {
      VALUES (?, ?, ?, ?, ?)`,
     [id, name, email, username, password]
   );
+
+  try {
+    await logPortalActivity(
+      "Manager added",
+      `${name} (ID ${id}) — ${email}`
+    );
+  } catch (e) {
+    console.error("hr_portal_activity log failed:", e);
+  }
 
   send(res, 200, { message: "Manager added" });
 }
