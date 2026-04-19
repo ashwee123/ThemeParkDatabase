@@ -6,7 +6,7 @@ import mysql from "mysql2/promise";
 const pool = mysql.createPool({
   host: "themepark6.mysql.database.azure.com",
   user: "admin1", // your username
-  password: "YOUR_PASSWORD",
+  password: "uma1uma2uma!",
   database: "newthemepark",
   port: 3306,
   ssl: { rejectUnauthorized: false }
