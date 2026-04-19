@@ -124,6 +124,86 @@ export async function listEmployees({ q = "" } = {}) {
   }));
 }
 
+async function ensureAdminEmployeeAccessTable() {
+  await getPool().execute(
+    `CREATE TABLE IF NOT EXISTS admin_employee_access (
+      EmployeeID INT NOT NULL PRIMARY KEY,
+      IsActive TINYINT(1) NOT NULL DEFAULT 1,
+      DefaultAccessRole VARCHAR(20) NOT NULL DEFAULT 'viewer',
+      UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  );
+}
+
+/** Staff directory with optional row in admin_employee_access (defaults: active, viewer). */
+export async function listEmployeesWithAccess({ q = "" } = {}) {
+  await ensureAdminEmployeeAccessTable();
+  const pool = getPool();
+  const raw = String(q || "").trim();
+  const hasTerm = raw.length > 0;
+  const term = `%${raw}%`;
+  let sql = `SELECT e.EmployeeID, e.Name, e.Position, e.Salary, e.HireDate, e.ManagerID, e.AreaID, a.AreaName,
+            IFNULL(x.IsActive, 1) AS AccessIsActive,
+            IFNULL(NULLIF(TRIM(x.DefaultAccessRole), ''), 'viewer') AS AccessRole
+     FROM employee e
+     LEFT JOIN area a ON a.AreaID = e.AreaID
+     LEFT JOIN admin_employee_access x ON x.EmployeeID = e.EmployeeID`;
+  const params = [];
+  if (hasTerm) {
+    sql += ` WHERE (
+       e.Name LIKE ? OR e.Position LIKE ? OR IFNULL(a.AreaName,'') LIKE ?
+       OR CAST(e.EmployeeID AS CHAR) LIKE ? OR CAST(IFNULL(e.ManagerID,0) AS CHAR) LIKE ?
+       OR CAST(IFNULL(e.AreaID,0) AS CHAR) LIKE ?
+     )`;
+    params.push(term, term, term, term, term, term);
+  }
+  sql += ` ORDER BY e.AreaID IS NULL, e.AreaID, e.Name`;
+  const [rows] = await pool.execute(sql, params);
+  return rows.map((r) => ({
+    ...r,
+    Salary: r.Salary != null ? Number(r.Salary) : null,
+    HireDate: rowDate(r.HireDate),
+    AccessIsActive: Number(r.AccessIsActive) === 1 ? 1 : 0,
+    AccessRole: String(r.AccessRole || "viewer"),
+  }));
+}
+
+export async function patchEmployeeAccess(employeeId, body) {
+  await ensureAdminEmployeeAccessTable();
+  const id = Number(employeeId);
+  if (!Number.isInteger(id) || id < 1) return false;
+  const b = body && typeof body === "object" ? body : {};
+  const [empRows] = await getPool().execute("SELECT 1 FROM employee WHERE EmployeeID = ? LIMIT 1", [id]);
+  if (!empRows.length) return false;
+  const roles = new Set(["viewer", "operator", "admin"]);
+  let isActive = undefined;
+  if (b.isActive !== undefined && b.isActive !== null) {
+    isActive = b.isActive === true || b.isActive === 1 ? 1 : 0;
+  }
+  let role = undefined;
+  if (b.accessRole != null && String(b.accessRole).trim()) {
+    const r = String(b.accessRole).trim().toLowerCase();
+    if (!roles.has(r)) return false;
+    role = r;
+  }
+  if (isActive === undefined && role === undefined) return false;
+  const pool = getPool();
+  const [cur] = await pool.execute(
+    "SELECT IsActive, DefaultAccessRole FROM admin_employee_access WHERE EmployeeID = ?",
+    [id]
+  );
+  const nextActive = isActive !== undefined ? isActive : cur.length ? Number(cur[0].IsActive) : 1;
+  const nextRole =
+    role !== undefined ? role : cur.length ? String(cur[0].DefaultAccessRole || "viewer") : "viewer";
+  await pool.execute(
+    `INSERT INTO admin_employee_access (EmployeeID, IsActive, DefaultAccessRole)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE IsActive = VALUES(IsActive), DefaultAccessRole = VALUES(DefaultAccessRole)`,
+    [id, nextActive, nextRole]
+  );
+  return true;
+}
+
 /** HR-designated managers (`hrmanager` + `manager` + optional `area`). */
 export async function listHrManagers({ q = "" } = {}) {
   try {
@@ -610,7 +690,166 @@ const SYSTEM_SETTING_KEYS = new Set([
   "notificationWebhookUrl",
   "notificationNotes",
   "brandingNotes",
+  "accessMfaRequired",
+  "accessPortalRolesJson",
+  "accessPasswordResetNotes",
+  "accessSessionNotes",
+  "accessSuspiciousIpWatchlist",
 ]);
+
+const DEFAULT_PORTAL_ROLES = {
+  visitor: { viewer: true, operator: true, admin: false },
+  retail: { viewer: true, operator: true, admin: false },
+  employee: { viewer: true, operator: true, admin: false },
+  hr: { viewer: true, operator: true, admin: false },
+  maintenance: { viewer: true, operator: true, admin: false },
+};
+
+async function ensureAdminAuditLogTable() {
+  await getPool().execute(
+    `CREATE TABLE IF NOT EXISTS admin_audit_log (
+      AuditLogID BIGINT NOT NULL AUTO_INCREMENT,
+      CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      Action VARCHAR(120) NOT NULL,
+      Actor VARCHAR(160) NULL,
+      TargetType VARCHAR(80) NULL,
+      TargetId VARCHAR(120) NULL,
+      Detail TEXT NULL,
+      ClientIp VARCHAR(80) NULL,
+      UserAgent VARCHAR(512) NULL,
+      PRIMARY KEY (AuditLogID),
+      KEY idx_audit_created (CreatedAt),
+      KEY idx_audit_action (Action)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  );
+}
+
+export async function insertAdminAuditLog({
+  action,
+  actor = "admin-ui",
+  targetType = null,
+  targetId = null,
+  detail = null,
+  clientIp = null,
+  userAgent = null,
+} = {}) {
+  try {
+    await ensureAdminAuditLogTable();
+    if (!action) return;
+    await getPool().execute(
+      `INSERT INTO admin_audit_log (Action, Actor, TargetType, TargetId, Detail, ClientIp, UserAgent)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        String(action).slice(0, 120),
+        actor != null ? String(actor).slice(0, 160) : null,
+        targetType != null ? String(targetType).slice(0, 80) : null,
+        targetId != null ? String(targetId).slice(0, 120) : null,
+        detail != null ? String(detail) : null,
+        clientIp != null ? String(clientIp).slice(0, 80) : null,
+        userAgent != null ? String(userAgent).slice(0, 512) : null,
+      ]
+    );
+  } catch (e) {
+    console.error("insertAdminAuditLog:", e);
+  }
+}
+
+export async function listAdminAuditLog(limit = 200) {
+  try {
+    await ensureAdminAuditLogTable();
+    const lim = Math.min(500, Math.max(1, Number(limit) || 200));
+    const [rows] = await getPool().execute(
+      `SELECT AuditLogID, CreatedAt, Action, Actor, TargetType, TargetId, Detail, ClientIp, UserAgent
+       FROM admin_audit_log ORDER BY AuditLogID DESC LIMIT ?`,
+      [lim]
+    );
+    return rows.map((r) => ({
+      ...r,
+      CreatedAt: rowDateTime(r.CreatedAt),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function ensureAdminSessionLogTable() {
+  await getPool().execute(
+    `CREATE TABLE IF NOT EXISTS admin_session_log (
+      SessionLogID BIGINT NOT NULL AUTO_INCREMENT,
+      CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      EventType VARCHAR(80) NOT NULL,
+      Portal VARCHAR(40) NULL,
+      Subject VARCHAR(200) NULL,
+      TokenId VARCHAR(120) NULL,
+      IpAddress VARCHAR(80) NULL,
+      UserAgent VARCHAR(512) NULL,
+      RevokedAt TIMESTAMP NULL DEFAULT NULL,
+      PRIMARY KEY (SessionLogID),
+      KEY idx_sess_created (CreatedAt)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  );
+}
+
+export async function listAdminSessionLog(limit = 100) {
+  try {
+    await ensureAdminSessionLogTable();
+    const lim = Math.min(300, Math.max(1, Number(limit) || 100));
+    const [rows] = await getPool().execute(
+      `SELECT SessionLogID, CreatedAt, EventType, Portal, Subject, TokenId, IpAddress, UserAgent, RevokedAt
+       FROM admin_session_log ORDER BY SessionLogID DESC LIMIT ?`,
+      [lim]
+    );
+    return rows.map((r) => ({
+      ...r,
+      CreatedAt: rowDateTime(r.CreatedAt),
+      RevokedAt: r.RevokedAt ? rowDateTime(r.RevokedAt) : null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function revokeAdminSessionLog(sessionLogId) {
+  await ensureAdminSessionLogTable();
+  const id = Number(sessionLogId);
+  if (!Number.isInteger(id) || id < 1) return false;
+  const [result] = await getPool().execute(
+    "UPDATE admin_session_log SET RevokedAt = CURRENT_TIMESTAMP WHERE SessionLogID = ? AND RevokedAt IS NULL",
+    [id]
+  );
+  return result.affectedRows > 0;
+}
+
+export function parseAccessPolicyFromSettings(settings) {
+  const s = settings && typeof settings === "object" ? settings : {};
+  let portalRoles = { ...DEFAULT_PORTAL_ROLES };
+  try {
+    const raw = s.accessPortalRolesJson;
+    if (raw && String(raw).trim()) {
+      const p = JSON.parse(String(raw));
+      if (p && typeof p === "object") {
+        for (const portal of Object.keys(DEFAULT_PORTAL_ROLES)) {
+          if (p[portal] && typeof p[portal] === "object") {
+            portalRoles[portal] = {
+              viewer: !!p[portal].viewer,
+              operator: !!p[portal].operator,
+              admin: !!p[portal].admin,
+            };
+          }
+        }
+      }
+    }
+  } catch {
+    /* keep defaults */
+  }
+  return {
+    mfaRequired: s.accessMfaRequired === "1" || s.accessMfaRequired === "true",
+    portalRoles,
+    passwordResetNotes: s.accessPasswordResetNotes != null ? String(s.accessPasswordResetNotes) : "",
+    sessionNotes: s.accessSessionNotes != null ? String(s.accessSessionNotes) : "",
+    suspiciousIpWatchlist: s.accessSuspiciousIpWatchlist != null ? String(s.accessSuspiciousIpWatchlist) : "",
+  };
+}
 
 async function ensureAdminSettingsTable() {
   const pool = getPool();

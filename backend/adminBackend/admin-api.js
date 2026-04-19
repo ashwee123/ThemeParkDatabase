@@ -7,7 +7,6 @@ import {
   listActiveAlerts,
   listAreas,
   listAttractions,
-  listEmployees,
   listIncidents,
   listMaintenanceAssignments,
   listRecentWeather,
@@ -30,8 +29,24 @@ import {
   setTicketTypePrice,
   getSystemSettings,
   patchSystemSettings,
+  listEmployeesWithAccess,
+  patchEmployeeAccess,
+  insertAdminAuditLog,
+  listAdminAuditLog,
+  listAdminSessionLog,
+  revokeAdminSessionLog,
+  parseAccessPolicyFromSettings,
 } from "./admin-routes.js";
+import { getPool } from "./db.js";
 import { buildSnapshotPdf } from "./report-pdf.js";
+
+function reqMeta(req) {
+  const h = req.headers || {};
+  const xf = h["x-forwarded-for"] || h["X-Forwarded-For"];
+  const ip = xf ? String(xf).split(",")[0].trim() : req.socket && req.socket.remoteAddress ? String(req.socket.remoteAddress) : "";
+  const ua = h["user-agent"] || h["User-Agent"] || "";
+  return { clientIp: ip.slice(0, 80), userAgent: String(ua).slice(0, 512) };
+}
 
 function sendJson(res, status, data, extra = {}) {
   const body = JSON.stringify(data);
@@ -119,7 +134,101 @@ export async function handleAdminApi(req, res, url) {
     }
     if (method === "GET" && pathname === "/api/employees") {
       const q = url.searchParams.get("q") || "";
-      sendJson(res, 200, await listEmployees({ q }), h);
+      sendJson(res, 200, await listEmployeesWithAccess({ q }), h);
+      return;
+    }
+    if (method === "GET" && pathname === "/api/access/policy") {
+      sendJson(res, 200, parseAccessPolicyFromSettings(await getSystemSettings()), h);
+      return;
+    }
+    if (method === "PATCH" && pathname === "/api/access/policy") {
+      const body = await readJsonBody(req);
+      const patch = {};
+      if (body.mfaRequired !== undefined) patch.accessMfaRequired = body.mfaRequired ? "1" : "0";
+      if (body.portalRoles !== undefined) {
+        patch.accessPortalRolesJson = JSON.stringify(body.portalRoles);
+      }
+      if (body.passwordResetNotes !== undefined) patch.accessPasswordResetNotes = String(body.passwordResetNotes ?? "");
+      if (body.sessionNotes !== undefined) patch.accessSessionNotes = String(body.sessionNotes ?? "");
+      if (body.suspiciousIpWatchlist !== undefined) {
+        patch.accessSuspiciousIpWatchlist = String(body.suspiciousIpWatchlist ?? "");
+      }
+      await patchSystemSettings(patch);
+      await insertAdminAuditLog({
+        action: "access_policy_updated",
+        targetType: "policy",
+        detail: JSON.stringify(Object.keys(patch)),
+        ...reqMeta(req),
+      });
+      sendJson(res, 200, { ok: true, policy: parseAccessPolicyFromSettings(await getSystemSettings()) }, h);
+      return;
+    }
+    if (method === "GET" && pathname === "/api/audit-log") {
+      const limit = url.searchParams.get("limit");
+      sendJson(res, 200, await listAdminAuditLog(limit), h);
+      return;
+    }
+    if (method === "GET" && pathname === "/api/access/sessions") {
+      const limit = url.searchParams.get("limit");
+      sendJson(res, 200, await listAdminSessionLog(limit), h);
+      return;
+    }
+    if (method === "POST" && pathname === "/api/access/sessions/revoke") {
+      const body = await readJsonBody(req);
+      const sid = body && body.sessionLogId != null ? Number(body.sessionLogId) : NaN;
+      if (!Number.isInteger(sid) || sid < 1) {
+        sendJson(res, 400, { error: "Body must include sessionLogId" }, h);
+        return;
+      }
+      const ok = await revokeAdminSessionLog(sid);
+      await insertAdminAuditLog({
+        action: ok ? "session_revoked" : "session_revoke_failed",
+        targetType: "session",
+        targetId: String(sid),
+        ...reqMeta(req),
+      });
+      if (!ok) {
+        sendJson(res, 404, { error: "Session not found or already revoked" }, h);
+        return;
+      }
+      sendJson(res, 200, { ok: true, SessionLogID: sid }, h);
+      return;
+    }
+    const empAccessPatch = pathname.match(/^\/api\/access\/employees\/(\d+)$/);
+    if (empAccessPatch && method === "PATCH") {
+      const id = parseInt(empAccessPatch[1], 10);
+      const body = await readJsonBody(req);
+      const ok = await patchEmployeeAccess(id, body);
+      if (!ok) {
+        sendJson(res, 400, { error: "Invalid employee or fields" }, h);
+        return;
+      }
+      await insertAdminAuditLog({
+        action: "employee_access_updated",
+        targetType: "employee",
+        targetId: String(id),
+        detail: JSON.stringify({ isActive: body.isActive, accessRole: body.accessRole }),
+        ...reqMeta(req),
+      });
+      sendJson(res, 200, { ok: true, EmployeeID: id }, h);
+      return;
+    }
+    const empPwdReset = pathname.match(/^\/api\/access\/employees\/(\d+)\/password-reset-request$/);
+    if (empPwdReset && method === "POST") {
+      const id = parseInt(empPwdReset[1], 10);
+      const [rows] = await getPool().execute("SELECT EmployeeID FROM employee WHERE EmployeeID = ? LIMIT 1", [id]);
+      if (!rows.length) {
+        sendJson(res, 404, { error: "Employee not found" }, h);
+        return;
+      }
+      await insertAdminAuditLog({
+        action: "password_reset_flow_requested",
+        targetType: "employee",
+        targetId: String(id),
+        detail: "Centralized reset — hook your IdP / auth backend to deliver email/SMS.",
+        ...reqMeta(req),
+      });
+      sendJson(res, 200, { ok: true, EmployeeID: id, message: "Reset logged; integrate mailer in auth service." }, h);
       return;
     }
     if (method === "GET" && pathname === "/api/hr-managers") {
@@ -244,6 +353,13 @@ export async function handleAdminApi(req, res, url) {
         sendJson(res, 400, { error: "Invalid park or no fields to update" }, h);
         return;
       }
+      await insertAdminAuditLog({
+        action: "system_park_updated",
+        targetType: "visitor_park",
+        targetId: String(id),
+        detail: JSON.stringify(body),
+        ...reqMeta(req),
+      });
       sendJson(res, 200, { ok: true, ParkID: id }, h);
       return;
     }
@@ -259,6 +375,13 @@ export async function handleAdminApi(req, res, url) {
         sendJson(res, 400, { error: "Need eventName, eventDate (YYYY-MM-DD), optional parkId, description, startTime, endTime" }, h);
         return;
       }
+      await insertAdminAuditLog({
+        action: "special_event_created",
+        targetType: "visitor_special_event",
+        targetId: String(id),
+        detail: JSON.stringify(body),
+        ...reqMeta(req),
+      });
       sendJson(res, 201, { ok: true, EventID: id }, h);
       return;
     }
@@ -275,6 +398,13 @@ export async function handleAdminApi(req, res, url) {
         sendJson(res, 400, { error: "Invalid ticketType (General|VIP|Discount) or price" }, h);
         return;
       }
+      await insertAdminAuditLog({
+        action: "ticket_type_price_updated",
+        targetType: "ticket",
+        targetId: tt,
+        detail: JSON.stringify({ price: Number(price) }),
+        ...reqMeta(req),
+      });
       sendJson(res, 200, { ok: true, ticketType: tt, price: Number(price) }, h);
       return;
     }
@@ -285,6 +415,12 @@ export async function handleAdminApi(req, res, url) {
     if (method === "PATCH" && pathname === "/api/system/settings") {
       const body = await readJsonBody(req);
       await patchSystemSettings(body || {});
+      await insertAdminAuditLog({
+        action: "system_settings_updated",
+        targetType: "admin_system_settings",
+        detail: JSON.stringify(Object.keys(body || {})),
+        ...reqMeta(req),
+      });
       sendJson(res, 200, { ok: true }, h);
       return;
     }
@@ -303,6 +439,13 @@ export async function handleAdminApi(req, res, url) {
         sendJson(res, 404, { error: "Visitor not found" }, h);
         return;
       }
+      await insertAdminAuditLog({
+        action: "visitor_is_active_updated",
+        targetType: "visitor",
+        targetId: String(id),
+        detail: JSON.stringify({ isActive: active }),
+        ...reqMeta(req),
+      });
       sendJson(res, 200, { ok: true, VisitorID: id, IsActive: active ? 1 : 0 }, h);
       return;
     }
@@ -321,6 +464,13 @@ export async function handleAdminApi(req, res, url) {
         sendJson(res, 400, { error: "Invalid attraction or status" }, h);
         return;
       }
+      await insertAdminAuditLog({
+        action: "attraction_status_updated",
+        targetType: "attraction",
+        targetId: String(id),
+        detail: JSON.stringify({ status }),
+        ...reqMeta(req),
+      });
       sendJson(res, 200, { ok: true, AttractionID: id, Status: status }, h);
       return;
     }
@@ -337,6 +487,12 @@ export async function handleAdminApi(req, res, url) {
         sendJson(res, 404, { error: "Alert not found or already handled" }, h);
         return;
       }
+      await insertAdminAuditLog({
+        action: "maintenance_alert_handled",
+        targetType: "maintenancealert",
+        targetId: String(id),
+        ...reqMeta(req),
+      });
       sendJson(res, 200, { ok: true, AlertID: id }, h);
       return;
     }

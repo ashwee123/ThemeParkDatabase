@@ -44,34 +44,80 @@
         <h2>User &amp; access management</h2>
         <button type="button" id="btn-refresh-users" class="btn btn-ghost">Refresh</button>
       </div>
-      <div class="callout callout-warn">
-        <strong>Production checklist:</strong> enforce MFA, least-privilege roles per portal (visitor, retail, employee, HR, maintenance), centralized password reset flows, and a durable <code>admin_audit_log</code> table for every mutating action. This build exposes <em>internal staff directory</em> plus retail <code>notificationlog</code> as a sample audit stream.
+
+      <div class="card" style="margin-bottom:1.25rem;">
+        <h3 class="subheading" style="margin-top:0;">Organization access policy</h3>
+        <p class="hint">MFA and least-privilege role <em>slots</em> per portal are stored in <code>admin_system_settings</code>. Enforce MFA at your IdP or API gateway. Role slots describe which archetypes each portal may grant.</p>
+        <form id="form-access-policy">
+          <label class="select-label" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+            <input type="checkbox" id="access-mfa-required" />
+            <span>Require MFA for admin / staff console sign-in (configure enforcement in IdP or gateway)</span>
+          </label>
+          <h4 class="subheading" style="font-size:0.95rem;margin-top:0.75rem;">Least-privilege role slots (per portal)</h4>
+          <div class="table-wrap" style="margin-bottom:1rem;">
+            <table class="data-table" id="table-access-portal-roles">
+              <thead>
+                <tr><th>Portal</th><th>Viewer</th><th>Operator</th><th>Admin</th></tr>
+              </thead>
+              <tbody id="tbody-access-portal-roles"></tbody>
+            </table>
+          </div>
+          <label class="select-label">
+            <span>Password reset / IdP integration notes</span>
+            <textarea id="access-password-reset-notes" rows="2" placeholder="Central IdP URL, reset email template IDs, webhook secrets…"></textarea>
+          </label>
+          <label class="select-label">
+            <span>Session &amp; risk notes (gateway, token TTL, geo rules)</span>
+            <textarea id="access-session-notes" rows="2" placeholder="OIDC client IDs, revoke endpoint, anomaly detection…"></textarea>
+          </label>
+          <label class="select-label">
+            <span>Suspicious IP watchlist (comma or newline separated — match in gateway logs)</span>
+            <textarea id="access-suspicious-ips" rows="2" placeholder="203.0.113.50, 198.51.100.0/24"></textarea>
+          </label>
+          <button type="submit" class="btn" id="btn-access-policy-save">Save organization policy</button>
+        </form>
       </div>
-      <div class="capa-grid">
-        <div class="capa-card">
-          <h3>Accounts</h3>
-          <p>Create / edit / deactivate users per portal; assign roles; reset passwords (integrate with each backend’s auth module).</p>
-        </div>
-        <div class="capa-card">
-          <h3>Session &amp; risk</h3>
-          <p>View login activity; revoke tokens; flag suspicious IPs (requires gateway or IdP integration).</p>
-        </div>
-        <div class="capa-card">
-          <h3>Audit</h3>
-          <p>Full audit trails below are a starting point — extend to capture admin overrides across all portals.</p>
-        </div>
-      </div>
-      <h3 class="subheading">Internal staff directory (<code>employee</code>)</h3>
+
+      <h3 class="subheading">Internal staff directory (<code>employee</code> + <code>admin_employee_access</code>)</h3>
+      <p class="hint">Deactivate accounts or set a default role tier (applies across portals; wire your auth service to honor <code>admin_employee_access</code>). Password reset records an audit event — connect your mailer in each backend.</p>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
             <tr>
               <th>ID</th><th>Name</th><th>Position</th><th>Salary</th><th>Hire</th><th>Mgr</th><th>Area</th>
+              <th>Active</th><th>Default role</th><th></th>
             </tr>
           </thead>
           <tbody id="tbody-internal-users"></tbody>
         </table>
       </div>
+
+      <h3 class="subheading">Session activity (<code>admin_session_log</code>)</h3>
+      <p class="hint">Populate this table from your IdP login callback or API gateway. Revoke marks the row and writes <code>admin_audit_log</code>.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>When</th><th>Event</th><th>Portal</th><th>Subject</th><th>IP</th><th>Revoked</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-access-sessions"></tbody>
+        </table>
+      </div>
+
+      <h3 class="subheading">Admin audit log (<code>admin_audit_log</code>)</h3>
+      <p class="hint">Mutating admin API actions are recorded here (policy saves, visitor toggles, ride status, maintenance alerts, system settings, etc.).</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>When</th><th>Action</th><th>Target</th><th>Detail</th><th>IP</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-admin-audit"></tbody>
+        </table>
+      </div>
+
       <h3 class="subheading">Retail notification log (<code>notificationlog</code>)</h3>
       <div class="table-wrap">
         <table class="data-table">
@@ -91,9 +137,6 @@
           <button type="button" id="btn-visitor-search" class="btn btn-ghost">Search</button>
           <button type="button" id="btn-refresh-visitors" class="btn btn-ghost">Refresh</button>
         </div>
-      </div>
-      <div class="callout">
-        <strong>Scope:</strong> search visitors, review ticket purchases, deactivate accounts (ban) or reactivate. Refunds, reservation overrides, and incident links require extending <code>visitor_order</code> / <code>visitor_reservation</code> APIs from the visitor backend — hooks are documented here for parity.
       </div>
       <h3 class="subheading">Visitors (<code>visitor</code>)</h3>
       <p class="hint">Shows every row in <code>visitor</code> (no password), plus counts from tickets, reviews, retail purchases, and portal tables when they exist.</p>
@@ -160,9 +203,6 @@
           <button type="button" id="btn-hr-search" class="btn btn-ghost">Search</button>
           <button type="button" id="btn-refresh-hr" class="btn btn-ghost">Refresh</button>
         </div>
-      </div>
-      <div class="callout">
-        <strong>Oversight:</strong> HR managers from <code>hrmanager</code>, staff from <code>employee</code>, guests from <code>visitor</code>, shifts from <code>shift</code>, and feedback from <code>review</code>. Use the search box to filter all sections at once (server-side).
       </div>
       <h3 class="subheading">HR managers (<code>hrmanager</code> + <code>manager</code>)</h3>
       <div class="table-wrap">

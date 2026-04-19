@@ -316,12 +316,184 @@ function fillEmployeeTable(sel, rows) {
   if (!rows.length) tb.innerHTML = '<tr><td colspan="7" class="hint">No rows</td></tr>';
 }
 
+const ACCESS_PORTALS = [
+  { id: "visitor", label: "Visitor" },
+  { id: "retail", label: "Retail" },
+  { id: "employee", label: "Employee" },
+  { id: "hr", label: "HR" },
+  { id: "maintenance", label: "Maintenance" },
+];
+const ACCESS_ROLES = ["viewer", "operator", "admin"];
+
+function renderAccessPortalMatrix(portalRoles) {
+  const tb = $("#tbody-access-portal-roles");
+  if (!tb) return;
+  const pr = portalRoles && typeof portalRoles === "object" ? portalRoles : {};
+  tb.innerHTML = ACCESS_PORTALS.map(function (p) {
+    const row = pr[p.id] || { viewer: true, operator: true, admin: false };
+    const cells = ACCESS_ROLES.map(function (role) {
+      const id = "policy-" + p.id + "-" + role;
+      const checked = row[role] ? " checked" : "";
+      return (
+        "<td>" +
+        '<label class="hint" style="display:flex;justify-content:center;">' +
+        '<input type="checkbox" id="' +
+        escapeHtml(id) +
+        '" data-portal="' +
+        escapeHtml(p.id) +
+        '" data-role="' +
+        escapeHtml(role) +
+        '"' +
+        checked +
+        " />" +
+        "</label></td>"
+      );
+    }).join("");
+    return (
+      "<tr><td>" + escapeHtml(p.label) + "</td>" + cells + "</tr>"
+    );
+  }).join("");
+}
+
+function readAccessPortalMatrix() {
+  const out = {};
+  ACCESS_PORTALS.forEach(function (p) {
+    out[p.id] = { viewer: false, operator: false, admin: false };
+    ACCESS_ROLES.forEach(function (role) {
+      const el = document.getElementById("policy-" + p.id + "-" + role);
+      if (el) out[p.id][role] = !!el.checked;
+    });
+  });
+  return out;
+}
+
+function renderInternalStaffDirectory(rows) {
+  const tb = $("#tbody-internal-users");
+  if (!tb) return;
+  tb.innerHTML = rows.map(function (r) {
+    const area = r.AreaName != null ? r.AreaName : r.AreaID != null ? String(r.AreaID) : "—";
+    const active = Number(r.AccessIsActive) !== 0;
+    const role = r.AccessRole || "viewer";
+    const opts = ACCESS_ROLES.map(function (roleName) {
+      const sel = roleName === role ? " selected" : "";
+      return '<option value="' + escapeHtml(roleName) + '"' + sel + ">" + escapeHtml(roleName) + "</option>";
+    }).join("");
+    return (
+      "<tr data-employee-id=\"" + escapeHtml(r.EmployeeID) + "\">" +
+      '<td class="num">' + escapeHtml(r.EmployeeID) + "</td>" +
+      "<td>" + escapeHtml(r.Name) + "</td>" +
+      "<td>" + escapeHtml(r.Position) + "</td>" +
+      '<td class="num">' + (r.Salary != null ? Number(r.Salary).toFixed(2) : "—") + "</td>" +
+      "<td>" + escapeHtml(r.HireDate || "—") + "</td>" +
+      '<td class="num">' + escapeHtml(r.ManagerID ?? "—") + "</td>" +
+      "<td>" + escapeHtml(area) + "</td>" +
+      "<td>" +
+      '<label class="hint"><input type="checkbox" class="employee-access-active" ' +
+      (active ? "checked " : "") +
+      "/> Active</label></td>" +
+      "<td>" +
+      '<select class="employee-access-role">' +
+      opts +
+      "</select></td>" +
+      '<td><button type="button" class="btn btn-small btn-ghost btn-employee-pw-reset">Reset password…</button></td>' +
+      "</tr>"
+    );
+  }).join("");
+  if (!rows.length) tb.innerHTML = '<tr><td colspan="10" class="hint">No rows</td></tr>';
+}
+
+function renderAccessSessions(rows) {
+  const tb = $("#tbody-access-sessions");
+  if (!tb) return;
+  tb.innerHTML = rows.map(function (r) {
+    const revoked = r.RevokedAt ? escapeHtml(r.RevokedAt) : "—";
+    const canRev = !r.RevokedAt;
+    return (
+      "<tr>" +
+      '<td class="num">' + escapeHtml(r.SessionLogID) + "</td>" +
+      "<td>" + escapeHtml(r.CreatedAt || "—") + "</td>" +
+      "<td>" + escapeHtml(r.EventType) + "</td>" +
+      "<td>" + escapeHtml(r.Portal || "—") + "</td>" +
+      "<td>" + escapeHtml(r.Subject || "—") + "</td>" +
+      "<td>" + escapeHtml(r.IpAddress || "—") + "</td>" +
+      "<td>" + revoked + "</td>" +
+      "<td>" +
+      (canRev
+        ? '<button type="button" class="btn btn-small btn-ghost btn-session-revoke" data-session-id="' +
+          escapeHtml(r.SessionLogID) +
+          '">Revoke</button>'
+        : "—") +
+      "</td>" +
+      "</tr>"
+    );
+  }).join("");
+  if (!rows.length) {
+    tb.innerHTML =
+      '<tr><td colspan="8" class="hint">No session rows yet — forward IdP / gateway logins to <code>admin_session_log</code>.</td></tr>';
+  }
+}
+
+function renderAdminAudit(rows) {
+  const tb = $("#tbody-admin-audit");
+  if (!tb) return;
+  tb.innerHTML = rows.map(function (r) {
+    const target =
+      (r.TargetType ? escapeHtml(r.TargetType) : "") +
+      (r.TargetId != null && r.TargetId !== "" ? " #" + escapeHtml(r.TargetId) : "");
+    let detail = String(r.Detail || "");
+    if (detail.length > 160) detail = detail.slice(0, 157) + "…";
+    return (
+      "<tr>" +
+      '<td class="num">' + escapeHtml(r.AuditLogID) + "</td>" +
+      "<td>" + escapeHtml(r.CreatedAt || "—") + "</td>" +
+      "<td>" + escapeHtml(r.Action) + "</td>" +
+      "<td>" + (target || "—") + "</td>" +
+      "<td>" + escapeHtml(detail || "—") + "</td>" +
+      "<td>" + escapeHtml(r.ClientIp || "—") + "</td>" +
+      "</tr>"
+    );
+  }).join("");
+  if (!rows.length) tb.innerHTML = '<tr><td colspan="6" class="hint">No audit rows yet.</td></tr>';
+}
+
 async function loadUsersPanel() {
-  const [emps, notes] = await Promise.all([
-    apiGet("/employees"),
-    apiGet("/notifications?limit=80"),
-  ]);
-  fillEmployeeTable("#tbody-internal-users", emps);
+  let emps;
+  let notes;
+  let policy;
+  let audit;
+  let sessions;
+  try {
+    const pack = await Promise.all([
+      apiGet("/employees"),
+      apiGet("/notifications?limit=80"),
+      apiGet("/access/policy"),
+      apiGet("/audit-log?limit=200"),
+      apiGet("/access/sessions?limit=80"),
+    ]);
+    emps = pack[0];
+    notes = pack[1];
+    policy = pack[2];
+    audit = pack[3];
+    sessions = pack[4];
+  } catch (e) {
+    showToast(e.message, true);
+    return;
+  }
+
+  const mfa = $("#access-mfa-required");
+  if (mfa) mfa.checked = !!policy.mfaRequired;
+  const pr = $("#access-password-reset-notes");
+  if (pr) pr.value = policy.passwordResetNotes || "";
+  const sn = $("#access-session-notes");
+  if (sn) sn.value = policy.sessionNotes || "";
+  const sip = $("#access-suspicious-ips");
+  if (sip) sip.value = policy.suspiciousIpWatchlist || "";
+  renderAccessPortalMatrix(policy.portalRoles);
+
+  renderInternalStaffDirectory(emps);
+  renderAccessSessions(sessions);
+  renderAdminAudit(audit);
+
   const tn = $("#tbody-admin-notifications");
   if (tn) {
     tn.innerHTML = notes.map(function (r) {
@@ -337,6 +509,113 @@ async function loadUsersPanel() {
     }).join("");
     if (!notes.length) tn.innerHTML = '<tr><td colspan="5" class="hint">No notification log rows</td></tr>';
   }
+}
+
+const panelUsers = document.getElementById("panel-users");
+if (panelUsers) {
+  panelUsers.addEventListener("submit", function (ev) {
+    const form = ev.target;
+    if (form && form.id === "form-access-policy") {
+      ev.preventDefault();
+      const body = {
+        mfaRequired: $("#access-mfa-required") && $("#access-mfa-required").checked,
+        portalRoles: readAccessPortalMatrix(),
+        passwordResetNotes: ($("#access-password-reset-notes") && $("#access-password-reset-notes").value) || "",
+        sessionNotes: ($("#access-session-notes") && $("#access-session-notes").value) || "",
+        suspiciousIpWatchlist: ($("#access-suspicious-ips") && $("#access-suspicious-ips").value) || "",
+      };
+      apiPatch("/access/policy", body)
+        .then(function () {
+          showToast("Organization policy saved");
+          return loadUsersPanel();
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+        });
+    }
+  });
+
+  panelUsers.addEventListener("click", function (ev) {
+    const rev = ev.target.closest(".btn-session-revoke");
+    if (rev && rev.dataset.sessionId) {
+      const sid = rev.dataset.sessionId;
+      apiPost("/access/sessions/revoke", { sessionLogId: Number(sid) })
+        .then(function () {
+          showToast("Session marked revoked");
+          return Promise.all([apiGet("/access/sessions?limit=80"), apiGet("/audit-log?limit=200")]);
+        })
+        .then(function (pair) {
+          if (pair) {
+            renderAccessSessions(pair[0]);
+            renderAdminAudit(pair[1]);
+          }
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+        });
+      return;
+    }
+    const pw = ev.target.closest(".btn-employee-pw-reset");
+    if (pw) {
+      const tr = pw.closest("tr[data-employee-id]");
+      const eid = tr && tr.dataset.employeeId;
+      if (!eid) return;
+      apiPost("/access/employees/" + eid + "/password-reset-request", {})
+        .then(function () {
+          showToast("Password reset logged — connect your auth service to send email/SMS");
+          return apiGet("/audit-log?limit=200");
+        })
+        .then(function (audit) {
+          if (audit) renderAdminAudit(audit);
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+        });
+    }
+  });
+
+  panelUsers.addEventListener("change", function (ev) {
+    const tr = ev.target.closest("tr[data-employee-id]");
+    const eid = tr && tr.dataset.employeeId;
+    if (!eid) return;
+    if (ev.target.classList.contains("employee-access-active")) {
+      const active = ev.target.checked;
+      apiPatch("/access/employees/" + eid, { isActive: active })
+        .then(function () {
+          showToast("Employee #" + eid + " updated");
+          return Promise.all([apiGet("/employees"), apiGet("/audit-log?limit=200")]);
+        })
+        .then(function (pair) {
+          if (pair) {
+            renderInternalStaffDirectory(pair[0]);
+            renderAdminAudit(pair[1]);
+          }
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+          loadUsersPanel().catch(function () {});
+        });
+      return;
+    }
+    if (ev.target.classList.contains("employee-access-role")) {
+      const role = ev.target.value;
+      apiPatch("/access/employees/" + eid, { accessRole: role })
+        .then(function () {
+          showToast("Role updated for #" + eid);
+          return Promise.all([apiGet("/employees"), apiGet("/audit-log?limit=200")]);
+        })
+        .then(function (pair) {
+          if (pair) {
+            renderInternalStaffDirectory(pair[0]);
+            renderAdminAudit(pair[1]);
+          }
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+          loadUsersPanel().catch(function () {});
+        });
+    }
+  });
 }
 
 async function loadVisitorsPanel() {
