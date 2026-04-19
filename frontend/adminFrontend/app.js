@@ -296,11 +296,14 @@ const ATTRACTION_STATUS_OPTIONS = [
   "Open", "Closed", "Restricted", "NeedsMaintenance", "UnderMaintenance", "ClosedDueToWeather",
 ];
 
-function fillEmployeeTable(sel, rows) {
+function fillEmployeeTable(sel, rows, hrColumns) {
   const tb = $(sel);
   if (!tb) return;
   tb.innerHTML = rows.map(function (r) {
-    const area = r.AreaName != null ? r.AreaName : r.AreaID != null ? String(r.AreaID) : "—";
+    const area = r.AreaName != null ? r.AreaName : "—";
+    const areaIdCell = hrColumns
+      ? '<td class="num">' + escapeHtml(r.AreaID != null ? r.AreaID : "—") + "</td>"
+      : "";
     return (
       "<tr>" +
         '<td class="num">' + escapeHtml(r.EmployeeID) + "</td>" +
@@ -309,11 +312,103 @@ function fillEmployeeTable(sel, rows) {
         '<td class="num">' + (r.Salary != null ? Number(r.Salary).toFixed(2) : "—") + "</td>" +
         "<td>" + escapeHtml(r.HireDate || "—") + "</td>" +
         '<td class="num">' + escapeHtml(r.ManagerID ?? "—") + "</td>" +
+        areaIdCell +
         "<td>" + escapeHtml(area) + "</td>" +
       "</tr>"
     );
   }).join("");
-  if (!rows.length) tb.innerHTML = '<tr><td colspan="7" class="hint">No rows</td></tr>';
+  const colspan = hrColumns ? 8 : 7;
+  if (!rows.length) tb.innerHTML = '<tr><td colspan="' + colspan + '" class="hint">No rows</td></tr>';
+}
+
+/** Shared visitor grid cells (live DB aggregates). */
+function visitorDirectoryRowHtml(r, withActions) {
+  function cnt(v) {
+    return v != null && v !== "" ? String(v) : "0";
+  }
+  function fmtMoney(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "—";
+    return n.toFixed(2);
+  }
+  const active = Number(r.IsActive) === 1;
+  const cells =
+    '<td class="num">' +
+    escapeHtml(r.VisitorID) +
+    "</td>" +
+    "<td>" +
+    escapeHtml(r.Name) +
+    "</td>" +
+    "<td>" +
+    escapeHtml(r.Email) +
+    "</td>" +
+    "<td>" +
+    escapeHtml(r.Phone || "—") +
+    "</td>" +
+    "<td>" +
+    escapeHtml(r.Gender || "—") +
+    "</td>" +
+    '<td class="num">' +
+    escapeHtml(r.Age ?? "—") +
+    "</td>" +
+    "<td>" +
+    (active ? '<span class="badge-ok">Active</span>' : '<span class="badge-warn">Inactive</span>') +
+    "</td>" +
+    "<td>" +
+    escapeHtml(r.CreatedAt || "—") +
+    "</td>" +
+    '<td class="num">' +
+    escapeHtml(cnt(r.TicketCount)) +
+    "</td>" +
+    '<td class="num">' +
+    escapeHtml(cnt(r.ReviewCount)) +
+    "</td>" +
+    '<td class="num">' +
+    escapeHtml(cnt(r.RetailPurchaseCount)) +
+    "</td>" +
+    '<td class="num">' +
+    escapeHtml(cnt(r.OrderCount)) +
+    "</td>" +
+    '<td class="num">' +
+    escapeHtml(fmtMoney(r.OrderSpendTotal)) +
+    "</td>" +
+    '<td class="num">' +
+    escapeHtml(cnt(r.ReservationCount)) +
+    "</td>" +
+    '<td class="num">' +
+    escapeHtml(cnt(r.VisitHistoryCount)) +
+    "</td>" +
+    '<td class="num">' +
+    escapeHtml(cnt(r.PortalFeedbackCount)) +
+    "</td>" +
+    '<td class="num">' +
+    escapeHtml(cnt(r.ItineraryCount)) +
+    "</td>";
+  if (!withActions) {
+    return "<tr>" + cells + "</tr>";
+  }
+  return (
+    '<tr data-visitor-id="' +
+    escapeHtml(r.VisitorID) +
+    '">' +
+    cells +
+    "<td>" +
+    (active
+      ? '<button type="button" class="btn btn-small btn-ghost btn-ban">Deactivate</button>'
+      : '<button type="button" class="btn btn-small btn-ghost btn-unban">Reactivate</button>') +
+    "</td>" +
+    "</tr>"
+  );
+}
+
+function renderVisitorDirectoryTbody(rows, withActions) {
+  if (!rows.length) {
+    const colspan = withActions ? 18 : 17;
+    return '<tr><td colspan="' + colspan + '" class="hint">No visitors</td></tr>';
+  }
+  return rows.map(function (r) {
+    return visitorDirectoryRowHtml(r, withActions);
+  }).join("");
 }
 
 const ACCESS_PORTALS = [
@@ -353,6 +448,12 @@ function renderAccessPortalMatrix(portalRoles) {
       "<tr><td>" + escapeHtml(p.label) + "</td>" + cells + "</tr>"
     );
   }).join("");
+  tb.querySelectorAll('input[type="checkbox"][data-portal]').forEach(function (inp) {
+    inp.addEventListener("change", function () {
+      const pre = $("#access-portal-roles-json");
+      if (pre) pre.textContent = JSON.stringify(readAccessPortalMatrix(), null, 2);
+    });
+  });
 }
 
 function readAccessPortalMatrix() {
@@ -371,7 +472,7 @@ function renderInternalStaffDirectory(rows) {
   const tb = $("#tbody-internal-users");
   if (!tb) return;
   tb.innerHTML = rows.map(function (r) {
-    const area = r.AreaName != null ? r.AreaName : r.AreaID != null ? String(r.AreaID) : "—";
+    const area = r.AreaName != null ? r.AreaName : "—";
     const active = Number(r.AccessIsActive) !== 0;
     const role = r.AccessRole || "viewer";
     const opts = ACCESS_ROLES.map(function (roleName) {
@@ -386,6 +487,7 @@ function renderInternalStaffDirectory(rows) {
       '<td class="num">' + (r.Salary != null ? Number(r.Salary).toFixed(2) : "—") + "</td>" +
       "<td>" + escapeHtml(r.HireDate || "—") + "</td>" +
       '<td class="num">' + escapeHtml(r.ManagerID ?? "—") + "</td>" +
+      '<td class="num">' + escapeHtml(r.AreaID != null ? r.AreaID : "—") + "</td>" +
       "<td>" + escapeHtml(area) + "</td>" +
       "<td>" +
       '<label class="hint"><input type="checkbox" class="employee-access-active" ' +
@@ -395,11 +497,12 @@ function renderInternalStaffDirectory(rows) {
       '<select class="employee-access-role">' +
       opts +
       "</select></td>" +
+      "<td>" + escapeHtml(r.AccessUpdatedAt || "—") + "</td>" +
       '<td><button type="button" class="btn btn-small btn-ghost btn-employee-pw-reset">Reset password…</button></td>' +
       "</tr>"
     );
   }).join("");
-  if (!rows.length) tb.innerHTML = '<tr><td colspan="10" class="hint">No rows</td></tr>';
+  if (!rows.length) tb.innerHTML = '<tr><td colspan="12" class="hint">No rows</td></tr>';
 }
 
 function renderAccessSessions(rows) {
@@ -408,6 +511,13 @@ function renderAccessSessions(rows) {
   tb.innerHTML = rows.map(function (r) {
     const revoked = r.RevokedAt ? escapeHtml(r.RevokedAt) : "—";
     const canRev = !r.RevokedAt;
+    const tok = r.TokenId != null && String(r.TokenId).trim() !== "" ? escapeHtml(r.TokenId) : "—";
+    const ua =
+      r.UserAgent != null && String(r.UserAgent).trim() !== ""
+        ? '<span style="display:block;max-width:16rem;white-space:pre-wrap;word-break:break-word;font-size:0.85em;">' +
+          escapeHtml(r.UserAgent) +
+          "</span>"
+        : "—";
     return (
       "<tr>" +
       '<td class="num">' + escapeHtml(r.SessionLogID) + "</td>" +
@@ -415,7 +525,9 @@ function renderAccessSessions(rows) {
       "<td>" + escapeHtml(r.EventType) + "</td>" +
       "<td>" + escapeHtml(r.Portal || "—") + "</td>" +
       "<td>" + escapeHtml(r.Subject || "—") + "</td>" +
+      "<td>" + tok + "</td>" +
       "<td>" + escapeHtml(r.IpAddress || "—") + "</td>" +
+      "<td>" + ua + "</td>" +
       "<td>" + revoked + "</td>" +
       "<td>" +
       (canRev
@@ -429,7 +541,7 @@ function renderAccessSessions(rows) {
   }).join("");
   if (!rows.length) {
     tb.innerHTML =
-      '<tr><td colspan="8" class="hint">No session rows yet — forward IdP / gateway logins to <code>admin_session_log</code>.</td></tr>';
+      '<tr><td colspan="10" class="hint">No session rows yet — forward IdP / gateway logins to <code>admin_session_log</code>.</td></tr>';
   }
 }
 
@@ -437,23 +549,30 @@ function renderAdminAudit(rows) {
   const tb = $("#tbody-admin-audit");
   if (!tb) return;
   tb.innerHTML = rows.map(function (r) {
-    const target =
-      (r.TargetType ? escapeHtml(r.TargetType) : "") +
-      (r.TargetId != null && r.TargetId !== "" ? " #" + escapeHtml(r.TargetId) : "");
-    let detail = String(r.Detail || "");
-    if (detail.length > 160) detail = detail.slice(0, 157) + "…";
+    const detail = String(r.Detail || "");
+    const detailCell =
+      '<td style="white-space:pre-wrap;word-break:break-word;max-width:28rem;">' +
+      escapeHtml(detail || "—") +
+      "</td>";
+    const uaCell =
+      '<td style="white-space:pre-wrap;word-break:break-word;max-width:14rem;font-size:0.85em;">' +
+      escapeHtml(r.UserAgent || "—") +
+      "</td>";
     return (
       "<tr>" +
       '<td class="num">' + escapeHtml(r.AuditLogID) + "</td>" +
       "<td>" + escapeHtml(r.CreatedAt || "—") + "</td>" +
       "<td>" + escapeHtml(r.Action) + "</td>" +
-      "<td>" + (target || "—") + "</td>" +
-      "<td>" + escapeHtml(detail || "—") + "</td>" +
+      "<td>" + escapeHtml(r.Actor || "—") + "</td>" +
+      "<td>" + escapeHtml(r.TargetType || "—") + "</td>" +
+      "<td>" + escapeHtml(r.TargetId != null && r.TargetId !== "" ? r.TargetId : "—") + "</td>" +
+      detailCell +
       "<td>" + escapeHtml(r.ClientIp || "—") + "</td>" +
+      uaCell +
       "</tr>"
     );
   }).join("");
-  if (!rows.length) tb.innerHTML = '<tr><td colspan="6" class="hint">No audit rows yet.</td></tr>';
+  if (!rows.length) tb.innerHTML = '<tr><td colspan="9" class="hint">No audit rows yet.</td></tr>';
 }
 
 async function loadUsersPanel() {
@@ -465,10 +584,10 @@ async function loadUsersPanel() {
   try {
     const pack = await Promise.all([
       apiGet("/employees"),
-      apiGet("/notifications?limit=80"),
+      apiGet("/notifications?limit=300"),
       apiGet("/access/policy"),
-      apiGet("/audit-log?limit=200"),
-      apiGet("/access/sessions?limit=80"),
+      apiGet("/audit-log?limit=500"),
+      apiGet("/access/sessions?limit=300"),
     ]);
     emps = pack[0];
     notes = pack[1];
@@ -489,6 +608,10 @@ async function loadUsersPanel() {
   const sip = $("#access-suspicious-ips");
   if (sip) sip.value = policy.suspiciousIpWatchlist || "";
   renderAccessPortalMatrix(policy.portalRoles);
+  const preRoles = $("#access-portal-roles-json");
+  if (preRoles) {
+    preRoles.textContent = JSON.stringify(policy.portalRoles || {}, null, 2);
+  }
 
   renderInternalStaffDirectory(emps);
   renderAccessSessions(sessions);
@@ -500,6 +623,8 @@ async function loadUsersPanel() {
       return (
         "<tr>" +
           '<td class="num">' + escapeHtml(r.NotificationID) + "</td>" +
+          '<td class="num">' + escapeHtml(r.ManagerID != null ? r.ManagerID : "—") + "</td>" +
+          '<td class="num">' + escapeHtml(r.ItemID != null ? r.ItemID : "—") + "</td>" +
           "<td>" + escapeHtml(r.Message) + "</td>" +
           "<td>" + escapeHtml(r.RetailName || "—") + "</td>" +
           "<td>" + escapeHtml(r.ItemName || "—") + "</td>" +
@@ -507,7 +632,7 @@ async function loadUsersPanel() {
         "</tr>"
       );
     }).join("");
-    if (!notes.length) tn.innerHTML = '<tr><td colspan="5" class="hint">No notification log rows</td></tr>';
+    if (!notes.length) tn.innerHTML = '<tr><td colspan="7" class="hint">No notification log rows</td></tr>';
   }
 }
 
@@ -542,7 +667,7 @@ if (panelUsers) {
       apiPost("/access/sessions/revoke", { sessionLogId: Number(sid) })
         .then(function () {
           showToast("Session marked revoked");
-          return Promise.all([apiGet("/access/sessions?limit=80"), apiGet("/audit-log?limit=200")]);
+          return Promise.all([apiGet("/access/sessions?limit=300"), apiGet("/audit-log?limit=500")]);
         })
         .then(function (pair) {
           if (pair) {
@@ -563,7 +688,7 @@ if (panelUsers) {
       apiPost("/access/employees/" + eid + "/password-reset-request", {})
         .then(function () {
           showToast("Password reset logged — connect your auth service to send email/SMS");
-          return apiGet("/audit-log?limit=200");
+          return apiGet("/audit-log?limit=500");
         })
         .then(function (audit) {
           if (audit) renderAdminAudit(audit);
@@ -583,7 +708,7 @@ if (panelUsers) {
       apiPatch("/access/employees/" + eid, { isActive: active })
         .then(function () {
           showToast("Employee #" + eid + " updated");
-          return Promise.all([apiGet("/employees"), apiGet("/audit-log?limit=200")]);
+          return Promise.all([apiGet("/employees"), apiGet("/audit-log?limit=500")]);
         })
         .then(function (pair) {
           if (pair) {
@@ -602,7 +727,7 @@ if (panelUsers) {
       apiPatch("/access/employees/" + eid, { accessRole: role })
         .then(function () {
           showToast("Role updated for #" + eid);
-          return Promise.all([apiGet("/employees"), apiGet("/audit-log?limit=200")]);
+          return Promise.all([apiGet("/employees"), apiGet("/audit-log?limit=500")]);
         })
         .then(function (pair) {
           if (pair) {
@@ -627,37 +752,7 @@ async function loadVisitorsPanel() {
   const rows = await apiGet("/visitors?" + qs.toString());
   const tb = $("#tbody-visitors");
   if (!tb) return;
-  function cnt(v) {
-    return v != null && v !== "" ? String(v) : "0";
-  }
-  tb.innerHTML = rows.map(function (r) {
-    const active = Number(r.IsActive) === 1;
-    return (
-      "<tr data-visitor-id=\"" + escapeHtml(r.VisitorID) + "\">" +
-        '<td class="num">' + escapeHtml(r.VisitorID) + "</td>" +
-        "<td>" + escapeHtml(r.Name) + "</td>" +
-        "<td>" + escapeHtml(r.Email) + "</td>" +
-        "<td>" + escapeHtml(r.Phone || "—") + "</td>" +
-        "<td>" + escapeHtml(r.Gender || "—") + "</td>" +
-        '<td class="num">' + escapeHtml(r.Age ?? "—") + "</td>" +
-        "<td>" + (active ? '<span class="badge-ok">Active</span>' : '<span class="badge-warn">Inactive</span>') + "</td>" +
-        "<td>" + escapeHtml(r.CreatedAt || "—") + "</td>" +
-        '<td class="num">' + escapeHtml(cnt(r.TicketCount)) + "</td>" +
-        '<td class="num">' + escapeHtml(cnt(r.ReviewCount)) + "</td>" +
-        '<td class="num">' + escapeHtml(cnt(r.RetailPurchaseCount)) + "</td>" +
-        '<td class="num">' + escapeHtml(cnt(r.OrderCount)) + "</td>" +
-        '<td class="num">' + escapeHtml(cnt(r.ReservationCount)) + "</td>" +
-        '<td class="num">' + escapeHtml(cnt(r.VisitHistoryCount)) + "</td>" +
-        '<td class="num">' + escapeHtml(cnt(r.PortalFeedbackCount)) + "</td>" +
-        "<td>" +
-          (active
-            ? '<button type="button" class="btn btn-small btn-ghost btn-ban">Deactivate</button>'
-            : '<button type="button" class="btn btn-small btn-ghost btn-unban">Reactivate</button>') +
-        "</td>" +
-      "</tr>"
-    );
-  }).join("");
-  if (!rows.length) tb.innerHTML = '<tr><td colspan="16" class="hint">No visitors</td></tr>';
+  tb.innerHTML = renderVisitorDirectoryTbody(rows, true);
 }
 
 function hrSearchPath(path, fixedParams) {
@@ -673,9 +768,9 @@ async function loadHrPanel() {
   const [mgrs, emps, visitors, shifts, vrevs] = await Promise.all([
     apiGet(hrSearchPath("/hr-managers")),
     apiGet(hrSearchPath("/employees")),
-    apiGet(hrSearchPath("/visitors", { limit: "500" })),
-    apiGet(hrSearchPath("/shifts", { limit: "1000" })),
-    apiGet(hrSearchPath("/reports/visitor-reviews", { limit: "1000" })),
+    apiGet(hrSearchPath("/visitors", { limit: "5000" })),
+    apiGet(hrSearchPath("/shifts", { limit: "2000" })),
+    apiGet(hrSearchPath("/reports/visitor-reviews", { limit: "3000", includeInactive: "1" })),
   ]);
 
   const tm = $("#tbody-hr-managers");
@@ -693,28 +788,11 @@ async function loadHrPanel() {
     if (!mgrs.length) tm.innerHTML = '<tr><td colspan="4" class="hint">No HR manager rows (or table not present in this database).</td></tr>';
   }
 
-  fillEmployeeTable("#tbody-hr-staff", emps);
+  fillEmployeeTable("#tbody-hr-staff", emps, true);
 
   const hv = $("#tbody-hr-visitors");
   if (hv) {
-    hv.innerHTML = visitors.map(function (r) {
-      const active = Number(r.IsActive) === 1;
-      return (
-        "<tr>" +
-          '<td class="num">' + escapeHtml(r.VisitorID) + "</td>" +
-          "<td>" + escapeHtml(r.Name) + "</td>" +
-          "<td>" + escapeHtml(r.Email) + "</td>" +
-          "<td>" + escapeHtml(r.Phone || "—") + "</td>" +
-          "<td>" + escapeHtml(r.Gender || "—") + "</td>" +
-          '<td class="num">' + escapeHtml(r.Age ?? "—") + "</td>" +
-          "<td>" + (active ? '<span class="badge-ok">Active</span>' : '<span class="badge-warn">Inactive</span>') + "</td>" +
-          "<td>" + escapeHtml(r.CreatedAt || "—") + "</td>" +
-        "</tr>"
-      );
-    }).join("");
-    if (!visitors.length) {
-      hv.innerHTML = '<tr><td colspan="8" class="hint">No visitors in the directory (or none match your search).</td></tr>';
-    }
+    hv.innerHTML = renderVisitorDirectoryTbody(visitors, false);
   }
 
   const ts = $("#tbody-shifts");
@@ -736,21 +814,26 @@ async function loadHrPanel() {
   const vr = $("#tbody-hr-visitor-reviews");
   if (vr) {
     vr.innerHTML = vrevs.map(function (r) {
-      var comment = String(r.Comment || "").replace(/\s+/g, " ");
-      if (comment.length > 120) comment = comment.slice(0, 117) + "…";
+      const comment = String(r.Comment || "");
+      const commentCell =
+        '<td style="white-space:pre-wrap;word-break:break-word;max-width:22rem;">' + escapeHtml(comment || "—") + "</td>";
       const rating = r.Rating != null ? r.Rating : r.Feedback;
+      const active = Number(r.IsActive) === 1;
       return (
         "<tr>" +
           '<td class="num">' + escapeHtml(r.ReviewID) + "</td>" +
-          "<td>" + escapeHtml(r.VisitorName || "—") + ' <span class="hint">#' + escapeHtml(r.VisitorID) + "</span></td>" +
+          '<td class="num">' + escapeHtml(r.VisitorID ?? "—") + "</td>" +
+          "<td>" + escapeHtml(r.VisitorName || "—") + "</td>" +
+          '<td class="num">' + escapeHtml(r.AreaID ?? "—") + "</td>" +
           "<td>" + escapeHtml(r.AreaName || "—") + "</td>" +
           '<td class="num">' + escapeHtml(rating ?? "—") + "</td>" +
           "<td>" + escapeHtml(r.DateSubmitted || "—") + "</td>" +
-          "<td>" + escapeHtml(comment) + "</td>" +
+          "<td>" + (active ? '<span class="badge-ok">Yes</span>' : '<span class="badge-warn">No</span>') + "</td>" +
+          commentCell +
         "</tr>"
       );
     }).join("");
-    if (!vrevs.length) vr.innerHTML = '<tr><td colspan="6" class="hint">No visitor reviews match this search.</td></tr>';
+    if (!vrevs.length) vr.innerHTML = '<tr><td colspan="9" class="hint">No visitor reviews match this search.</td></tr>';
   }
 }
 
@@ -805,19 +888,11 @@ async function loadParkPanel() {
   }
 }
 
-function reportCardVisible(preset, tags) {
-  if (preset === "all") return true;
-  return tags.indexOf(preset) !== -1;
-}
-
 function reportSnapshotQueryString() {
-  const incEl = $("#report-incidents-days");
-  const revEl = $("#report-reviews-days");
-  const incidentsDays = incEl && incEl.value ? incEl.value : "90";
-  const reviewsDays = revEl && revEl.value ? revEl.value : "30";
+  const periodEl = $("#report-period-days");
+  const periodDays = periodEl && periodEl.value ? periodEl.value : "30";
   const qs = new URLSearchParams();
-  qs.set("incidentsDays", incidentsDays);
-  qs.set("reviewsDays", reviewsDays);
+  qs.set("periodDays", periodDays);
   const kInc = $("#report-kpi-max-incidents");
   const kRev = $("#report-kpi-min-revenue");
   const kTix = $("#report-kpi-max-active-tickets");
@@ -827,10 +902,94 @@ function reportSnapshotQueryString() {
   return qs;
 }
 
-async function loadReportsPanel() {
-  const presetEl = $("#report-preset");
-  const preset = presetEl && presetEl.value ? presetEl.value : "all";
+function reportRowInPeriod(dateStr, periodDays) {
+  if (!dateStr) return true;
+  const d = new Date(String(dateStr).slice(0, 10) + "T12:00:00");
+  if (Number.isNaN(d.getTime())) return true;
+  const cut = new Date();
+  cut.setHours(0, 0, 0, 0);
+  cut.setDate(cut.getDate() - Number(periodDays || 30));
+  return d >= cut;
+}
 
+function buildReportVisualAlertLines(snap) {
+  const th = snap.kpiThresholdsEcho || {};
+  const maxI = th.kpiMaxIncidents;
+  const minR = th.kpiMinRetailRevenue;
+  const maxT = th.kpiMaxActiveTickets;
+  const inc = Number(snap.incidentsInWindow) || 0;
+  const rev = Number(snap.retailRevenue) || 0;
+  const tix = Number(snap.ticketsActive) || 0;
+  const lines = [];
+  if (maxI != null) {
+    const m = Number(maxI);
+    if (inc > m) {
+      lines.push({ tone: "bad", text: "🔴 Incidents exceeded threshold (" + inc + " > " + m + ")" });
+    } else if (m > 0 && inc >= m * 0.85) {
+      lines.push({ tone: "warn", text: "🟡 Incidents nearing limit (" + inc + " / " + m + ")" });
+    } else {
+      lines.push({ tone: "ok", text: "🟢 Incidents within threshold (" + inc + " ≤ " + m + ")" });
+    }
+  }
+  if (minR != null) {
+    const floor = Number(minR);
+    if (rev < floor) {
+      lines.push({
+        tone: "bad",
+        text:
+          "🔴 Revenue below minimum ($" +
+          rev.toFixed(2) +
+          " < $" +
+          floor.toFixed(2) +
+          ")",
+      });
+    } else {
+      lines.push({
+        tone: "ok",
+        text:
+          "🟢 Revenue above minimum ($" +
+          rev.toFixed(2) +
+          " ≥ $" +
+          floor.toFixed(2) +
+          ")",
+      });
+    }
+  }
+  if (maxT != null) {
+    const cap = Number(maxT);
+    if (tix > cap) {
+      lines.push({ tone: "bad", text: "🔴 Active tickets over cap (" + tix + " > " + cap + ")" });
+    } else if (cap > 0 && tix >= cap * 0.9) {
+      lines.push({ tone: "warn", text: "🟡 Capacity nearing limit (" + tix + " / " + cap + ")" });
+    } else {
+      lines.push({ tone: "ok", text: "🟢 Capacity OK (" + tix + " / " + cap + ")" });
+    }
+  }
+  if (!lines.length) {
+    lines.push({
+      tone: "muted",
+      text: "Set thresholds in the control bar to see green/yellow/red status lines.",
+    });
+  }
+  return lines;
+}
+
+function showReportPane(paneId) {
+  document.querySelectorAll(".report-pane").forEach(function (pane) {
+    const match = pane.getAttribute("data-pane") === paneId;
+    pane.toggleAttribute("hidden", !match);
+  });
+  document.querySelectorAll(".report-subtab").forEach(function (btn) {
+    const on = btn.getAttribute("data-report-pane") === paneId;
+    btn.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const focusSel = $("#report-focus");
+  if (focusSel && focusSel.querySelector('option[value="' + paneId + '"]')) {
+    focusSel.value = paneId;
+  }
+}
+
+async function loadReportsPanel() {
   let snap;
   try {
     snap = await apiGet("/reports/snapshot?" + reportSnapshotQueryString().toString());
@@ -839,67 +998,252 @@ async function loadReportsPanel() {
     return;
   }
 
-  const alertWrap = $("#report-kpi-alerts");
-  if (alertWrap) {
-    if (snap.kpiAlerts && snap.kpiAlerts.length) {
-      alertWrap.classList.remove("hidden");
-      alertWrap.innerHTML = snap.kpiAlerts
-        .map(function (a) {
-          const sev = a.severity === "crit" ? "crit" : "warn";
-          return '<div class="report-kpi-alert report-kpi-alert--' + escapeHtml(sev) + '">' + escapeHtml(a.message) + "</div>";
-        })
-        .join("");
-    } else {
-      alertWrap.classList.add("hidden");
-      alertWrap.innerHTML = "";
-    }
+  const periodEl = $("#report-period-days");
+  const periodDays = periodEl && periodEl.value ? periodEl.value : "30";
+  const pd = Number(periodDays) || 30;
+  const incWin = snap.incidentsWindowDays != null ? snap.incidentsWindowDays : pd;
+  const revWin = snap.visitorReviewsWindowDays != null ? snap.visitorReviewsWindowDays : pd;
+  const retWin = snap.retailWindowDays != null ? snap.retailWindowDays : pd;
+
+  const vt = snap.visitorsTotal != null ? String(snap.visitorsTotal) : "—";
+  const va = snap.visitorsActive != null ? String(snap.visitorsActive) : "—";
+  const tt = snap.ticketsTotal != null ? String(snap.ticketsTotal) : "—";
+  const ta = snap.ticketsActive != null ? String(snap.ticketsActive) : "—";
+  const inW = snap.incidentsInWindow != null ? String(snap.incidentsInWindow) : "—";
+  const revNum = Number(snap.retailRevenue) || 0;
+
+  const top = $("#report-kpi-top");
+  if (top) {
+    top.innerHTML =
+      '<article class="report-kpi-card"><p class="report-kpi-title">Visitors</p><p class="report-kpi-body">' +
+      escapeHtml(vt) +
+      ' total<span class="sep">|</span>' +
+      escapeHtml(va) +
+      " active</p></article>" +
+      '<article class="report-kpi-card"><p class="report-kpi-title">Tickets</p><p class="report-kpi-body">' +
+      escapeHtml(tt) +
+      ' issued<span class="sep">|</span>' +
+      escapeHtml(ta) +
+      " active</p></article>" +
+      '<article class="report-kpi-card"><p class="report-kpi-title">Incidents (' +
+      escapeHtml(String(incWin)) +
+      'd)</p><p class="report-kpi-body">' +
+      escapeHtml(inW) +
+      " total</p></article>" +
+      '<article class="report-kpi-card"><p class="report-kpi-title">Revenue (' +
+      escapeHtml(String(retWin)) +
+      'd)</p><p class="report-kpi-body">$' +
+      escapeHtml(revNum.toFixed(2)) +
+      "</p></article>";
   }
 
-  const g = $("#report-snapshot-grid");
-  if (!g) return;
+  const alertHost = $("#report-alerts-visual");
+  if (alertHost) {
+    const lines = buildReportVisualAlertLines(snap);
+    alertHost.innerHTML = lines
+      .map(function (L) {
+        return (
+          '<div class="report-alert-line report-alert-line--' +
+          escapeHtml(L.tone) +
+          '">' +
+          escapeHtml(L.text) +
+          "</div>"
+        );
+      })
+      .join("");
+  }
 
-  const incWin = snap.incidentsWindowDays != null ? snap.incidentsWindowDays : 90;
-  const revWin = snap.visitorReviewsWindowDays != null ? snap.visitorReviewsWindowDays : 30;
   const avgRaw = snap.visitorReviewsAvgInWindow != null ? snap.visitorReviewsAvgInWindow : snap.visitorReviewsAvgRating30d;
   const avgStr =
     avgRaw != null && Number.isFinite(Number(avgRaw)) ? Number(avgRaw).toFixed(2) : "—";
   const revInWin = snap.visitorReviewsInWindow != null ? snap.visitorReviewsInWindow : snap.visitorReviewsLast30d;
 
-  const cardDefs = [
-    { tags: ["guests"], label: "Visitors (total)", value: snap.visitorsTotal },
-    { tags: ["guests"], label: "Visitors (active accounts)", value: snap.visitorsActive },
-    { tags: ["guests"], label: "Tickets issued", value: snap.ticketsTotal },
-    { tags: ["guests"], label: "Tickets active", value: snap.ticketsActive },
-    { tags: ["retail"], label: "Retail transactions", value: snap.retailTxCount },
-    { tags: ["retail"], label: "Retail revenue (sum)", value: Number(snap.retailRevenue).toFixed(2) },
-    {
-      tags: ["safety"],
-      label: "Incidents (last " + incWin + " days)",
-      value: snap.incidentsInWindow != null ? snap.incidentsInWindow : snap.incidents90d,
-    },
-    { tags: ["reviews"], label: "Visitor reviews (all time)", value: snap.visitorReviewsTotal ?? "—" },
-    {
-      tags: ["reviews"],
-      label: "Visitor reviews (last " + revWin + " days)",
-      value: revInWin ?? "—",
-    },
-    {
-      tags: ["reviews"],
-      label: "Avg visitor rating (last " + revWin + " days, 1–10)",
-      value: avgStr,
-    },
-  ];
+  const ov = $("#report-overview-summary");
+  if (ov) {
+    ov.innerHTML =
+      "Time range: <strong>last " +
+      escapeHtml(String(pd)) +
+      " days</strong> (incidents, reviews, retail). " +
+      "Reviews in window: <strong>" +
+      escapeHtml(String(revInWin ?? "—")) +
+      "</strong> · Avg rating: <strong>" +
+      escapeHtml(avgStr) +
+      "</strong> · Reviews (all time): <strong>" +
+      escapeHtml(String(snap.visitorReviewsTotal ?? "—")) +
+      "</strong>.";
+  }
 
-  const cards = cardDefs.filter(function (c) {
-    return reportCardVisible(preset, c.tags);
-  });
+  const revDetail = $("#report-revenue-detail");
+  if (revDetail) {
+    const rtx = snap.retailTxCount != null ? snap.retailTxCount : "—";
+    const allT = snap.retailRevenueAllTime != null ? Number(snap.retailRevenueAllTime).toFixed(2) : "—";
+    revDetail.textContent =
+      "Transactions in window: " +
+      rtx +
+      ". Revenue in window: $" +
+      revNum.toFixed(2) +
+      ". All-time revenue: $" +
+      allT +
+      ".";
+  }
 
-  g.innerHTML = cards.map(function (c) {
-    return (
-      '<div class="stat-card"><div class="label">' + escapeHtml(c.label) + '</div><div class="value">' +
-      escapeHtml(c.value) + "</div></div>"
-    );
-  }).join("");
+  try {
+    const [visRows, tixRows, incRows, reviewRows] = await Promise.all([
+      apiGet("/visitors?limit=150&counts=0"),
+      apiGet("/tickets/admin?limit=200"),
+      apiGet("/incidents?limit=500"),
+      apiGet("/reports/visitor-reviews?limit=300&includeInactive=1"),
+    ]);
+
+    const tv = $("#tbody-report-visitors");
+    if (tv) {
+      tv.innerHTML = visRows
+        .slice(0, 80)
+        .map(function (r) {
+          const active = Number(r.IsActive) === 1;
+          return (
+            "<tr>" +
+            '<td class="num">' +
+            escapeHtml(r.VisitorID) +
+            "</td>" +
+            "<td>" +
+            escapeHtml(r.Name) +
+            "</td>" +
+            "<td>" +
+            escapeHtml(r.Email) +
+            "</td>" +
+            "<td>" +
+            escapeHtml(r.Phone || "—") +
+            "</td>" +
+            "<td>" +
+            (active ? "Active" : "Inactive") +
+            "</td>" +
+            "<td>" +
+            escapeHtml(r.CreatedAt || "—") +
+            "</td>" +
+            "</tr>"
+          );
+        })
+        .join("");
+      if (!visRows.length) tv.innerHTML = '<tr><td colspan="6" class="hint">No visitors</td></tr>';
+    }
+
+    const ttb = $("#tbody-report-tickets");
+    if (ttb) {
+      ttb.innerHTML = tixRows
+        .map(function (r) {
+          return (
+            "<tr>" +
+            '<td class="num">' +
+            escapeHtml(r.TicketNumber) +
+            "</td>" +
+            '<td class="num">' +
+            escapeHtml(r.VisitorID != null ? r.VisitorID : "—") +
+            "</td>" +
+            "<td>" +
+            escapeHtml(r.VisitorName) +
+            "</td>" +
+            "<td>" +
+            escapeHtml(r.VisitorEmail) +
+            "</td>" +
+            "<td>" +
+            escapeHtml(r.TicketType) +
+            "</td>" +
+            '<td class="num">' +
+            escapeHtml(r.Price != null ? r.Price : "—") +
+            "</td>" +
+            "<td>" +
+            escapeHtml(r.IssueDate || "—") +
+            "</td>" +
+            "<td>" +
+            escapeHtml(r.ExpiryDate || "—") +
+            "</td>" +
+            "<td>" +
+            (Number(r.IsActive) === 1 ? "Yes" : "No") +
+            "</td>" +
+            "</tr>"
+          );
+        })
+        .join("");
+      if (!tixRows.length) ttb.innerHTML = '<tr><td colspan="9" class="hint">No tickets</td></tr>';
+    }
+
+    const incFiltered = incRows.filter(function (r) {
+      return reportRowInPeriod(r.ReportDate, pd);
+    });
+    const itb = $("#tbody-report-incidents");
+    if (itb) {
+      itb.innerHTML = incFiltered.slice(0, 100).map(function (r) {
+        const desc = String(r.Description || "").replace(/\s+/g, " ");
+        const short = desc.length > 160 ? desc.slice(0, 157) + "…" : desc;
+        return (
+          "<tr>" +
+          '<td class="num">' +
+          escapeHtml(r.ReportID) +
+          "</td>" +
+          "<td>" +
+          escapeHtml(r.ReportDate || "—") +
+          "</td>" +
+          "<td>" +
+          escapeHtml(r.ReportType || "—") +
+          "</td>" +
+          "<td>" +
+          escapeHtml(r.EmployeeName || "—") +
+          "</td>" +
+          "<td>" +
+          escapeHtml(short || "—") +
+          "</td>" +
+          "</tr>"
+        );
+      }).join("");
+      if (!incFiltered.length) {
+        itb.innerHTML =
+          '<tr><td colspan="5" class="hint">No incidents in this range (or none in database).</td></tr>';
+      }
+    }
+
+    const revFiltered = reviewRows.filter(function (r) {
+      return reportRowInPeriod(r.DateSubmitted, pd);
+    });
+    const rtb = $("#tbody-report-reviews");
+    if (rtb) {
+      rtb.innerHTML = revFiltered.slice(0, 120).map(function (r) {
+        const comment = String(r.Comment || "");
+        const rating = r.Rating != null ? r.Rating : r.Feedback;
+        return (
+          "<tr>" +
+          '<td class="num">' +
+          escapeHtml(r.ReviewID) +
+          "</td>" +
+          "<td>" +
+          escapeHtml(r.VisitorName || "—") +
+          "</td>" +
+          "<td>" +
+          escapeHtml(r.AreaName || "—") +
+          "</td>" +
+          '<td class="num">' +
+          escapeHtml(rating ?? "—") +
+          "</td>" +
+          "<td>" +
+          escapeHtml(r.DateSubmitted || "—") +
+          "</td>" +
+          '<td style="white-space:pre-wrap;word-break:break-word;max-width:18rem;">' +
+          escapeHtml(comment || "—") +
+          "</td>" +
+          "</tr>"
+        );
+      }).join("");
+      if (!revFiltered.length) {
+        rtb.innerHTML =
+          '<tr><td colspan="6" class="hint">No reviews in this range (or none in database).</td></tr>';
+      }
+    }
+  } catch (err) {
+    showToast(err.message || "Could not load report tables.", true);
+  }
+
+  const curFocus = $("#report-focus");
+  showReportPane(curFocus && curFocus.value ? curFocus.value : "overview");
 }
 
 const SYSTEM_TICKET_TYPES = ["General", "VIP", "Discount"];
@@ -1039,7 +1383,7 @@ async function loadSystemPanel() {
 }
 
 (function wireReportFilters() {
-  ["report-preset", "report-incidents-days", "report-reviews-days", "report-kpi-max-incidents", "report-kpi-min-revenue", "report-kpi-max-active-tickets"].forEach(function (id) {
+  ["report-period-days", "report-kpi-max-incidents", "report-kpi-min-revenue", "report-kpi-max-active-tickets"].forEach(function (id) {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener("change", function () {
@@ -1059,6 +1403,56 @@ async function loadSystemPanel() {
       });
     }
   });
+  const focusEl = document.getElementById("report-focus");
+  if (focusEl) {
+    focusEl.addEventListener("change", function () {
+      showReportPane(focusEl.value);
+    });
+  }
+  document.querySelectorAll(".report-subtab").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      const pane = btn.getAttribute("data-report-pane");
+      if (!pane) return;
+      showReportPane(pane);
+      const fs = document.getElementById("report-focus");
+      if (fs && fs.querySelector('option[value="' + pane + '"]')) {
+        fs.value = pane;
+      }
+    });
+  });
+  const panelReports = document.getElementById("panel-reports");
+  if (panelReports) {
+    panelReports.addEventListener("click", function (ev) {
+      const b = ev.target.closest("#btn-export-visitors-inline");
+      if (b) {
+        ev.preventDefault();
+        const main = document.getElementById("btn-export-visitors");
+        if (main) main.click();
+        return;
+      }
+      const bt = ev.target.closest("#btn-export-tickets-inline");
+      if (bt) {
+        ev.preventDefault();
+        const main = document.getElementById("btn-export-tickets");
+        if (main) main.click();
+        return;
+      }
+      const bi = ev.target.closest("#btn-export-incidents-inline");
+      if (bi) {
+        ev.preventDefault();
+        const main = document.getElementById("btn-export-incidents");
+        if (main) main.click();
+        return;
+      }
+      const br = ev.target.closest("#btn-export-reviews-inline");
+      if (br) {
+        ev.preventDefault();
+        const main = document.getElementById("btn-export-visitor-reviews");
+        if (main) main.click();
+        return;
+      }
+    });
+  }
 })();
 
 async function downloadReportPdf() {
@@ -1175,6 +1569,7 @@ if (panelVisitors) {
       await apiPatch("/visitors/" + vid, { isActive: !!un });
       showToast(un ? "Visitor #" + vid + " reactivated" : "Visitor #" + vid + " deactivated");
       await loadVisitorsPanel();
+      await loadHrPanel().catch(function () {});
       await loadDashboard();
     } catch (e) {
       showToast(e.message, true);
@@ -1336,13 +1731,14 @@ async function loadRetail() {
 }
 
 async function loadVisitorsTickets() {
-  const rows = await apiGet("/tickets/admin?limit=300");
+  const rows = await apiGet("/tickets/admin?limit=500");
   const tb = $("#tbody-visitor-tickets");
   if (!tb) return;
   tb.innerHTML = rows.map(function (r) {
     return (
       "<tr>" +
         '<td class="num">' + escapeHtml(r.TicketNumber) + "</td>" +
+        '<td class="num">' + escapeHtml(r.VisitorID != null ? r.VisitorID : "—") + "</td>" +
         "<td>" + escapeHtml(r.VisitorName) + "</td>" +
         "<td>" + escapeHtml(r.VisitorEmail) + "</td>" +
         "<td>" + escapeHtml(r.TicketType) + "</td>" +
@@ -1354,7 +1750,7 @@ async function loadVisitorsTickets() {
       "</tr>"
     );
   }).join("");
-  if (!rows.length) tb.innerHTML = '<tr><td colspan="9" class="hint">No tickets</td></tr>';
+  if (!rows.length) tb.innerHTML = '<tr><td colspan="10" class="hint">No tickets</td></tr>';
 }
 
 // ── Refresh buttons ──────────────────────────────────────────────────────────
@@ -1437,7 +1833,7 @@ if (pq) {
 }
 
 async function exportVisitorsCsv() {
-  const rows = await apiGet("/visitors?limit=5000&counts=0");
+  const rows = await apiGet("/visitors?limit=5000");
   downloadCsv("visitors-export.csv", rows, [
     { key: "VisitorID", label: "VisitorID" },
     { key: "Name", label: "Name" },
@@ -1451,9 +1847,11 @@ async function exportVisitorsCsv() {
     { key: "ReviewCount", label: "ReviewCount" },
     { key: "RetailPurchaseCount", label: "RetailPurchaseCount" },
     { key: "OrderCount", label: "OrderCount" },
+    { key: "OrderSpendTotal", label: "OrderSpendTotal" },
     { key: "ReservationCount", label: "ReservationCount" },
     { key: "VisitHistoryCount", label: "VisitHistoryCount" },
     { key: "PortalFeedbackCount", label: "PortalFeedbackCount" },
+    { key: "ItineraryCount", label: "ItineraryCount" },
   ]);
   showToast("Downloaded visitors-export.csv");
 }
@@ -1462,6 +1860,7 @@ async function exportTicketsCsv() {
   const rows = await apiGet("/tickets/admin?limit=500");
   downloadCsv("tickets-export.csv", rows, [
     { key: "TicketNumber", label: "TicketNumber" },
+    { key: "VisitorID", label: "VisitorID" },
     { key: "VisitorName", label: "VisitorName" },
     { key: "VisitorEmail", label: "VisitorEmail" },
     { key: "TicketType", label: "TicketType" },

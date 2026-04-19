@@ -37,8 +37,12 @@ export async function buildSnapshotPdf(snapshot) {
   line(`Visitors (active): ${snapshot.visitorsActive}`);
   line(`Tickets issued: ${snapshot.ticketsTotal}`);
   line(`Tickets active: ${snapshot.ticketsActive}`);
-  line(`Retail transactions: ${snapshot.retailTxCount}`);
-  line(`Retail revenue (sum): ${Number(snapshot.retailRevenue).toFixed(2)}`);
+  const rw = snapshot.retailWindowDays != null ? snapshot.retailWindowDays : "n/a";
+  line(`Retail transactions (${rw}d window): ${snapshot.retailTxCount}`);
+  line(`Retail revenue (${rw}d window): ${Number(snapshot.retailRevenue).toFixed(2)}`);
+  if (snapshot.retailRevenueAllTime != null) {
+    line(`Retail revenue (all time): ${Number(snapshot.retailRevenueAllTime).toFixed(2)}`);
+  }
   line(`Incidents (window ${snapshot.incidentsWindowDays}d): ${snapshot.incidentsInWindow}`);
   line(`Visitor reviews (all time): ${snapshot.visitorReviewsTotal}`);
   line(`Visitor reviews (window ${snapshot.visitorReviewsWindowDays}d): ${snapshot.visitorReviewsInWindow}`);

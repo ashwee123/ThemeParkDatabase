@@ -144,7 +144,8 @@ export async function listEmployeesWithAccess({ q = "" } = {}) {
   const term = `%${raw}%`;
   let sql = `SELECT e.EmployeeID, e.Name, e.Position, e.Salary, e.HireDate, e.ManagerID, e.AreaID, a.AreaName,
             IFNULL(x.IsActive, 1) AS AccessIsActive,
-            IFNULL(NULLIF(TRIM(x.DefaultAccessRole), ''), 'viewer') AS AccessRole
+            IFNULL(NULLIF(TRIM(x.DefaultAccessRole), ''), 'viewer') AS AccessRole,
+            x.UpdatedAt AS AccessUpdatedAt
      FROM employee e
      LEFT JOIN area a ON a.AreaID = e.AreaID
      LEFT JOIN admin_employee_access x ON x.EmployeeID = e.EmployeeID`;
@@ -165,6 +166,7 @@ export async function listEmployeesWithAccess({ q = "" } = {}) {
     HireDate: rowDate(r.HireDate),
     AccessIsActive: Number(r.AccessIsActive) === 1 ? 1 : 0,
     AccessRole: String(r.AccessRole || "viewer"),
+    AccessUpdatedAt: r.AccessUpdatedAt != null ? rowDateTime(r.AccessUpdatedAt) : null,
   }));
 }
 
@@ -369,6 +371,8 @@ export async function listVisitors({ q = "", limit, includeCounts = true } = {})
         ReservationCount: 0,
         VisitHistoryCount: 0,
         PortalFeedbackCount: 0,
+        ItineraryCount: 0,
+        OrderSpendTotal: 0,
       }));
     } catch (e) {
       if (!String(e.message || "").includes("Unknown column 'CreatedAt'")) throw e;
@@ -384,6 +388,8 @@ export async function listVisitors({ q = "", limit, includeCounts = true } = {})
         ReservationCount: 0,
         VisitHistoryCount: 0,
         PortalFeedbackCount: 0,
+        ItineraryCount: 0,
+        OrderSpendTotal: 0,
       }));
     }
   }
@@ -395,9 +401,11 @@ export async function listVisitors({ q = "", limit, includeCounts = true } = {})
 
   const portalCounts = `
     , (SELECT COUNT(*) FROM visitor_order o WHERE o.VisitorID = v.VisitorID) AS OrderCount
+    , (SELECT COALESCE(SUM(o.OrderTotal), 0) FROM visitor_order o WHERE o.VisitorID = v.VisitorID) AS OrderSpendTotal
     , (SELECT COUNT(*) FROM visitor_reservation rv WHERE rv.VisitorID = v.VisitorID) AS ReservationCount
     , (SELECT COUNT(*) FROM visitor_visit_history h WHERE h.VisitorID = v.VisitorID) AS VisitHistoryCount
-    , (SELECT COUNT(*) FROM visitor_feedback_submission fs WHERE fs.VisitorID = v.VisitorID) AS PortalFeedbackCount`;
+    , (SELECT COUNT(*) FROM visitor_feedback_submission fs WHERE fs.VisitorID = v.VisitorID) AS PortalFeedbackCount
+    , (SELECT COUNT(*) FROM visitor_itinerary_item ii WHERE ii.VisitorID = v.VisitorID) AS ItineraryCount`;
 
   async function executeSelect(selectList) {
     const sql = `SELECT ${selectList} FROM visitor v ${where} ORDER BY v.VisitorID DESC LIMIT ?`;
@@ -435,9 +443,14 @@ export async function listVisitors({ q = "", limit, includeCounts = true } = {})
     ReviewCount: num(r.ReviewCount),
     RetailPurchaseCount: num(r.RetailPurchaseCount),
     OrderCount: num(r.OrderCount),
+    OrderSpendTotal:
+      r.OrderSpendTotal != null && r.OrderSpendTotal !== ""
+        ? Number(r.OrderSpendTotal)
+        : 0,
     ReservationCount: num(r.ReservationCount),
     VisitHistoryCount: num(r.VisitHistoryCount),
     PortalFeedbackCount: num(r.PortalFeedbackCount),
+    ItineraryCount: num(r.ItineraryCount),
   }));
 }
 
@@ -539,13 +552,20 @@ function parseOptionalThresholdNumber(v) {
 export async function getReportSnapshot({
   incidentsDays = 90,
   reviewsDays = 30,
+  periodDays = null,
   kpiMaxIncidents = null,
   kpiMinRetailRevenue = null,
   kpiMaxActiveTickets = null,
 } = {}) {
   const p = getPool();
-  const incD = Math.min(3650, Math.max(1, Math.floor(Number(incidentsDays) || 90)));
-  const revD = Math.min(365, Math.max(1, Math.floor(Number(reviewsDays) || 30)));
+  const hasUnified =
+    periodDays != null && String(periodDays).trim() !== "" && !Number.isNaN(Number(periodDays));
+  const pUnified = hasUnified
+    ? Math.min(3650, Math.max(1, Math.floor(Number(periodDays) || 30)))
+    : null;
+  const incD = pUnified ?? Math.min(3650, Math.max(1, Math.floor(Number(incidentsDays) || 90)));
+  const revD = pUnified ?? Math.min(365, Math.max(1, Math.floor(Number(reviewsDays) || 30)));
+  const retD = pUnified ?? revD;
   const maxInc = parseOptionalThresholdNumber(kpiMaxIncidents);
   const minRev = parseOptionalThresholdNumber(kpiMinRetailRevenue);
   const maxTix = parseOptionalThresholdNumber(kpiMaxActiveTickets);
@@ -555,6 +575,8 @@ export async function getReportSnapshot({
     [[{ visitorsActive }]],
     [[{ ticketsTotal }]],
     [[{ ticketsActive }]],
+    [[{ retailTxCountAllTime }]],
+    [[{ retailRevenueAllTime }]],
     [[{ retailTxCount }]],
     [[{ retailRevenue }]],
     [[{ incidentsInWindow }]],
@@ -566,8 +588,16 @@ export async function getReportSnapshot({
     p.execute("SELECT COUNT(*) AS visitorsActive FROM visitor WHERE IsActive = 1"),
     p.execute("SELECT COUNT(*) AS ticketsTotal FROM ticket"),
     p.execute("SELECT COUNT(*) AS ticketsActive FROM ticket WHERE IsActive = 1"),
-    p.execute("SELECT COUNT(*) AS retailTxCount FROM transactionlog"),
-    p.execute("SELECT COALESCE(SUM(TotalCost), 0) AS retailRevenue FROM transactionlog"),
+    p.execute("SELECT COUNT(*) AS retailTxCountAllTime FROM transactionlog"),
+    p.execute("SELECT COALESCE(SUM(TotalCost), 0) AS retailRevenueAllTime FROM transactionlog"),
+    p.execute(
+      `SELECT COUNT(*) AS retailTxCount FROM transactionlog
+       WHERE \`Date\` >= DATE_SUB(CURRENT_DATE, INTERVAL ${retD} DAY)`
+    ),
+    p.execute(
+      `SELECT COALESCE(SUM(TotalCost), 0) AS retailRevenue FROM transactionlog
+       WHERE \`Date\` >= DATE_SUB(CURRENT_DATE, INTERVAL ${retD} DAY)`
+    ),
     p.execute(
       `SELECT COUNT(*) AS incidentsInWindow FROM incidentreport
        WHERE ReportDate >= DATE_SUB(CURRENT_DATE, INTERVAL ${incD} DAY)`
@@ -586,6 +616,7 @@ export async function getReportSnapshot({
   const visitorReviewsAvgWindowNum =
     avgRaw != null && Number.isFinite(Number(avgRaw)) ? Number(avgRaw) : null;
   const revNum = retailRevenue != null ? Number(retailRevenue) : 0;
+  const revAllTimeNum = retailRevenueAllTime != null ? Number(retailRevenueAllTime) : 0;
   const incidentsN = Number(incidentsInWindow) || 0;
   const ticketsActN = Number(ticketsActive) || 0;
 
@@ -593,7 +624,7 @@ export async function getReportSnapshot({
   if (maxInc != null && incidentsN > maxInc) {
     kpiAlerts.push({
       id: "incidents_over",
-      severity: "warn",
+      severity: "crit",
       message: `Incidents in the last ${incD} days (${incidentsN}) exceed your threshold (${maxInc}).`,
       metric: "incidentsInWindow",
       value: incidentsN,
@@ -604,7 +635,7 @@ export async function getReportSnapshot({
     kpiAlerts.push({
       id: "retail_revenue_below",
       severity: "warn",
-      message: `Retail revenue sum (${revNum.toFixed(2)}) is below your floor (${minRev.toFixed(2)}).`,
+      message: `Retail revenue in the last ${retD} days (${revNum.toFixed(2)}) is below your floor (${minRev.toFixed(2)}).`,
       metric: "retailRevenue",
       value: revNum,
       threshold: minRev,
@@ -613,7 +644,7 @@ export async function getReportSnapshot({
   if (maxTix != null && ticketsActN > maxTix) {
     kpiAlerts.push({
       id: "active_tickets_over",
-      severity: "warn",
+      severity: "crit",
       message: `Active tickets (${ticketsActN}) exceed your capacity-style cap (${maxTix}).`,
       metric: "ticketsActive",
       value: ticketsActN,
@@ -626,21 +657,24 @@ export async function getReportSnapshot({
     visitorsActive,
     ticketsTotal,
     ticketsActive,
-    retailTxCount,
+    retailTxCount: Number(retailTxCount) || 0,
     retailRevenue: revNum,
+    retailTxCountAllTime: Number(retailTxCountAllTime) || 0,
+    retailRevenueAllTime: revAllTimeNum,
+    retailWindowDays: retD,
     incidentsInWindow,
     incidentsWindowDays: incD,
     visitorReviewsTotal,
     visitorReviewsInWindow,
     visitorReviewsWindowDays: revD,
     visitorReviewsAvgInWindow: visitorReviewsAvgWindowNum,
+    periodDaysUnified: pUnified,
     kpiAlerts,
     kpiThresholdsEcho: {
       kpiMaxIncidents: maxInc,
       kpiMinRetailRevenue: minRev,
       kpiMaxActiveTickets: maxTix,
     },
-    // Aliases for older admin UI / exports expecting old names
     incidents90d: incidentsInWindow,
     visitorReviewsLast30d: visitorReviewsInWindow,
     visitorReviewsAvgRating30d: visitorReviewsAvgWindowNum,
@@ -648,32 +682,37 @@ export async function getReportSnapshot({
 }
 
 /** Visitor-area reviews (1–10 + comment). Uses LEFT JOINs so rows still appear if area/visitor links are missing. */
-export async function listVisitorReviewsReport({ limit = 500, q = "" } = {}) {
+export async function listVisitorReviewsReport({ limit = 500, q = "", includeInactive = false } = {}) {
   const p = getPool();
   const lim = Math.min(Math.max(Number(limit) || 500, 1), 10000);
   const raw = String(q || "").trim();
   const hasTerm = raw.length > 0;
   const term = `%${raw}%`;
   let sql = `SELECT r.ReviewID, r.VisitorID, v.Name AS VisitorName, r.AreaID, ar.AreaName,
-            r.Feedback AS Rating, r.Comment, r.DateSubmitted
+            r.Feedback AS Rating, r.Comment, r.DateSubmitted, r.IsActive
      FROM review r
      LEFT JOIN visitor v ON v.VisitorID = r.VisitorID
-     LEFT JOIN area ar ON ar.AreaID = r.AreaID
-     WHERE r.IsActive = 1`;
+     LEFT JOIN area ar ON ar.AreaID = r.AreaID`;
   const params = [];
+  const where = [];
+  if (!includeInactive) {
+    where.push("r.IsActive = 1");
+  }
   if (hasTerm) {
-    sql += ` AND (
+    where.push(`(
        IFNULL(v.Name,'') LIKE ? OR IFNULL(r.Comment,'') LIKE ? OR IFNULL(ar.AreaName,'') LIKE ?
        OR CAST(r.Feedback AS CHAR) LIKE ? OR CAST(r.ReviewID AS CHAR) LIKE ? OR CAST(r.VisitorID AS CHAR) LIKE ?
-     )`;
+     )`);
     params.push(term, term, term, term, term, term);
   }
+  if (where.length) sql += ` WHERE ${where.join(" AND ")}`;
   sql += " ORDER BY r.ReviewID DESC LIMIT ?";
   params.push(lim);
   const [rows] = await p.execute(sql, params);
   return rows.map((r) => ({
     ...r,
     DateSubmitted: rowDate(r.DateSubmitted),
+    IsActive: r.IsActive != null ? Number(r.IsActive) : 1,
   }));
 }
 

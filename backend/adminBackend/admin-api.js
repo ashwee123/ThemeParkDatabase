@@ -285,6 +285,7 @@ export async function handleAdminApi(req, res, url) {
     }
     if (method === "GET" && pathname === "/api/reports/snapshot") {
       const sp = url.searchParams;
+      const periodDays = sp.get("periodDays");
       const incidentsDays = sp.get("incidentsDays");
       const reviewsDays = sp.get("reviewsDays");
       const kpiMaxIncidents = sp.get("kpiMaxIncidents");
@@ -294,6 +295,7 @@ export async function handleAdminApi(req, res, url) {
         res,
         200,
         await getReportSnapshot({
+          periodDays: periodDays != null && periodDays !== "" ? periodDays : undefined,
           incidentsDays: incidentsDays != null && incidentsDays !== "" ? incidentsDays : undefined,
           reviewsDays: reviewsDays != null && reviewsDays !== "" ? reviewsDays : undefined,
           kpiMaxIncidents: kpiMaxIncidents != null && kpiMaxIncidents !== "" ? kpiMaxIncidents : undefined,
@@ -308,12 +310,14 @@ export async function handleAdminApi(req, res, url) {
     }
     if (method === "GET" && pathname === "/api/reports/pdf") {
       const sp = url.searchParams;
+      const periodDays = sp.get("periodDays");
       const incidentsDays = sp.get("incidentsDays");
       const reviewsDays = sp.get("reviewsDays");
       const kpiMaxIncidents = sp.get("kpiMaxIncidents");
       const kpiMinRetailRevenue = sp.get("kpiMinRetailRevenue");
       const kpiMaxActiveTickets = sp.get("kpiMaxActiveTickets");
       const snap = await getReportSnapshot({
+        periodDays: periodDays != null && periodDays !== "" ? periodDays : undefined,
         incidentsDays: incidentsDays != null && incidentsDays !== "" ? incidentsDays : undefined,
         reviewsDays: reviewsDays != null && reviewsDays !== "" ? reviewsDays : undefined,
         kpiMaxIncidents: kpiMaxIncidents != null && kpiMaxIncidents !== "" ? kpiMaxIncidents : undefined,
@@ -336,7 +340,8 @@ export async function handleAdminApi(req, res, url) {
     if (method === "GET" && pathname === "/api/reports/visitor-reviews") {
       const limit = url.searchParams.get("limit");
       const q = url.searchParams.get("q") || "";
-      sendJson(res, 200, await listVisitorReviewsReport({ limit, q }), h);
+      const includeInactive = url.searchParams.get("includeInactive") === "1";
+      sendJson(res, 200, await listVisitorReviewsReport({ limit, q, includeInactive }), h);
       return;
     }
 

@@ -7,6 +7,47 @@
   <meta name="admin-api-origin" content="https://admin-portal-backend-c051.onrender.com" />
   <title>Admin Portal — Theme Park</title>
   <link rel="stylesheet" href="/admin/styles.css" />
+  <style>
+    .report-kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 1.25rem; }
+    .report-kpi-card {
+      border-radius: 14px; border: 1px solid rgba(196, 30, 58, 0.35);
+      background: linear-gradient(165deg, rgba(28, 22, 32, 0.95), rgba(12, 12, 16, 0.98));
+      padding: 16px 18px; box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+    }
+    .report-kpi-card .report-kpi-title { font-size: 0.82rem; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(230,226,234,0.72); margin: 0 0 8px; }
+    .report-kpi-card .report-kpi-body { font-size: 1.15rem; font-weight: 600; color: #e6e2ea; line-height: 1.45; margin: 0; }
+    .report-kpi-card .report-kpi-body .sep { opacity: 0.55; font-weight: 400; margin: 0 0.35em; }
+    .report-control-bar {
+      display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-end; margin-bottom: 1rem;
+      padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.22);
+    }
+    .report-control-bar label { margin: 0; min-width: 180px; }
+    .report-subtabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 1rem; }
+    .report-subtabs button {
+      border-radius: 999px; padding: 8px 16px; border: 1px solid rgba(196, 50, 70, 0.45);
+      background: rgba(24, 18, 28, 0.85); color: #e6e2ea; cursor: pointer; font: inherit;
+    }
+    .report-subtabs button[aria-selected="true"] {
+      background: linear-gradient(180deg, rgba(120, 22, 38, 0.95), rgba(62, 12, 22, 0.95));
+      border-color: rgba(196, 80, 100, 0.75);
+    }
+    .report-pane { margin-bottom: 1.5rem; }
+    .report-pane[hidden] { display: none !important; }
+    .report-pane-summary { margin: 0 0 10px; color: rgba(230,226,234,0.78); font-size: 0.95rem; line-height: 1.5; }
+    .report-alerts-box {
+      border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.28);
+      padding: 12px 16px; margin-bottom: 1.25rem;
+    }
+    .report-alerts-box h4 { margin: 0 0 10px; font-size: 0.95rem; }
+    .report-alert-line { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.92rem; }
+    .report-alert-line:last-child { border-bottom: none; }
+    .report-alert-line--bad { color: #f0a8a8; }
+    .report-alert-line--warn { color: #e8d68a; }
+    .report-alert-line--ok { color: #9fd89a; }
+    .report-alert-line--muted { color: rgba(230,226,234,0.55); }
+    .report-export-grid { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
+    .report-section-mini-export { margin-top: 10px; }
+  </style>
 </head>
 <body>
   <div class="noise" aria-hidden="true"></div>
@@ -54,7 +95,7 @@
             <span>Require MFA for admin / staff console sign-in (configure enforcement in IdP or gateway)</span>
           </label>
           <h4 class="subheading" style="font-size:0.95rem;margin-top:0.75rem;">Least-privilege role slots (per portal)</h4>
-          <div class="table-wrap" style="margin-bottom:1rem;">
+          <div class="table-wrap" style="margin-bottom:0.5rem;">
             <table class="data-table" id="table-access-portal-roles">
               <thead>
                 <tr><th>Portal</th><th>Viewer</th><th>Operator</th><th>Admin</th></tr>
@@ -62,6 +103,8 @@
               <tbody id="tbody-access-portal-roles"></tbody>
             </table>
           </div>
+          <p class="hint" style="margin:0 0 6px;">Effective <code>portalRoles</code> object stored as <code>accessPortalRolesJson</code> (read-only snapshot; use the table above and <strong>Save organization policy</strong> to change).</p>
+          <pre id="access-portal-roles-json" style="max-height:14rem;overflow:auto;font-size:0.82rem;margin:0 0 1rem;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.28);white-space:pre-wrap;word-break:break-word;"></pre>
           <label class="select-label">
             <span>Password reset / IdP integration notes</span>
             <textarea id="access-password-reset-notes" rows="2" placeholder="Central IdP URL, reset email template IDs, webhook secrets…"></textarea>
@@ -84,8 +127,9 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>ID</th><th>Name</th><th>Position</th><th>Salary</th><th>Hire</th><th>Mgr</th><th>Area</th>
-              <th>Active</th><th>Default role</th><th></th>
+              <th>ID</th><th>Name</th><th>Position</th><th>Salary</th><th>Hire</th><th>Mgr</th>
+              <th>Area ID</th><th>Area</th>
+              <th>Active</th><th>Default role</th><th>Access updated</th><th></th>
             </tr>
           </thead>
           <tbody id="tbody-internal-users"></tbody>
@@ -98,7 +142,7 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>ID</th><th>When</th><th>Event</th><th>Portal</th><th>Subject</th><th>IP</th><th>Revoked</th><th></th>
+              <th>ID</th><th>When</th><th>Event</th><th>Portal</th><th>Subject</th><th>Token ID</th><th>IP</th><th>User agent</th><th>Revoked</th><th></th>
             </tr>
           </thead>
           <tbody id="tbody-access-sessions"></tbody>
@@ -111,7 +155,7 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>ID</th><th>When</th><th>Action</th><th>Target</th><th>Detail</th><th>IP</th>
+              <th>ID</th><th>When</th><th>Action</th><th>Actor</th><th>Target type</th><th>Target ID</th><th>Detail</th><th>Client IP</th><th>User agent</th>
             </tr>
           </thead>
           <tbody id="tbody-admin-audit"></tbody>
@@ -122,7 +166,7 @@
       <div class="table-wrap">
         <table class="data-table">
           <thead>
-            <tr><th>ID</th><th>Message</th><th>Shop</th><th>Item</th><th>When</th></tr>
+            <tr><th>ID</th><th>Manager ID</th><th>Item ID</th><th>Message</th><th>Shop</th><th>Item</th><th>When</th></tr>
           </thead>
           <tbody id="tbody-admin-notifications"></tbody>
         </table>
@@ -131,7 +175,7 @@
 
     <section id="panel-visitors" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
-        <h2>Visitor management (oversight)</h2>
+        <h2>Visitor management</h2>
         <div class="toolbar-actions">
           <input type="search" id="visitor-search-q" class="input-search" placeholder="Search name, email, phone…" autocomplete="off" />
           <button type="button" id="btn-visitor-search" class="btn btn-ghost">Search</button>
@@ -139,7 +183,7 @@
         </div>
       </div>
       <h3 class="subheading">Visitors (<code>visitor</code>)</h3>
-      <p class="hint">Shows every row in <code>visitor</code> (no password), plus counts from tickets, reviews, retail purchases, and portal tables when they exist.</p>
+      <p class="hint">Each row is from <code>visitor</code> (password never shown). Counts and totals are computed from related tables: <code>ticket</code>, <code>review</code>, <code>transactionlog</code>, <code>visitor_order</code> (count + sum of <code>OrderTotal</code>), <code>visitor_reservation</code>, <code>visitor_visit_history</code>, <code>visitor_feedback_submission</code>, <code>visitor_itinerary_item</code>.</p>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
@@ -148,10 +192,12 @@
               <th title="Tickets linked to this visitor">Tix</th>
               <th title="Reviews (review table)">Rev</th>
               <th title="Retail transactionlog rows">Retail</th>
-              <th title="visitor_order">Ord</th>
+              <th title="visitor_order row count">Orders</th>
+              <th title="SUM(visitor_order.OrderTotal)">Order total ($)</th>
               <th title="visitor_reservation">Res</th>
               <th title="visitor_visit_history">Visits</th>
               <th title="visitor_feedback_submission">FB</th>
+              <th title="visitor_itinerary_item (wishlist / itinerary)">Itin</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -159,11 +205,12 @@
         </table>
       </div>
       <h3 class="subheading">Tickets (<code>ticket</code>)</h3>
+      <p class="hint">Rows from <code>ticket</code> joined with <code>visitor</code> (same data as the database).</p>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
             <tr>
-              <th>#</th><th>Visitor</th><th>Email</th><th>Type</th><th>Discount</th><th>Price</th><th>Issued</th><th>Expires</th><th>Active</th>
+              <th>#</th><th>Visitor ID</th><th>Visitor</th><th>Email</th><th>Type</th><th>Discount</th><th>Price</th><th>Issued</th><th>Expires</th><th>Active</th>
             </tr>
           </thead>
           <tbody id="tbody-visitor-tickets"></tbody>
@@ -173,15 +220,12 @@
 
     <section id="panel-retail" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
-        <h2>Retail management (oversight)</h2>
+        <h2>Retail management</h2>
         <div class="toolbar-actions">
           <input type="search" id="retail-search-q" class="input-search" placeholder="Search item name, shop, or item ID…" autocomplete="off" />
           <button type="button" id="btn-retail-search" class="btn btn-ghost">Search</button>
           <button type="button" id="btn-refresh-retail" class="btn btn-ghost">Refresh</button>
         </div>
-      </div>
-      <div class="callout">
-        <strong>Inventory &amp; pricing:</strong> this grid is read-only from <code>retailitem</code>. Add PATCH/POST routes for price changes, promotions, thresholds, and vendor/POS config. Revenue rollups use <code>transactionlog</code> in <strong>Reports</strong>.
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -197,13 +241,14 @@
 
     <section id="panel-hr" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
-        <h2>Employee &amp; HR (oversight)</h2>
+        <h2>Employee &amp; HR</h2>
         <div class="toolbar-actions">
           <input type="search" id="hr-search-q" class="input-search" placeholder="Search names, areas, IDs, reviews…" autocomplete="off" />
           <button type="button" id="btn-hr-search" class="btn btn-ghost">Search</button>
           <button type="button" id="btn-refresh-hr" class="btn btn-ghost">Refresh</button>
         </div>
       </div>
+      <p class="hint" style="margin-top:0;">Data is loaded from the database on each visit to this tab (or Refresh). Visitor accounts and reviews mirror the <strong>Visitors</strong> tab and visitor portal activity.</p>
       <h3 class="subheading">HR managers (<code>hrmanager</code> + <code>manager</code>)</h3>
       <div class="table-wrap">
         <table class="data-table">
@@ -220,19 +265,28 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>ID</th><th>Name</th><th>Position</th><th>Salary</th><th>Hire</th><th>Mgr</th><th>Area</th>
+              <th>ID</th><th>Name</th><th>Position</th><th>Salary</th><th>Hire</th><th>Mgr</th><th>Area ID</th><th>Area</th>
             </tr>
           </thead>
           <tbody id="tbody-hr-staff"></tbody>
         </table>
       </div>
       <h3 class="subheading">Visitors (<code>visitor</code>)</h3>
-      <p class="hint">Guest accounts (read-only here; activate/deactivate on the Visitors tab).</p>
-      <div class="table-wrap">
+      <p class="hint">Same live directory as the <strong>Visitors</strong> tab (aggregates from tickets, orders, reviews, etc.). Use the Visitors tab to activate or deactivate accounts.</p>
+      <div class="table-wrap" style="overflow-x:auto;">
         <table class="data-table">
           <thead>
             <tr>
               <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Gender</th><th>Age</th><th>Status</th><th>Created</th>
+              <th title="Tickets">Tix</th>
+              <th title="Reviews">Rev</th>
+              <th title="transactionlog">Retail</th>
+              <th title="visitor_order">Orders</th>
+              <th title="SUM(OrderTotal)">Order $</th>
+              <th title="visitor_reservation">Res</th>
+              <th title="visitor_visit_history">Visits</th>
+              <th title="visitor_feedback_submission">FB</th>
+              <th title="visitor_itinerary_item">Itin</th>
             </tr>
           </thead>
           <tbody id="tbody-hr-visitors"></tbody>
@@ -248,12 +302,12 @@
         </table>
       </div>
       <h3 class="subheading">Visitor feedback &amp; reviews (<code>review</code>)</h3>
-      <p class="hint">Includes ratings submitted through the visitor portal feedback form (synced for reporting).</p>
-      <div class="table-wrap">
+      <p class="hint">Rows from <code>review</code> (includes inactive when deactivated). New submissions from the visitor portal appear after Refresh or reopening this tab.</p>
+      <div class="table-wrap" style="overflow-x:auto;">
         <table class="data-table">
           <thead>
             <tr>
-              <th>Review ID</th><th>Visitor</th><th>Area</th><th>Rating</th><th>Submitted</th><th>Comment</th>
+              <th>Review ID</th><th>Visitor ID</th><th>Visitor</th><th>Area ID</th><th>Area</th><th>Rating</th><th>Submitted</th><th>Active</th><th>Comment</th>
             </tr>
           </thead>
           <tbody id="tbody-hr-visitor-reviews"></tbody>
@@ -263,11 +317,8 @@
 
     <section id="panel-maint" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
-        <h2>Maintenance management (oversight)</h2>
+        <h2>Maintenance management</h2>
         <button type="button" id="btn-refresh-maint" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div class="callout">
-        <strong>Work orders:</strong> prioritize or reassign in a full rollout by PATCHing <code>maintenanceassignment</code>. Inspection compliance and certifications need additional tables or integrations.
       </div>
       <h3 class="subheading">Open alerts (<code>maintenancealert</code>)</h3>
       <div class="table-wrap">
@@ -303,7 +354,7 @@
         </div>
       </div>
       <div class="callout">
-        <strong>Zones:</strong> <span id="park-areas-list" class="area-chip-row"></span> — hours, capacity, and map assets live in visitor seed tables (<code>visitor_park</code>, <code>visitor_attraction_detail</code>); expose CRUD here when those admin routes exist. Use the status dropdown for <em>emergency-style</em> ride closure at the <code>attraction</code> row level.
+        <strong>Zones:</strong> <span id="park-areas-list" class="area-chip-row"></span>
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -321,75 +372,149 @@
       <div class="toolbar">
         <h2>Reporting &amp; analytics</h2>
         <div class="toolbar-actions">
-          <button type="button" id="btn-export-report-pdf" class="btn btn-ghost">Download PDF snapshot</button>
           <button type="button" id="btn-refresh-reports" class="btn btn-ghost">Refresh</button>
         </div>
       </div>
-      <div id="report-kpi-alerts" class="report-kpi-alerts hidden" role="status" aria-live="polite"></div>
-      <div class="card" style="margin-bottom:1.25rem;">
-        <h3 class="subheading" style="margin-top:0;">Report view</h3>
-        <div class="grid-form" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));align-items:end;">
+
+      <div id="report-kpi-top" class="report-kpi-row" aria-label="Quick insights"></div>
+
+      <div class="report-control-bar">
+        <label class="select-label">
+          <span>📅 Time range</span>
+          <select id="report-period-days" title="Applies to incidents, reviews, and retail revenue in the selected window">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+        </label>
+        <label class="select-label">
+          <span>🎯 Focus</span>
+          <select id="report-focus" title="Jump to a report section">
+            <option value="overview">Overview</option>
+            <option value="visitors">Guests</option>
+            <option value="tickets">Tickets</option>
+            <option value="incidents">Incidents</option>
+            <option value="reviews">Reviews</option>
+            <option value="revenue">Revenue</option>
+          </select>
+        </label>
+        <div class="grid-form" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));align-items:end;flex:1;min-width:min(100%, 520px);">
           <label class="select-label">
-            <span>Focus (which metrics to show)</span>
-            <select id="report-preset">
-              <option value="all">Full snapshot — all KPIs</option>
-              <option value="guests">Guests &amp; tickets — visitors + ticket counts</option>
-              <option value="retail">Retail — transactions &amp; revenue</option>
-              <option value="reviews">Satisfaction — review volume &amp; average rating</option>
-              <option value="safety">Safety — incident count (uses window below)</option>
-            </select>
+            <span>Max incidents</span>
+            <input type="number" id="report-kpi-max-incidents" min="0" step="1" placeholder="e.g. 25" autocomplete="off" title="Alert when incident count in the time range exceeds this" />
           </label>
           <label class="select-label">
-            <span>Incident window (days)</span>
-            <select id="report-incidents-days">
-              <option value="30">Last 30 days</option>
-              <option value="90" selected>Last 90 days</option>
-              <option value="180">Last 180 days</option>
-              <option value="365">Last 365 days</option>
-            </select>
+            <span>Min revenue ($)</span>
+            <input type="number" id="report-kpi-min-revenue" min="0" step="0.01" placeholder="e.g. 1000" autocomplete="off" title="Alert when retail revenue in the time range is below this" />
           </label>
           <label class="select-label">
-            <span>Review window (days)</span>
-            <select id="report-reviews-days">
-              <option value="7">Last 7 days</option>
-              <option value="30" selected>Last 30 days</option>
-              <option value="90">Last 90 days</option>
-              <option value="365">Last 365 days</option>
-            </select>
-          </label>
-        </div>
-        <h4 class="subheading" style="margin-top:1.1rem;font-size:0.95rem;">KPI alert thresholds</h4>
-        <p class="hint" style="margin-bottom:0.6rem;">Leave blank to disable a rule. Alerts appear above and in the PDF.</p>
-        <div class="grid-form" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));align-items:end;">
-          <label class="select-label">
-            <span>Max incidents (in window)</span>
-            <input type="number" id="report-kpi-max-incidents" min="0" step="1" placeholder="e.g. 25" autocomplete="off" />
-          </label>
-          <label class="select-label">
-            <span>Min retail revenue (sum)</span>
-            <input type="number" id="report-kpi-min-revenue" min="0" step="0.01" placeholder="e.g. 1000" autocomplete="off" />
-          </label>
-          <label class="select-label">
-            <span>Max active tickets (“capacity”)</span>
+            <span>Max active tickets</span>
             <input type="number" id="report-kpi-max-active-tickets" min="0" step="1" placeholder="e.g. 5000" autocomplete="off" />
           </label>
         </div>
-        <p class="hint" style="margin-top:0.75rem;margin-bottom:0;">Filters and thresholds reload the snapshot when changed.</p>
       </div>
-      <div id="report-snapshot-grid" class="stat-grid"></div>
-      <h3 class="subheading">Export (CSV)</h3>
-      <p class="hint">CSV buttons download row-level data. The PDF button uses the same snapshot and thresholds as the grid above.</p>
-      <ul class="checklist" style="margin-bottom:1rem;">
-        <li><strong>Visitors</strong> — guest directory (IDs, contact, active flag). Activity count columns download as 0 in this export so large databases do not time out.</li>
-        <li><strong>Tickets</strong> — issued tickets with visitor, type, price, dates.</li>
-        <li><strong>Incidents</strong> — staff incident reports for safety / ops review.</li>
-        <li><strong>Visitor reviews</strong> — area ratings and comments for HR and quality.</li>
-      </ul>
-      <div class="toolbar-actions" style="margin-top:12px;">
-        <button type="button" id="btn-export-visitors" class="btn btn-ghost">Export visitors (CSV)</button>
-        <button type="button" id="btn-export-tickets" class="btn btn-ghost">Export tickets (CSV)</button>
-        <button type="button" id="btn-export-incidents" class="btn btn-ghost">Export incidents (CSV)</button>
-        <button type="button" id="btn-export-visitor-reviews" class="btn btn-ghost">Export visitor reviews (CSV)</button>
+
+      <div class="report-alerts-box" id="report-alerts-visual-wrap">
+        <h4>⚠️ Alerts</h4>
+        <div id="report-alerts-visual" role="status" aria-live="polite"></div>
+      </div>
+
+      <div class="report-subtabs" role="tablist" aria-label="Report sections">
+        <button type="button" class="report-subtab" data-report-pane="overview" aria-selected="true">Overview</button>
+        <button type="button" class="report-subtab" data-report-pane="visitors">Visitors</button>
+        <button type="button" class="report-subtab" data-report-pane="tickets">Tickets</button>
+        <button type="button" class="report-subtab" data-report-pane="incidents">Incidents</button>
+        <button type="button" class="report-subtab" data-report-pane="reviews">Reviews</button>
+        <button type="button" class="report-subtab" data-report-pane="revenue">Revenue</button>
+      </div>
+
+      <div id="report-pane-overview" class="report-pane" data-pane="overview">
+        <p class="report-pane-summary" id="report-overview-summary"></p>
+        <div id="report-snapshot-grid" class="stat-grid" style="display:none;"></div>
+      </div>
+
+      <div id="report-pane-visitors" class="report-pane" data-pane="visitors" hidden>
+        <p class="report-pane-summary">Guest accounts from <code>visitor</code> (sample below; full export for complete rows).</p>
+        <div class="table-wrap" style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-report-visitors"></tbody>
+          </table>
+        </div>
+        <div class="report-section-mini-export">
+          <button type="button" id="btn-export-visitors-inline" class="btn btn-ghost">Export visitors (CSV)</button>
+        </div>
+      </div>
+
+      <div id="report-pane-tickets" class="report-pane" data-pane="tickets" hidden>
+        <p class="report-pane-summary">Issued tickets from <code>ticket</code> (sample).</p>
+        <div class="table-wrap" style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th><th>Visitor ID</th><th>Visitor</th><th>Email</th><th>Type</th><th>Price</th><th>Issued</th><th>Expires</th><th>Active</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-report-tickets"></tbody>
+          </table>
+        </div>
+        <div class="report-section-mini-export">
+          <button type="button" id="btn-export-tickets-inline" class="btn btn-ghost">Export tickets (CSV)</button>
+        </div>
+      </div>
+
+      <div id="report-pane-incidents" class="report-pane" data-pane="incidents" hidden>
+        <p class="report-pane-summary">Staff incident reports (sample; filtered to the selected time range when dates are present).</p>
+        <div class="table-wrap" style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Date</th><th>Type</th><th>Employee</th><th>Description</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-report-incidents"></tbody>
+          </table>
+        </div>
+        <div class="report-section-mini-export">
+          <button type="button" id="btn-export-incidents-inline" class="btn btn-ghost">Export incidents (CSV)</button>
+        </div>
+      </div>
+
+      <div id="report-pane-reviews" class="report-pane" data-pane="reviews" hidden>
+        <p class="report-pane-summary">Visitor reviews from <code>review</code> (sample).</p>
+        <div class="table-wrap" style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Visitor</th><th>Area</th><th>Rating</th><th>Submitted</th><th>Comment</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-report-reviews"></tbody>
+          </table>
+        </div>
+        <div class="report-section-mini-export">
+          <button type="button" id="btn-export-reviews-inline" class="btn btn-ghost">Export visitor reviews (CSV)</button>
+        </div>
+      </div>
+
+      <div id="report-pane-revenue" class="report-pane" data-pane="revenue" hidden>
+        <p class="report-pane-summary">Retail metrics use <code>transactionlog</code> totals within the time range above (same figures as the Revenue card).</p>
+        <p class="report-pane-summary" id="report-revenue-detail"></p>
+      </div>
+
+      <div class="card" style="margin-top:1.5rem;">
+        <h3 class="subheading" style="margin-top:0;">📥 Export data</h3>
+        <div class="report-export-grid">
+          <button type="button" id="btn-export-visitors" class="btn">Export visitors (CSV)</button>
+          <button type="button" id="btn-export-tickets" class="btn">Export tickets (CSV)</button>
+          <button type="button" id="btn-export-incidents" class="btn">Export incidents (CSV)</button>
+          <button type="button" id="btn-export-visitor-reviews" class="btn">Export visitor reviews (CSV)</button>
+          <button type="button" id="btn-export-report-pdf" class="btn btn-primary">Download PDF report</button>
+        </div>
       </div>
     </section>
 
@@ -397,9 +522,6 @@
       <div class="toolbar">
         <h2>System configuration</h2>
         <button type="button" id="btn-refresh-system" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div class="callout">
-        <strong>Live checklist:</strong> edits below call the admin API (<code>visitor_park</code>, <code>visitor_special_event</code>, <code>ticket</code>, <code>admin_system_settings</code>). Applying a <strong>ticket type price</strong> runs <code>UPDATE ticket SET Price = … WHERE TicketType = …</code> for every issued row of that type — use with care.
       </div>
 
       <h3 class="subheading">Park hours &amp; map (<code>visitor_park</code>)</h3>
