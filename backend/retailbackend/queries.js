@@ -113,7 +113,7 @@ const getItemsBoughtReport = (areaID, startDate, endDate, retailID, callback) =>
 // INVENTORY
 // -------------------------------------------------------
 
-const getInventory = (areaID, callback) => {
+const getInventory = (areaID, retailID, callback) => {
     const sql = `
         SELECT
             ri.ItemID,
@@ -124,13 +124,15 @@ const getInventory = (areaID, callback) => {
             ri.SellPrice,
             ri.DiscountPrice,
             ri.IsActive,
+            rp.RetailID,
             rp.RetailName
         FROM RetailItem ri
         JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
         WHERE rp.AreaID = ?
         AND ri.IsActive = TRUE
+        AND (? IS NULL OR rp.RetailID = ?)
     `;
-    db.query(sql, [areaID], callback);
+    db.query(sql, [areaID, retailID, retailID], callback);
 };
 
 const adjustQuantity = (itemID, newQuantity, callback) => {
@@ -200,6 +202,15 @@ const setItemActive = (itemID, isActive, callback) => {
     db.query(sql, [isActive, itemID], callback);
 };
 
+const updateItemName = (itemID, itemName, callback) => {
+    const sql = `
+        UPDATE RetailItem
+        SET ItemName = ?
+        WHERE ItemID = ?
+    `;
+    db.query(sql, [itemName, itemID], callback);
+};
+
 // -------------------------------------------------------
 // PRICING
 // -------------------------------------------------------
@@ -225,12 +236,22 @@ const addStore = (retailName, areaID, callback) => {
     db.query(sql, [retailName, areaID], callback);
 };
 
-const getStores = (areaID, callback) => {
+const getStores = (callback) => {
     const sql = `
-        SELECT * FROM RetailPlace
-        WHERE AreaID = ?
+        SELECT RetailID, RetailName, AreaID
+        FROM RetailPlace
+        ORDER BY RetailID ASC
     `;
-    db.query(sql, [areaID], callback);
+    db.query(sql, callback);
+};
+
+const updateStoreName = (retailID, retailName, callback) => {
+    const sql = `
+        UPDATE RetailPlace
+        SET RetailName = ?
+        WHERE RetailID = ?
+    `;
+    db.query(sql, [retailName, retailID], callback);
 };
 
 // -------------------------------------------------------
@@ -245,20 +266,26 @@ const addRestock = (itemID, quantity, callback) => {
     db.query(sql, [itemID, quantity], callback);
 };
 
-const getRestockHistory = (areaID, callback) => {
+const getRestockHistory = (areaID, retailID, callback) => {
     const sql = `
         SELECT
             rl.RestockID,
+            rl.ItemID,
+            rp.RetailID,
+            rp.RetailName,
             ri.ItemName,
             rl.Quantity,
-            rl.Cost
+            rl.Cost,
+            rl.Date,
+            rl.Time
         FROM RestockLog rl
         JOIN RetailItem ri  ON rl.ItemID   = ri.ItemID
         JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
         WHERE rp.AreaID = ?
+        AND (? IS NULL OR rp.RetailID = ?)
         ORDER BY rl.RestockID DESC
     `;
-    db.query(sql, [areaID], callback);
+    db.query(sql, [areaID, retailID, retailID], callback);
 };
 
 const addTransaction = (itemID, type, quantity, callback) => {
@@ -269,11 +296,14 @@ const addTransaction = (itemID, type, quantity, callback) => {
     db.query(sql, [itemID, type, quantity], callback);
 };
 
-const getTransactionHistory = (areaID, callback) => {
+const getTransactionHistory = (areaID, retailID, callback) => {
     const sql = `
         SELECT
             tl.TransactionID,
+            tl.ItemID,
             ri.ItemName,
+            rp.RetailID,
+            rp.RetailName,
             tl.Date,
             tl.Time,
             tl.Type,
@@ -285,9 +315,10 @@ const getTransactionHistory = (areaID, callback) => {
         JOIN RetailItem ri  ON tl.ItemID   = ri.ItemID
         JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
         WHERE rp.AreaID = ?
+        AND (? IS NULL OR rp.RetailID = ?)
         ORDER BY tl.Date DESC, tl.Time DESC
     `;
-    db.query(sql, [areaID], callback);
+    db.query(sql, [areaID, retailID, retailID], callback);
 };
 
 const getNotifications = (areaID, callback) => {
@@ -316,9 +347,11 @@ module.exports = {
     updateThreshold,
     addItem,
     setItemActive,
+    updateItemName,
     updatePrices,
     addStore,
     getStores,
+    updateStoreName,
     addRestock,
     getRestockHistory,
     addTransaction,
