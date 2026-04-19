@@ -35,7 +35,24 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    /* EMPLOYEES */
+    /* ================= LOGIN ================= */
+    if (path === "/login" && req.method === "POST") {
+      const body = await parseBody(req);
+
+      const { email, password } = body;
+
+      // hardcoded login
+      if (email === "hr@nightmarenexus.com" && password === "hr123") {
+        return send(res, 200, {
+          message: "Login successful",
+          role: "hr"
+        });
+      }
+
+      return send(res, 401, { error: "Invalid credentials" });
+    }
+
+    /* ================= EMPLOYEES ================= */
     if (path === "/employees" && req.method === "GET") {
       return await getEmployees(res, send);
     }
@@ -45,7 +62,7 @@ const server = http.createServer(async (req, res) => {
       return await addEmployee(res, send, body);
     }
 
-    /* MANAGERS */
+    /* ================= MANAGERS ================= */
     if (path === "/managers" && req.method === "GET") {
       return await getManagers(res, send);
     }
@@ -55,7 +72,7 @@ const server = http.createServer(async (req, res) => {
       return await addManager(res, send, body);
     }
 
-    /* ACTIVITY */
+    /* ================= ACTIVITY ================= */
     if (path === "/activity" && req.method === "GET") {
       return await getActivity(res, send);
     }
@@ -65,12 +82,12 @@ const server = http.createServer(async (req, res) => {
       return await addActivity(res, send, body);
     }
 
-    /* SALARY */
+    /* ================= SALARY ================= */
     if (path === "/salary" && req.method === "GET") {
       return await getSalary(res, send);
     }
 
-    /* 404 */
+    /* ================= 404 ================= */
     send(res, 404, { error: "Route not found" });
 
   } catch (err) {

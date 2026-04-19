@@ -1,6 +1,7 @@
-const API = "http://localhost:5000"; // change after deploy
+// 🔥 FIXED: NO trailing slash
+const API = "https://hrmanager-39yw.onrender.com";
 
-/* -------- Tabs -------- */
+/* ================= TAB SWITCHING ================= */
 document.querySelectorAll(".tab").forEach(btn => {
   btn.onclick = () => {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -11,19 +12,45 @@ document.querySelectorAll(".tab").forEach(btn => {
   };
 });
 
-/* -------- Employees -------- */
+/* ================= LOGIN ================= */
+async function login() {
+  const email = document.getElementById("email")?.value;
+  const password = document.getElementById("password")?.value;
+
+  try {
+    const res = await fetch(`${API}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      localStorage.setItem("loggedIn", "true");
+      window.location.href = "index.html";
+    } else {
+      alert(data.error || "Login failed");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Server error");
+  }
+}
+
+/* ================= EMPLOYEES ================= */
 async function addEmployee() {
   const body = {
-    name: empName.value,
-    position: empRole.value,
-    salary: empSalary.value,
-    managerId: empManager.value,
-    areaId: empArea.value
+    name: document.getElementById("empName").value,
+    position: document.getElementById("empRole").value,
+    salary: document.getElementById("empSalary").value,
+    managerId: document.getElementById("empManager").value,
+    areaId: document.getElementById("empArea").value
   };
 
   await fetch(`${API}/employees`, {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
 
@@ -31,24 +58,32 @@ async function addEmployee() {
 }
 
 async function loadEmployees() {
-  const res = await fetch(`${API}/employees`);
-  const data = await res.json();
+  try {
+    const res = await fetch(`${API}/employees`);
+    const data = await res.json();
 
-  empTable.innerHTML = data.map(e =>
-    `<tr><td>${e.Name}</td><td>${e.Position}</td><td>${e.Salary}</td></tr>`
-  ).join("");
+    document.getElementById("empTable").innerHTML = data.map(e => `
+      <tr>
+        <td>${e.Name}</td>
+        <td>${e.Position}</td>
+        <td>${e.Salary}</td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    console.error("Employee load failed", err);
+  }
 }
 
-/* -------- Managers -------- */
+/* ================= MANAGERS ================= */
 async function addManager() {
   const body = {
-    id: mgrId.value,
-    name: mgrName.value
+    id: document.getElementById("mgrId").value,
+    name: document.getElementById("mgrName").value
   };
 
   await fetch(`${API}/managers`, {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
 
@@ -56,25 +91,32 @@ async function addManager() {
 }
 
 async function loadManagers() {
-  const res = await fetch(`${API}/managers`);
-  const data = await res.json();
+  try {
+    const res = await fetch(`${API}/managers`);
+    const data = await res.json();
 
-  mgrTable.innerHTML = data.map(m =>
-    `<tr><td>${m.ManagerID}</td><td>${m.ManagerName}</td></tr>`
-  ).join("");
+    document.getElementById("mgrTable").innerHTML = data.map(m => `
+      <tr>
+        <td>${m.ManagerID}</td>
+        <td>${m.ManagerName}</td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    console.error("Manager load failed", err);
+  }
 }
 
-/* -------- Activity -------- */
+/* ================= ACTIVITY ================= */
 async function addActivity() {
   const body = {
-    employeeId: actEmpId.value,
-    score: actScore.value,
-    notes: actNotes.value
+    employeeId: document.getElementById("actEmpId").value,
+    score: document.getElementById("actScore").value,
+    notes: document.getElementById("actNotes").value
   };
 
   await fetch(`${API}/activity`, {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
 
@@ -82,26 +124,54 @@ async function addActivity() {
 }
 
 async function loadActivity() {
-  const res = await fetch(`${API}/activity`);
-  const data = await res.json();
+  try {
+    const res = await fetch(`${API}/activity`);
+    const data = await res.json();
 
-  actTable.innerHTML = data.map(a =>
-    `<tr><td>${a.Name}</td><td>${a.PerformanceScore}</td><td>${a.WorkloadNotes}</td></tr>`
-  ).join("");
+    document.getElementById("actTable").innerHTML = data.map(a => `
+      <tr>
+        <td>${a.Name}</td>
+        <td>${a.PerformanceScore}</td>
+        <td>${a.WorkloadNotes}</td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    console.error("Activity load failed", err);
+  }
 }
 
-/* -------- Salary -------- */
+/* ================= SALARY ================= */
 async function loadSalary() {
-  const res = await fetch(`${API}/salary`);
-  const data = await res.json();
+  try {
+    const res = await fetch(`${API}/salary`);
+    const data = await res.json();
 
-  salTable.innerHTML = data.map(s =>
-    `<tr><td>${s.Name}</td><td>${s.Salary}</td></tr>`
-  ).join("");
+    document.getElementById("salTable").innerHTML = data.map(s => `
+      <tr>
+        <td>${s.Name}</td>
+        <td>${s.Salary}</td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    console.error("Salary load failed", err);
+  }
 }
 
-/* -------- Init -------- */
-loadEmployees();
-loadManagers();
-loadActivity();
-loadSalary();
+/* ================= AUTH CHECK ================= */
+function checkAuth() {
+  if (!localStorage.getItem("loggedIn")) {
+    window.location.href = "login.html";
+  }
+}
+
+/* ================= INIT ================= */
+window.onload = () => {
+  if (window.location.pathname.includes("index.html")) {
+    checkAuth();
+
+    loadEmployees();
+    loadManagers();
+    loadActivity();
+    loadSalary();
+  }
+};
