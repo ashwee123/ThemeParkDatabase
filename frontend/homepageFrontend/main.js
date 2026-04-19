@@ -76,7 +76,8 @@ if (form) {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.token) {
-        showError(data.error || "Invalid email or password.");
+        const hint = data.hint ? " " + data.hint : "";
+        showError((data.error || "Invalid email or password.") + hint);
         return;
       }
 

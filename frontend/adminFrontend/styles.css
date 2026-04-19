@@ -249,6 +249,18 @@ input:focus, select:focus, textarea:focus {
   100% { text-shadow: 0 0 40px rgba(139, 0, 0, 0.5); }
 }
 
+.api-error {
+  grid-column: 1 / -1;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 100, 100, 0.45);
+  background: rgba(40, 0, 0, 0.35);
+  color: #ffb8b8;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.api-error code { color: var(--gold); font-size: 0.85em; }
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));

@@ -138,9 +138,20 @@ document.querySelectorAll(".tab").forEach(function (btn) {
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 async function loadDashboard() {
-  const s = await apiGet("/summary");
   const grid = $("#stat-grid");
   if (!grid) return;
+  let s;
+  try {
+    s = await apiGet("/summary");
+  } catch (e) {
+    const msg = String(e && e.message ? e.message : e);
+    grid.innerHTML =
+      '<p class="api-error" role="alert"><strong>Could not load dashboard.</strong><br />' +
+      escapeHtml(msg) +
+      "</p><p class=\"hint\">If you opened this from Vercel, the API must be live on your Render homepage service (<code>/api/summary</code>) and the database reachable.</p>";
+    showToast(msg, true);
+    return;
+  }
   const cards = [
     ["Employees",        s.employees],
     ["Active visitors",  s.visitorsActive],

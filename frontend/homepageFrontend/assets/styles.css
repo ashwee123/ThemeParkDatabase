@@ -732,6 +732,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   padding: 4px 10px;
   text-transform: uppercase;
 }
+.staff-demo-hint {
+  margin-top: 16px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+  text-align: left;
+  max-width: 100%;
+}
+.staff-demo-hint code {
+  font-size: 0.72rem;
+  color: var(--gold);
+  word-break: break-all;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    ANIMATIONS
