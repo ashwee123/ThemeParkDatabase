@@ -792,6 +792,19 @@
             </label>
           </div>
 
+          <div class="panel two-col grid" id="combinedCartSummary" style="margin-top: 12px;">
+            <div>
+              <h3 style="margin: 0 0 8px; font-size: 1rem;">Your dining cart</h3>
+              <div id="combinedDiningCartPreview"></div>
+              <p style="margin: 8px 0 0;"><strong>Total: <span id="combinedDiningCartTotal">$0.00</span></strong></p>
+            </div>
+            <div>
+              <h3 style="margin: 0 0 8px; font-size: 1rem;">Your merchandise cart</h3>
+              <div id="combinedMerchCartPreview"></div>
+              <p style="margin: 8px 0 0;"><strong>Total: <span id="combinedMerchCartTotal">$0.00</span></strong></p>
+            </div>
+          </div>
+
           <section id="diningMenuSection" class="panel" style="margin-top: 12px;">
             <h3>Dining options and menus</h3>
             <div class="shop-controls">
@@ -828,12 +841,6 @@
             <div class="cart-panel">
               <h3 style="margin-bottom: 8px;">Dining cart</h3>
               <div id="diningCartItems"></div>
-              <label style="margin-top: 10px;">Payment method
-                <select id="diningPaymentMethod" required>
-                  <option value="Debit card">Debit card</option>
-                  <option value="Credit card" selected>Credit card</option>
-                </select>
-              </label>
               <div class="row" style="justify-content: space-between; margin-top: 8px;">
                 <strong>Total: <span id="diningCartTotal">$0.00</span></strong>
                 <div class="row">
@@ -842,6 +849,20 @@
                 </div>
               </div>
             </div>
+            <form id="diningOrderForm" class="panel grid" style="margin-top: 16px;">
+              <h3>Pay for dining</h3>
+              <label>Payment method
+                <select id="diningPaymentMethod" required>
+                  <option value="Debit card">Debit card</option>
+                  <option value="Credit card" selected>Credit card</option>
+                </select>
+              </label>
+              <p class="hint" style="margin: 0;">Uses the selected method for <strong>Checkout cart</strong> above and for the one-line order below.</p>
+              <label>Dining option <select id="diningOrderDining"></select></label>
+              <label>Quantity <input id="diningOrderQty" type="number" min="1" value="1" /></label>
+              <label>Unit price <input id="diningOrderUnitPrice" type="number" min="0" step="0.01" required /></label>
+              <button class="btn btn-primary" type="submit">Pay dining order</button>
+            </form>
           </section>
 
           <section id="merchMenuSection" class="panel hidden" style="margin-top: 14px;">
@@ -880,14 +901,8 @@
             <p id="merchCapNotice" class="hint hidden" style="margin-top: 8px;"></p>
             <div id="merchCards" class="merch-grid"></div>
             <div class="cart-panel">
-              <h3 style="margin-bottom: 8px;">Mini cart</h3>
+              <h3 style="margin-bottom: 8px;">Merchandise cart</h3>
               <div id="merchCartItems"></div>
-              <label style="margin-top: 10px;">Payment method
-                <select id="merchPaymentMethod" required>
-                  <option value="Debit card">Debit card</option>
-                  <option value="Credit card" selected>Credit card</option>
-                </select>
-              </label>
               <div class="row" style="justify-content: space-between; margin-top: 8px;">
                 <strong>Total: <span id="merchCartTotal">$0.00</span></strong>
                 <div class="row">
@@ -898,22 +913,18 @@
             </div>
             <form id="merchOrderForm" class="panel grid" style="margin-top: 16px;">
               <h3>Pay for merchandise</h3>
+              <label>Payment method
+                <select id="merchPaymentMethod" required>
+                  <option value="Debit card">Debit card</option>
+                  <option value="Credit card" selected>Credit card</option>
+                </select>
+              </label>
+              <p class="hint" style="margin: 0;">Uses the selected method for <strong>Checkout cart</strong> above and for the quick order below.</p>
               <label>Merch item <select id="merchOrderItem"></select></label>
               <label>Quantity <input id="merchOrderQty" type="number" min="1" value="1" /></label>
               <button class="btn btn-primary" type="submit">Pay merchandise order</button>
             </form>
-            <ul id="merchList" class="hidden"></ul>
           </section>
-
-          <div class="panel" style="margin-top:16px;">
-            <form id="diningOrderForm" class="grid">
-              <h3>Pay for dining</h3>
-              <label>Dining option <select id="diningOrderDining"></select></label>
-              <label>Quantity <input id="diningOrderQty" type="number" min="1" value="1" /></label>
-              <label>Unit price <input id="diningOrderUnitPrice" type="number" min="0" step="0.01" required /></label>
-              <button class="btn btn-primary" type="submit">Pay dining order</button>
-            </form>
-          </div>
         </section>
 
         <section id="tab-orders" class="tab-panel hidden">

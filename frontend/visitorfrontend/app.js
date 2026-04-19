@@ -26,6 +26,7 @@ const state = {
 function flattenDiningMenuFromApi() {
   const out = [];
   for (const d of state.dining || []) {
+    if (!Number(d.DiningID) || Number(d.DiningID) < 1) continue;
     const zone = String(d.AreaName || "").trim();
     const venue = String(d.DiningName || "").trim();
     let menu = [];
@@ -103,6 +104,16 @@ function buildZoneFilterSelects() {
 
 function areaMatchesZoneFilter(areaName, zoneLower) {
   return String(areaName || "").trim().toLowerCase() === String(zoneLower || "").trim().toLowerCase();
+}
+
+/** Only real dining venues (visitor_dining_option rows), never retail merchandise. */
+function catalogDiningRows(rows) {
+  return (rows || []).filter((d) => d != null && Number(d.DiningID) > 0);
+}
+
+/** Only real retail SKUs, never dining venues. */
+function catalogMerchRows(rows) {
+  return (rows || []).filter((m) => m != null && Number(m.ItemID) > 0);
 }
 
 const ORDER_LINE_EMOJI = { Dining: "🍽", Ticket: "🎫", Merchandise: "🛍" };
@@ -651,6 +662,7 @@ function renderMerchList() {
   }
 
   const rows = state.merchandise.filter((m) => {
+    if (!m || !Number(m.ItemID) || Number(m.ItemID) < 1) return false;
     const zoneName = String(m.AreaName || "").trim();
     const price = Number(m.DiscountPrice || m.SellPrice || 0);
     const matchesSearch =
@@ -732,6 +744,7 @@ function renderMerchCart() {
   if (!state.merchCart.length) {
     root.innerHTML = `<p class="hint" style="margin:0;">Your cart is empty.</p>`;
     $("merchCartTotal").textContent = "$0.00";
+    renderCombinedCartSummary();
     return;
   }
 
@@ -753,9 +766,11 @@ function renderMerchCart() {
     )
     .join("");
   $("merchCartTotal").textContent = `$${cartTotal().toFixed(2)}`;
+  renderCombinedCartSummary();
 }
 
 function addToMerchCart(item) {
+  if (!item || !Number(item.itemId)) return;
   const existing = state.merchCart.find((it) => it.itemId === item.itemId);
   if (existing) existing.qty += 1;
   else state.merchCart.push({ ...item, qty: 1 });
@@ -785,6 +800,7 @@ function renderDiningCart() {
   if (!state.diningCart.length) {
     root.innerHTML = `<p class="hint" style="margin:0;">Your dining cart is empty.</p>`;
     $("diningCartTotal").textContent = "$0.00";
+    renderCombinedCartSummary();
     return;
   }
   root.innerHTML = state.diningCart
@@ -803,9 +819,11 @@ function renderDiningCart() {
     </div>`)
     .join("");
   $("diningCartTotal").textContent = `$${diningCartTotal().toFixed(2)}`;
+  renderCombinedCartSummary();
 }
 
 function addToDiningCart(item) {
+  if (!item || !Number(item.diningId)) return;
   const key = `${item.diningId || ""}|${item.name}|${item.venue}|${item.zone}`;
   const existing = state.diningCart.find((it) => it.key === key);
   if (existing) existing.qty += 1;
@@ -826,6 +844,45 @@ function removeDiningCartItem(key) {
   renderDiningCart();
 }
 
+/** Always-visible summary of both carts (Dining & Shopping tab). */
+function renderCombinedCartSummary() {
+  const dinePrev = $("combinedDiningCartPreview");
+  const merchPrev = $("combinedMerchCartPreview");
+  const dineTot = $("combinedDiningCartTotal");
+  const merchTot = $("combinedMerchCartTotal");
+  if (!dinePrev || !merchPrev) return;
+
+  if (!state.diningCart.length) {
+    dinePrev.innerHTML = '<p class="hint" style="margin:0;">Nothing added yet.</p>';
+  } else {
+    dinePrev.innerHTML =
+      '<ul style="margin:0;padding-left:1.15rem;">' +
+      state.diningCart
+        .map(
+          (it) =>
+            `<li>${escapeHtml(it.name)} ×${it.qty} <span class="hint">($${(Number(it.price) * Number(it.qty)).toFixed(2)})</span></li>`
+        )
+        .join("") +
+      "</ul>";
+  }
+  if (dineTot) dineTot.textContent = `$${diningCartTotal().toFixed(2)}`;
+
+  if (!state.merchCart.length) {
+    merchPrev.innerHTML = '<p class="hint" style="margin:0;">Nothing added yet.</p>';
+  } else {
+    merchPrev.innerHTML =
+      '<ul style="margin:0;padding-left:1.15rem;">' +
+      state.merchCart
+        .map(
+          (it) =>
+            `<li>${escapeHtml(it.name)} ×${it.qty} <span class="hint">($${(Number(it.price) * Number(it.qty)).toFixed(2)})</span></li>`
+        )
+        .join("") +
+      "</ul>";
+  }
+  if (merchTot) merchTot.textContent = `$${cartTotal().toFixed(2)}`;
+}
+
 async function loadLookups(token) {
   const [areas, parks, attractions, events, dining, merchandise] = await Promise.all([
     api("/api/areas", { token }),
@@ -839,15 +896,15 @@ async function loadLookups(token) {
   state.parks = parks;
   state.attractions = attractions;
   state.events = events;
-  state.dining = dining;
-  state.merchandise = merchandise;
+  state.dining = catalogDiningRows(dining);
+  state.merchandise = catalogMerchRows(merchandise);
 
   fillSelect("itineraryAttraction", attractions, "AttractionID", "AttractionName", true);
   fillSelect("reservationAttraction", attractions, "AttractionID", "AttractionName", true);
-  fillSelect("reservationDining", dining, "DiningID", "DiningName", true);
+  fillSelect("reservationDining", state.dining, "DiningID", "DiningName", true);
   fillSelect("feedbackAttraction", attractions, "AttractionID", "AttractionName", true);
-  fillSelect("diningOrderDining", dining, "DiningID", "DiningName", false);
-  fillSelect("merchOrderItem", merchandise, "ItemID", "ItemName", false);
+  fillSelect("diningOrderDining", state.dining, "DiningID", "DiningName", false);
+  fillSelect("merchOrderItem", state.merchandise, "ItemID", "ItemName", false);
   preloadAttractionAndEventLinks(attractions, events);
   preloadAttractionImages(attractions);
   preloadEventImages(events);
@@ -984,13 +1041,14 @@ async function renderItinerary() {
 
 async function renderDiningAndMerch() {
   const [dining, merch] = await Promise.all([api("/api/dining", { token: getToken() }), api("/api/merchandise", { token: getToken() })]);
-  state.dining = dining;
-  state.merchandise = merch;
-  fillSelect("reservationDining", dining, "DiningID", "DiningName", true);
-  fillSelect("diningOrderDining", dining, "DiningID", "DiningName", false);
-  fillSelect("merchOrderItem", merch, "ItemID", "ItemName", false);
+  state.dining = catalogDiningRows(dining);
+  state.merchandise = catalogMerchRows(merch);
+  fillSelect("reservationDining", state.dining, "DiningID", "DiningName", true);
+  fillSelect("diningOrderDining", state.dining, "DiningID", "DiningName", false);
+  fillSelect("merchOrderItem", state.merchandise, "ItemID", "ItemName", false);
   renderDiningList();
   renderMerchList();
+  renderCombinedCartSummary();
 }
 
 async function renderOrders() {
