@@ -1,6 +1,22 @@
 "use strict";
 
-const API = "/api";
+/** Same host as homepage login (Render). Override via <meta name="admin-api-origin" content="https://..."> */
+const DEFAULT_REMOTE_API_ORIGIN = "https://themeparkdatabase-w2b6.onrender.com";
+
+function getApiBase() {
+  const meta = document.querySelector('meta[name="admin-api-origin"]');
+  const fromMeta = meta && meta.content && meta.content.trim();
+  if (fromMeta) return fromMeta.replace(/\/$/, "") + "/api";
+  const h = typeof location !== "undefined" ? location.hostname : "";
+  if (h === "localhost" || h === "127.0.0.1") return "/api";
+  return DEFAULT_REMOTE_API_ORIGIN.replace(/\/$/, "") + "/api";
+}
+
+const API = getApiBase();
+
+function fetchCredentials() {
+  return API.startsWith("http") ? "omit" : "same-origin";
+}
 
 // Safe querySelector — returns null instead of throwing
 function $(sel) {
@@ -28,7 +44,7 @@ function escapeHtml(s) {
 }
 
 async function apiGet(path) {
-  const res = await fetch(API + path, { credentials: "same-origin" });
+  const res = await fetch(API + path, { credentials: fetchCredentials() });
   const text = await res.text();
   let data = null;
   if (text) {
@@ -43,7 +59,7 @@ async function apiGet(path) {
 }
 
 async function apiPatch(path, body) {
-  const opts = { method: "PATCH", credentials: "same-origin" };
+  const opts = { method: "PATCH", credentials: fetchCredentials() };
   if (body !== undefined) {
     opts.headers = { "Content-Type": "application/json" };
     opts.body = JSON.stringify(body);
