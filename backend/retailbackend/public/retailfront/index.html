@@ -12,16 +12,19 @@
 
   <!-- HEADER -->
   <header class="site-header">
-    <h1 id="portal-title">Retail Portal</h1>
-    <p class="tagline">Area Manager Dashboard</p>
+    <div>
+      <h1 id="portal-title">Retail Portal</h1>
+      <p class="tagline" id="welcome-line">Welcome Manager.</p>
+    </div>
+    <button class="btn btn-ghost" id="btn-logout">Log Out</button>
   </header>
 
   <!-- TABS -->
   <nav class="tabs">
-    <button class="tab active" data-tab="dashboard">Dashboard</button>
-    <button class="tab" data-tab="inventory">Inventory</button>
-    <button class="tab" data-tab="transactions">Transactions</button>
-    <button class="tab" data-tab="restock">Restock</button>
+    <button class="tab active" data-tab="dashboard">Inventory</button>
+    <button class="tab" data-tab="inventory">Items</button>
+    <button class="tab" data-tab="transactions">Transaction History</button>
+    <button class="tab" data-tab="restock">Restock Orders</button>
     <button class="tab" data-tab="reports">Reports</button>
     <button class="tab" data-tab="stores">Stores</button>
   </nav>
@@ -32,7 +35,12 @@
     <!-- DASHBOARD -->
     <section class="panel active" id="tab-dashboard">
       <div class="toolbar">
-        <h2>Dashboard</h2>
+        <h2>Inventory</h2>
+        <label>Store
+          <select id="dashboard-store">
+            <option value="">All Stores</option>
+          </select>
+        </label>
       </div>
 
       <h3 class="subheading">Low Stock Notifications</h3>
@@ -55,9 +63,7 @@
           <thead>
             <tr>
               <th>Item</th>
-              <th>Store</th>
               <th>Quantity</th>
-              <th>Threshold</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -69,7 +75,12 @@
     <!-- INVENTORY -->
     <section class="panel" id="tab-inventory">
       <div class="toolbar">
-        <h2>Inventory</h2>
+        <h2>Items</h2>
+        <label>Store
+          <select id="items-store-filter">
+            <option value="">All Stores</option>
+          </select>
+        </label>
       </div>
 
       <!-- Add Item Form -->
@@ -109,13 +120,10 @@
           <thead>
             <tr>
               <th>Item</th>
-              <th>Store</th>
               <th>Buy Price</th>
               <th>Sell Price</th>
               <th>Discount Price</th>
-              <th>Quantity</th>
               <th>Threshold</th>
-              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -127,13 +135,18 @@
     <!-- TRANSACTIONS -->
     <section class="panel" id="tab-transactions">
       <div class="toolbar">
-        <h2>Transactions</h2>
+        <h2>Transaction History</h2>
       </div>
 
       <!-- Log Transaction Form -->
       <div class="card form-card">
         <h3>Log Transaction</h3>
         <div class="grid-form">
+          <label>Store
+            <select id="txn-store-filter">
+              <option value="">All Stores</option>
+            </select>
+          </label>
           <label>Item
             <select id="txn-item"></select>
           </label>
@@ -177,13 +190,18 @@
     <!-- RESTOCK -->
     <section class="panel" id="tab-restock">
       <div class="toolbar">
-        <h2>Restock</h2>
+        <h2>Restock Orders</h2>
       </div>
 
       <!-- Restock Form -->
       <div class="card form-card">
         <h3>Log Restock Order</h3>
         <div class="grid-form">
+          <label>Store
+            <select id="restock-store-filter">
+              <option value="">All Stores</option>
+            </select>
+          </label>
           <label>Item
             <select id="restock-item"></select>
           </label>
@@ -205,6 +223,8 @@
               <th>Item</th>
               <th>Quantity</th>
               <th>Cost</th>
+              <th>Date</th>
+              <th>Time</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -220,8 +240,15 @@
 
       <!-- Date Range -->
       <div class="card form-card">
-        <h3>Profit Report</h3>
+        <h3>Run Report</h3>
         <div class="grid-form">
+          <label>Report Type
+            <select id="report-type">
+              <option value="profit">Profit Report</option>
+              <option value="loss">Inventory Loss</option>
+              <option value="bought">Item Amount Bought</option>
+            </select>
+          </label>
           <label>Store
             <select id="report-store">
               <option value="">All Stores</option>
@@ -240,7 +267,7 @@
       </div>
 
       <!-- Profit Table -->
-      <div class="table-wrap">
+      <div class="table-wrap" id="profit-report-wrap">
         <table class="data-table" id="tbl-report">
           <thead>
             <tr>
@@ -261,8 +288,8 @@
       </div>
 
       <!-- Damaged / Stolen Report -->
-      <h3 class="subheading">Damaged / Stolen Report</h3>
-      <div class="table-wrap">
+      <h3 class="subheading" id="loss-title">Inventory Loss</h3>
+      <div class="table-wrap" id="loss-report-wrap">
         <table class="data-table" id="tbl-damaged">
           <thead>
             <tr>
@@ -279,8 +306,8 @@
       </div>
 
       <!-- Item Amount Bought Report -->
-      <h3 class="subheading">Item Amount Bought</h3>
-      <div class="table-wrap">
+      <h3 class="subheading" id="bought-title">Item Amount Bought</h3>
+      <div class="table-wrap" id="bought-report-wrap">
         <table class="data-table" id="tbl-items-bought">
           <thead>
             <tr>
@@ -318,8 +345,8 @@
         <table class="data-table" id="tbl-stores">
           <thead>
             <tr>
-              <th>Store ID</th>
               <th>Store Name</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody></tbody>
