@@ -92,11 +92,44 @@ async function addEmployee() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body)
         });
+        const data = await res.json().catch(() => ({}));
         if (res.ok) {
             alert("Employee added to the Nexus!");
-            loadEmployees(); // Refresh the list
+            loadEmployees();
+        } else {
+            alert(data.error || "Could not add employee.");
         }
-    } catch (err) { console.error(err); }
+    } catch (err) {
+        console.error(err);
+        alert("Network error — try again.");
+    }
+}
+
+async function addManager() {
+    const body = {
+        id: document.getElementById("mgrId").value,
+        name: document.getElementById("mgrName").value
+    };
+
+    try {
+        const res = await fetch(`${API}/managers`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            alert("Manager added to the Nexus!");
+            document.getElementById("mgrId").value = "";
+            document.getElementById("mgrName").value = "";
+            loadManagers();
+        } else {
+            alert(data.error || "Could not add manager.");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Network error — try again.");
+    }
 }
 
 /* ================= TAB NAVIGATION ================= */
