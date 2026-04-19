@@ -115,6 +115,7 @@
       <button class="report-subtab active" data-report="task-summary">Task Summary</button>
       <button class="report-subtab" data-report="maintenance-history">Maintenance History</button>
       <button class="report-subtab" data-report="area-workload">Area Workload</button>
+      <button class="report-subtab" data-report="transactions">Transactions</button>
     </nav>
 
     <!-- ── TASK SUMMARY ── -->
@@ -217,6 +218,35 @@
         </table>
       </div>
     </div>
+
+    <!-- ── TRANSACTIONS ── -->
+    <div id="report-transactions" class="report-panel">
+      <div id="tx-summary-cards" class="stats-grid" style="margin:1.5rem 0;"></div>
+      <div class="report-filters">
+        <label>Type
+          <select id="tx-filter-type">
+            <option value="">All Types</option>
+            <option value="Normal">Normal</option>
+            <option value="Discount">Discount</option>
+            <option value="Damaged">Damaged</option>
+            <option value="Stolen">Stolen</option>
+          </select>
+        </label>
+        <label>Date From <input type="date" id="tx-filter-from"></label>
+        <label>Date To   <input type="date" id="tx-filter-to"></label>
+        <button class="btn-reset" onclick="loadTransactions()">Apply</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th>ID</th><th>Item</th><th>Type</th><th>Qty</th><th>Price</th><th>Total</th><th>Date</th>
+          </tr></thead>
+          <tbody id="tbody-transactions"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
 
   <!-- ===================== ASSIGN TASK ===================== -->
   <section id="panel-assign" class="panel">
