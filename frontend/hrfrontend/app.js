@@ -88,6 +88,76 @@ function formatActivityWhen(iso) {
     return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString();
 }
 
+const HR_LOCAL_ACTIVITY_KEY = "hr_portal_activity_local";
+
+function readLocalActivity() {
+    try {
+        const v = sessionStorage.getItem(HR_LOCAL_ACTIVITY_KEY);
+        const parsed = v ? JSON.parse(v) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function appendLocalActivity(action, detail) {
+    const list = readLocalActivity();
+    list.unshift({
+        created_at: new Date().toISOString(),
+        action,
+        detail: detail ?? "—"
+    });
+    sessionStorage.setItem(HR_LOCAL_ACTIVITY_KEY, JSON.stringify(list.slice(0, 100)));
+}
+
+function clearLocalActivity() {
+    sessionStorage.removeItem(HR_LOCAL_ACTIVITY_KEY);
+}
+
+/** Merge server audit / legacy performance rows with a session fallback when the API is not yet deployed. */
+function buildActivityRows(raw) {
+    if (!Array.isArray(raw) || raw.length === 0) {
+        return readLocalActivity();
+    }
+
+    const hasAudit = raw.some(
+        (r) => r && typeof r.action === "string" && Object.prototype.hasOwnProperty.call(r, "detail")
+    );
+    if (hasAudit) {
+        clearLocalActivity();
+        return raw
+            .filter((r) => r && typeof r.action === "string")
+            .map((r) => ({
+                created_at: r.created_at ?? r.CreatedAt,
+                action: r.action,
+                detail: r.detail ?? r.Detail ?? "—"
+            }))
+            .sort((a, b) => {
+                const ta = new Date(a.created_at || 0).getTime();
+                const tb = new Date(b.created_at || 0).getTime();
+                return tb - ta;
+            });
+    }
+
+    const hasPerf = raw.some((r) => r && r.Name != null && "PerformanceScore" in r);
+    if (hasPerf) {
+        return raw
+            .filter((r) => r && r.Name != null)
+            .map((r) => ({
+                created_at: r.ReviewDate || r.review_date || null,
+                action: "Performance review",
+                detail: `${r.Name}: score ${r.PerformanceScore ?? "—"}${r.WorkloadNotes ? ` — ${r.WorkloadNotes}` : ""}`
+            }))
+            .sort((a, b) => {
+                const ta = new Date(a.created_at || 0).getTime();
+                const tb = new Date(b.created_at || 0).getTime();
+                return tb - ta;
+            });
+    }
+
+    return readLocalActivity();
+}
+
 async function loadActivity() {
     const table = document.getElementById("activityTable");
     if (!table) return;
@@ -98,8 +168,9 @@ async function loadActivity() {
             table.innerHTML = "";
             return;
         }
-        table.innerHTML = data.length
-            ? data.map((row) => `
+        const rows = buildActivityRows(data);
+        table.innerHTML = rows.length
+            ? rows.map((row) => `
                 <tr>
                     <td>${formatActivityWhen(row.created_at)}</td>
                     <td>${escapeHtml(row.action)}</td>
@@ -122,6 +193,31 @@ function escapeHtml(s) {
         .replace(/"/g, "&quot;");
 }
 
+function normalizeSalaryRow(row) {
+    if (row.person_name != null || row.role_type != null) {
+        return {
+            person_name: row.person_name,
+            role_type: row.role_type || "—",
+            job_title: row.job_title || "—",
+            salary_amount: row.salary_amount
+        };
+    }
+    if (row.Name != null) {
+        return {
+            person_name: row.Name,
+            role_type: "Employee",
+            job_title: row.Position || row.position || "—",
+            salary_amount: row.Salary != null ? row.Salary : row.salary
+        };
+    }
+    return {
+        person_name: "—",
+        role_type: "—",
+        job_title: "—",
+        salary_amount: null
+    };
+}
+
 async function loadSalary() {
     const table = document.getElementById("salaryTable");
     if (!table) return;
@@ -132,8 +228,9 @@ async function loadSalary() {
             table.innerHTML = "";
             return;
         }
-        table.innerHTML = data.length
-            ? data.map((row) => `
+        const rows = data.map(normalizeSalaryRow);
+        table.innerHTML = rows.length
+            ? rows.map((row) => `
                 <tr>
                     <td>${escapeHtml(row.person_name || "—")}</td>
                     <td>${escapeHtml(row.role_type || "—")}</td>
@@ -167,6 +264,10 @@ async function addEmployee() {
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
             alert("Employee added to the Nexus!");
+            appendLocalActivity(
+                "Employee added",
+                `${body.name} — ${body.position || "position unset"}; salary ${body.salary || "—"}`
+            );
             loadEmployees();
             loadActivity();
             loadSalary();
@@ -197,6 +298,10 @@ async function addManager() {
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
             alert("Manager added to the Nexus!");
+            appendLocalActivity(
+                "Manager added",
+                `${body.name} (ID ${body.id}) — ${body.email}`
+            );
             document.getElementById("mgrId").value = "";
             document.getElementById("mgrName").value = "";
             document.getElementById("mgrEmail").value = "";
@@ -248,5 +353,3 @@ window.onload = () => {
         }
     }
 };
-
-
