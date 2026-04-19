@@ -73,6 +73,12 @@ const server = http.createServer(async (req, res) => {
     const host = req.headers.host || "localhost";
     const url = new URL(req.url || "/", `http://${host}`);
 
+    if (url.pathname === "/health") {
+      res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ status: "ok" }));
+      return;
+    }
+
     if (url.pathname.startsWith("/api")) {
       await handleAdminApi(req, res, url);
       return;
