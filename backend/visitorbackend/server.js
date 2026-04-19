@@ -298,6 +298,13 @@ async function handleApi(req, res, method, pathname, query) {
       sendJson(res, 400, { error: "VisitDate is required for single-day and multi-day tickets" });
       return true;
     }
+    if (plan !== "SeasonPass" && visitDate) {
+      const okDate = await q.isDateOnOrAfterCurdate(visitDate);
+      if (!okDate) {
+        sendJson(res, 400, { error: "Visit date must be today or a future date" });
+        return true;
+      }
+    }
     const ExpiryDate = q.computeTicketPurchaseExpiryDate({
       TicketPlan: plan,
       VisitDate: visitDate,
@@ -366,11 +373,16 @@ async function handleApi(req, res, method, pathname, query) {
       sendJson(res, 400, { error: "ReservationType, ReservationDate, TimeSlot are required" });
       return true;
     }
+    const resDate = String(body.ReservationDate).trim().slice(0, 10);
+    if (!(await q.isDateOnOrAfterCurdate(resDate))) {
+      sendJson(res, 400, { error: "Reservation date must be today or a future date" });
+      return true;
+    }
     const id = await q.createReservationForVisitor(visitor.VisitorID, {
       ReservationType: String(body.ReservationType),
       AttractionID: body.AttractionID ? Number(body.AttractionID) : null,
       DiningID: body.DiningID ? Number(body.DiningID) : null,
-      ReservationDate: String(body.ReservationDate),
+      ReservationDate: resDate,
       TimeSlot: String(body.TimeSlot),
       PartySize: body.PartySize ? Number(body.PartySize) : 1,
       Notes: body.Notes || null,
@@ -407,6 +419,13 @@ async function handleApi(req, res, method, pathname, query) {
 
   if (pathname === "/api/itinerary" && method === "POST") {
     const body = await readJson(req);
+    if (body && body.PlannedDate) {
+      const pd = String(body.PlannedDate).trim().slice(0, 10);
+      if (!(await q.isDateOnOrAfterCurdate(pd))) {
+        sendJson(res, 400, { error: "Planned date must be today or a future date" });
+        return true;
+      }
+    }
     const id = await q.createItineraryItem(visitor.VisitorID, {
       AttractionID: body && body.AttractionID ? Number(body.AttractionID) : null,
       ParkID: body && body.ParkID ? Number(body.ParkID) : null,

@@ -85,6 +85,119 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
+/** Today's calendar date in the visitor's local timezone (YYYY-MM-DD). */
+function localTodayISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function setVisitorDateMinAttributes() {
+  const min = localTodayISO();
+  ["ticketVisitDate", "reservationDate", "itineraryDate"].forEach((id) => {
+    const el = $(id);
+    if (!el) return;
+    el.setAttribute("min", min);
+    if (el.value && el.value < min) el.value = min;
+  });
+}
+
+function dateStrNotBeforeToday(iso) {
+  const s = String(iso || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  return s >= localTodayISO();
+}
+
+function digitsOnly(s) {
+  return String(s || "").replace(/\D/g, "");
+}
+
+function luhnOk(numStr) {
+  const s = digitsOnly(numStr);
+  if (s.length < 13 || s.length > 19) return false;
+  let sum = 0;
+  let double = false;
+  for (let i = s.length - 1; i >= 0; i--) {
+    let digit = parseInt(s.charAt(i), 10);
+    if (double) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    double = !double;
+  }
+  return sum % 10 === 0;
+}
+
+function populateCardExpirySelects(prefix) {
+  const mEl = $(`${prefix}CardExpMonth`);
+  const yEl = $(`${prefix}CardExpYear`);
+  if (mEl && mEl.options.length === 0) {
+    for (let m = 1; m <= 12; m++) {
+      const o = document.createElement("option");
+      const v = String(m).padStart(2, "0");
+      o.value = v;
+      o.textContent = v;
+      mEl.appendChild(o);
+    }
+  }
+  if (yEl && yEl.options.length === 0) {
+    const y = new Date().getFullYear();
+    for (let i = 0; i < 16; i++) {
+      const o = document.createElement("option");
+      o.value = String(y + i);
+      o.textContent = String(y + i);
+      yEl.appendChild(o);
+    }
+  }
+}
+
+/** Returns error message string or null if valid. Prefix: ticket | dining | merch */
+function validateCardPaymentFields(prefix) {
+  const nameEl = $(`${prefix}CardName`);
+  const numEl = $(`${prefix}CardNumber`);
+  const mEl = $(`${prefix}CardExpMonth`);
+  const yEl = $(`${prefix}CardExpYear`);
+  const cvvEl = $(`${prefix}CardCvv`);
+  const name = (nameEl && nameEl.value.trim()) || "";
+  const num = digitsOnly(numEl && numEl.value);
+  const m = mEl && mEl.value;
+  const y = yEl && yEl.value;
+  const cvv = digitsOnly(cvvEl && cvvEl.value);
+  if (name.length < 2) return "Enter the name on the card.";
+  if (!luhnOk(num)) return "Enter a valid card number.";
+  if (!m || !y) return "Select card expiry month and year.";
+  const expEnd = new Date(Number(y), Number(m), 0, 23, 59, 59, 999);
+  if (expEnd.getTime() < Date.now()) return "This card appears expired.";
+  if (cvv.length < 3 || cvv.length > 4) return "Enter CVV (3–4 digits).";
+  return null;
+}
+
+function clearCardPaymentFields(prefix) {
+  ["CardName", "CardNumber", "CardCvv"].forEach((s) => {
+    const el = $(`${prefix}${s}`);
+    if (el) el.value = "";
+  });
+}
+
+function initVisitorPaymentsAndDates() {
+  setVisitorDateMinAttributes();
+  populateCardExpirySelects("ticket");
+  populateCardExpirySelects("dining");
+  populateCardExpirySelects("merch");
+  ["ticketVisitDate", "reservationDate", "itineraryDate"].forEach((id) => {
+    const el = $(id);
+    if (!el) return;
+    const clamp = () => {
+      setVisitorDateMinAttributes();
+    };
+    el.addEventListener("change", clamp);
+    el.addEventListener("input", clamp);
+  });
+}
+
 /** Short plain-text snippet for hover overlays (truncate then escape). */
 function overlaySnippet(text, maxLen) {
   const s = String(text ?? "").trim();
@@ -373,6 +486,7 @@ function syncTicketFormForPlan() {
     multiWrap.classList.add("hidden");
     visitInput.setAttribute("required", "required");
   }
+  setVisitorDateMinAttributes();
 }
 
 const HORROR_IMAGE_PROMPTS_BY_NAME = {
@@ -965,22 +1079,22 @@ async function renderAttractions() {
   $("attractionsGrid").innerHTML = uniqueRows
     .map(
       (a) => `<article class="attraction-card" tabindex="0">
-      <div class="image-frame" style="width:100%; height:200px;">
-        <div class="image-skeleton"></div>
-        <img
-          class="generated-art attraction-image"
-          src="${htmlAttrEscapeUrl(cardImageUrl(a.AttractionName))}"
-          data-fallback-src="${htmlAttrEscapeUrl(fallbackImageUrl(a.AttractionName, 640, 360))}"
-          alt="${a.AttractionName}"
-          referrerpolicy="no-referrer"
-          loading="eager"
-          decoding="async"
-          style="width:100%; height:200px; object-fit:cover;"
-        />
-      </div>
-      <div class="attraction-name">${a.AttractionName}</div>
-      <div class="attraction-overlay">
-        <p><strong>Zone:</strong> ${overlaySnippet(a.AreaName, 48)}</p>
+      <div class="attraction-media">
+        <div class="image-frame attraction-image-frame">
+          <div class="image-skeleton"></div>
+          <img
+            class="generated-art attraction-image"
+            src="${htmlAttrEscapeUrl(cardImageUrl(a.AttractionName))}"
+            data-fallback-src="${htmlAttrEscapeUrl(fallbackImageUrl(a.AttractionName, 640, 360))}"
+            alt="${a.AttractionName}"
+            referrerpolicy="no-referrer"
+            loading="eager"
+            decoding="async"
+          />
+        </div>
+        <div class="attraction-overlay">
+          <div class="attraction-overlay-inner">
+        <p><strong>Zone:</strong> ${overlaySnippet(a.AreaName, 120)}</p>
         <p><strong>Height:</strong> ${
           Number(a.HeightRequirementCm) > 0 ? `${escapeHtml(String(a.HeightRequirementCm))} cm minimum` : "No height minimum"
         }</p>
@@ -989,9 +1103,12 @@ async function renderAttractions() {
         <p><strong>Intensity:</strong> ${escapeHtml(String(a.SeverityLevel || "—"))}</p>
         <p><strong>Status:</strong> ${escapeHtml(String(a.Status || "Open"))}</p>
         <p><strong>Est. wait:</strong> ${escapeHtml(String(a.WaitTimeMinutes ?? "—"))} min</p>
-        <p><strong>Where:</strong> ${overlaySnippet(a.LocationHint, 56)}</p>
-        <p><strong>About:</strong> ${overlaySnippet(a.Description, 140)}</p>
+        <p><strong>Where:</strong> ${overlaySnippet(a.LocationHint, 240)}</p>
+        <p><strong>About:</strong> ${overlaySnippet(a.Description, 4000)}</p>
+          </div>
+        </div>
       </div>
+      <div class="attraction-name">${a.AttractionName}</div>
     </article>`
     )
     .join("");
@@ -1006,30 +1123,33 @@ async function renderParksAndEvents() {
   $("eventsGrid").innerHTML = uniqueEvents
     .map(
       (e) => `<article class="event-card" tabindex="0">
-      <div class="image-frame" style="width:100%; height:200px;">
-        <div class="image-skeleton"></div>
-        <img
-          class="generated-art event-image"
-          src="${htmlAttrEscapeUrl(cardImageUrl(e.EventName))}"
-          data-fallback-src="${htmlAttrEscapeUrl(fallbackImageUrl(e.EventName, 640, 360))}"
-          alt="${e.EventName}"
-          referrerpolicy="no-referrer"
-          loading="eager"
-          decoding="async"
-          style="width:100%; height:200px; object-fit:cover;"
-        />
-      </div>
-      <div class="event-name">${e.EventName}</div>
-      <div class="event-overlay">
+      <div class="event-media">
+        <div class="image-frame event-image-frame">
+          <div class="image-skeleton"></div>
+          <img
+            class="generated-art event-image"
+            src="${htmlAttrEscapeUrl(cardImageUrl(e.EventName))}"
+            data-fallback-src="${htmlAttrEscapeUrl(fallbackImageUrl(e.EventName, 640, 360))}"
+            alt="${e.EventName}"
+            referrerpolicy="no-referrer"
+            loading="eager"
+            decoding="async"
+          />
+        </div>
+        <div class="event-overlay">
+          <div class="event-overlay-inner">
         <p><strong>Date:</strong> ${escapeHtml(String(e.EventDate || "—"))}</p>
         <p><strong>Time:</strong> ${escapeHtml(String(e.StartTime || "—"))}${
           e.EndTime ? ` – ${escapeHtml(String(e.EndTime))}` : ""
         }</p>
-        <p><strong>Park:</strong> ${overlaySnippet(e.ParkName, 56)}</p>
-        <p><strong>Venue:</strong> ${overlaySnippet(e.VenueHint, 56)}</p>
+        <p><strong>Park:</strong> ${overlaySnippet(e.ParkName, 200)}</p>
+        <p><strong>Venue:</strong> ${overlaySnippet(e.VenueHint, 240)}</p>
         <p><strong>Runtime:</strong> ${escapeHtml(String(e.RuntimeMinutes ?? "—"))} min</p>
-        <p><strong>Details:</strong> ${overlaySnippet(e.EventDescription, 160)}</p>
+        <p><strong>Details:</strong> ${overlaySnippet(e.EventDescription, 4000)}</p>
+          </div>
+        </div>
       </div>
+      <div class="event-name">${e.EventName}</div>
     </article>`
     )
     .join("");
@@ -1119,6 +1239,22 @@ async function fullRefresh() {
 }
 
 function bindAuthForms() {
+  const authSec = $("authSection");
+  if (authSec) {
+    authSec.addEventListener(
+      "focusin",
+      () => {
+        showAuthError("");
+        const gs = $("globalStatus");
+        if (gs) {
+          gs.textContent = "Welcome to the park portal.";
+          gs.className = "status";
+        }
+      },
+      true
+    );
+  }
+
   $("btnShowLogin").addEventListener("click", () => setAuthMode("login"));
   $("btnShowRegister").addEventListener("click", () => setAuthMode("register"));
 
@@ -1215,6 +1351,17 @@ function bindAppActions() {
     e.preventDefault();
     const plan = $("ticketPlan").value;
     const visitDate = $("ticketVisitDate").value || null;
+    if (plan !== "SeasonPass") {
+      if (!visitDate || !dateStrNotBeforeToday(visitDate)) {
+        showStatus("Choose a visit date that is today or in the future.", true);
+        return;
+      }
+    }
+    const cardErr = validateCardPaymentFields("ticket");
+    if (cardErr) {
+      showStatus(cardErr, true);
+      return;
+    }
     const body = {
       TicketPlan: plan,
       TicketCategory: $("ticketCategory").value,
@@ -1233,8 +1380,10 @@ function bindAppActions() {
     });
     showStatus("Ticket purchased.");
     e.target.reset();
+    clearCardPaymentFields("ticket");
     syncTicketFormForPlan();
     updateTicketPricingPreview();
+    setVisitorDateMinAttributes();
     await fullRefresh();
     showPaymentConfirmModal({
       orderIds: [created.orderId],
@@ -1246,6 +1395,11 @@ function bindAppActions() {
 
   $("reservationForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const rd = $("reservationDate") && $("reservationDate").value;
+    if (!rd || !dateStrNotBeforeToday(rd)) {
+      showStatus("Reservation date must be today or a future date.", true);
+      return;
+    }
     await api("/api/reservations", {
       method: "POST",
       token: getToken(),
@@ -1261,6 +1415,7 @@ function bindAppActions() {
     });
     showStatus("Reservation saved.");
     e.target.reset();
+    setVisitorDateMinAttributes();
     await fullRefresh();
     showOrdersAfterTransaction("Your reservation is saved. Open Planning to view or cancel it.");
   });
@@ -1282,6 +1437,11 @@ function bindAppActions() {
 
   $("itineraryForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const pd = $("itineraryDate") && $("itineraryDate").value;
+    if (pd && !dateStrNotBeforeToday(pd)) {
+      showStatus("Planned date must be today or a future date.", true);
+      return;
+    }
     await api("/api/itinerary", {
       method: "POST",
       token: getToken(),
@@ -1294,6 +1454,7 @@ function bindAppActions() {
       },
     });
     e.target.reset();
+    setVisitorDateMinAttributes();
     await renderItinerary();
   });
 
@@ -1355,6 +1516,14 @@ function bindAppActions() {
       showStatus("Your dining cart is empty.", true);
       return;
     }
+    const pm = ($("diningPaymentMethod") && $("diningPaymentMethod").value) || "";
+    if (pm === "Debit card" || pm === "Credit card") {
+      const err = validateCardPaymentFields("dining");
+      if (err) {
+        showStatus(err, true);
+        return;
+      }
+    }
     const paymentMethod = ($("diningPaymentMethod") && $("diningPaymentMethod").value) || "Credit card";
     const fallbackDiningId =
       state.dining && state.dining[0] && Number(state.dining[0].DiningID) > 0 ? Number(state.dining[0].DiningID) : 0;
@@ -1382,6 +1551,7 @@ function bindAppActions() {
         diningTotal += Number(item.price) * Number(item.qty);
       }
       state.diningCart = [];
+      clearCardPaymentFields("dining");
       const cp = $("diningCheckoutConfirmPanel");
       if (cp) cp.classList.add("hidden");
       renderDiningCart();
@@ -1443,6 +1613,14 @@ function bindAppActions() {
       showStatus("Your merch cart is empty.", true);
       return;
     }
+    const pmM = ($("merchPaymentMethod") && $("merchPaymentMethod").value) || "";
+    if (pmM === "Debit card" || pmM === "Credit card") {
+      const errM = validateCardPaymentFields("merch");
+      if (errM) {
+        showStatus(errM, true);
+        return;
+      }
+    }
     const paymentMethod = ($("merchPaymentMethod") && $("merchPaymentMethod").value) || "Credit card";
     const merchOrderIds = [];
     let merchTotal = 0;
@@ -1461,6 +1639,7 @@ function bindAppActions() {
         merchTotal += Number(item.price) * Number(item.qty);
       }
       state.merchCart = [];
+      clearCardPaymentFields("merch");
       const mp = $("merchCheckoutConfirmPanel");
       if (mp) mp.classList.add("hidden");
       renderMerchCart();
@@ -1533,6 +1712,7 @@ async function bootApp() {
     showAuth(false);
     await fullRefresh();
     syncTicketFormForPlan();
+    setVisitorDateMinAttributes();
     setTab("account");
   } catch (err) {
     clearToken();
@@ -1543,6 +1723,7 @@ async function bootApp() {
 
 bindAuthForms();
 bindAppActions();
+initVisitorPaymentsAndDates();
 updateTicketPricingPreview();
 syncTicketFormForPlan();
 setDiningShopView("dining");

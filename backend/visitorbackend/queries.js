@@ -1429,6 +1429,18 @@ async function mostPopularAreasByReviews() {
   return rows;
 }
 
+/** Server-side guard: date string YYYY-MM-DD must be on or after MySQL CURDATE(). */
+async function isDateOnOrAfterCurdate(dateStr) {
+  try {
+    const s = String(dateStr).trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    const [rows] = await pool.execute(`SELECT (CAST(? AS DATE) >= CURDATE()) AS ok`, [s]);
+    return Boolean(rows[0] && rows[0].ok);
+  } catch {
+    return false;
+  }
+}
+
 async function visitorTotalSpentReport(VisitorID) {
   const [mineRows] = await pool.execute(
     `SELECT
@@ -1458,6 +1470,7 @@ async function visitorTotalSpentReport(VisitorID) {
 
 module.exports = {
   computeTicketPurchaseExpiryDate,
+  isDateOnOrAfterCurdate,
   ensureVisitorPortalSchema,
   createVisitor,
   getVisitorByEmail,

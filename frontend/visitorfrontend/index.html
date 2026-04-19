@@ -386,7 +386,7 @@
         background: rgba(15, 15, 18, 0.8);
       }
       .merch-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 10px; }
-      .attraction-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-top: 12px; }
+      .attraction-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); margin-top: 12px; }
       .attraction-card {
         position: relative;
         border: 1px solid rgba(255, 255, 255, 0.12);
@@ -394,35 +394,62 @@
         overflow: hidden;
         background: rgba(10, 10, 14, 0.92);
       }
+      .attraction-media {
+        position: relative;
+        width: 100%;
+      }
+      .attraction-image-frame {
+        width: 100%;
+        height: min(52vw, 400px);
+        min-height: 300px;
+      }
+      .attraction-image-frame .generated-art {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
       .attraction-image {
         width: 100%;
-        height: 200px;
+        height: 100%;
         object-fit: cover;
         display: block;
       }
       .attraction-name {
-        padding: 10px;
+        padding: 12px;
         text-align: center;
         font-weight: 600;
       }
       .attraction-overlay {
         position: absolute;
         inset: 0;
-        padding: 12px;
-        display: grid;
-        align-content: end;
-        gap: 4px;
-        background: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.9));
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        background: linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.88));
         opacity: 0;
         transition: opacity 180ms ease-in-out;
         pointer-events: none;
+        box-sizing: border-box;
+      }
+      .attraction-overlay-inner {
+        max-height: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        box-sizing: border-box;
       }
       .attraction-card:hover .attraction-overlay,
       .attraction-card:focus-within .attraction-overlay {
         opacity: 1;
+        pointer-events: auto;
       }
-      .attraction-overlay p { margin: 0; font-size: 13px; }
-      .event-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); margin-top: 10px; }
+      .attraction-overlay p { margin: 0; font-size: 13px; line-height: 1.45; word-wrap: break-word; }
+      .event-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); margin-top: 10px; }
       .event-card {
         position: relative;
         border: 1px solid rgba(255, 255, 255, 0.12);
@@ -430,34 +457,61 @@
         overflow: hidden;
         background: rgba(10, 10, 14, 0.92);
       }
+      .event-media {
+        position: relative;
+        width: 100%;
+      }
+      .event-image-frame {
+        width: 100%;
+        height: min(52vw, 400px);
+        min-height: 300px;
+      }
+      .event-image-frame .generated-art {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
       .event-image {
         width: 100%;
-        height: 200px;
+        height: 100%;
         object-fit: cover;
         display: block;
       }
       .event-name {
-        padding: 10px;
+        padding: 12px;
         text-align: center;
         font-weight: 600;
       }
       .event-overlay {
         position: absolute;
         inset: 0;
-        padding: 12px;
-        display: grid;
-        align-content: end;
-        gap: 4px;
-        background: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.9));
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        background: linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.88));
         opacity: 0;
         transition: opacity 180ms ease-in-out;
         pointer-events: none;
+        box-sizing: border-box;
+      }
+      .event-overlay-inner {
+        max-height: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        box-sizing: border-box;
       }
       .event-card:hover .event-overlay,
       .event-card:focus-within .event-overlay {
         opacity: 1;
+        pointer-events: auto;
       }
-      .event-overlay p { margin: 0; font-size: 13px; }
+      .event-overlay p { margin: 0; font-size: 13px; line-height: 1.45; word-wrap: break-word; }
       .merch-card {
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 12px;
@@ -740,6 +794,17 @@
                   <option value="Credit card" selected>Credit card</option>
                 </select>
               </label>
+              <div id="ticketCardFields" class="visitor-card-fields" style="display:grid;gap:10px;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);">
+                <span style="font-weight:600;">Card details</span>
+                <label>Name on card <input id="ticketCardName" type="text" autocomplete="cc-name" placeholder="As shown on card" required /></label>
+                <label>Card number <input id="ticketCardNumber" type="text" inputmode="numeric" autocomplete="cc-number" maxlength="23" placeholder="4242 4242 4242 4242" required /></label>
+                <div class="row" style="align-items:flex-end;">
+                  <label>Exp. month <select id="ticketCardExpMonth" required></select></label>
+                  <label>Exp. year <select id="ticketCardExpYear" required></select></label>
+                  <label>CVV <input id="ticketCardCvv" type="password" inputmode="numeric" maxlength="4" autocomplete="cc-csc" placeholder="•••" required /></label>
+                </div>
+                <p class="hint" style="margin:0;">Card data is validated in your browser only; the server stores the payment method label, not your full card number.</p>
+              </div>
               <button class="btn btn-primary" type="submit">Pay and issue ticket</button>
             </form>
             <form id="reservationForm" class="panel grid">
@@ -843,6 +908,16 @@
                     <option value="Credit card" selected>Credit card</option>
                   </select>
                 </label>
+                <div id="diningCardFields" class="visitor-card-fields" style="display:grid;gap:10px;margin-top:10px;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);">
+                  <span style="font-weight:600;">Card details</span>
+                  <label>Name on card <input id="diningCardName" type="text" autocomplete="cc-name" required /></label>
+                  <label>Card number <input id="diningCardNumber" type="text" inputmode="numeric" maxlength="23" autocomplete="cc-number" required /></label>
+                  <div class="row" style="align-items:flex-end;">
+                    <label>Exp. month <select id="diningCardExpMonth" required></select></label>
+                    <label>Exp. year <select id="diningCardExpYear" required></select></label>
+                    <label>CVV <input id="diningCardCvv" type="password" inputmode="numeric" maxlength="4" autocomplete="cc-csc" required /></label>
+                  </div>
+                </div>
                 <div class="row" style="margin-top: 12px; gap: 8px; flex-wrap: wrap;">
                   <button type="button" id="btnPayDiningCartOrder" class="btn btn-primary">Pay dining order</button>
                   <button type="button" id="btnDiningCheckoutCancel" class="btn">Cancel</button>
@@ -904,6 +979,16 @@
                     <option value="Credit card" selected>Credit card</option>
                   </select>
                 </label>
+                <div id="merchCardFields" class="visitor-card-fields" style="display:grid;gap:10px;margin-top:10px;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);">
+                  <span style="font-weight:600;">Card details</span>
+                  <label>Name on card <input id="merchCardName" type="text" autocomplete="cc-name" required /></label>
+                  <label>Card number <input id="merchCardNumber" type="text" inputmode="numeric" maxlength="23" autocomplete="cc-number" required /></label>
+                  <div class="row" style="align-items:flex-end;">
+                    <label>Exp. month <select id="merchCardExpMonth" required></select></label>
+                    <label>Exp. year <select id="merchCardExpYear" required></select></label>
+                    <label>CVV <input id="merchCardCvv" type="password" inputmode="numeric" maxlength="4" autocomplete="cc-csc" required /></label>
+                  </div>
+                </div>
                 <div class="row" style="margin-top: 12px; gap: 8px; flex-wrap: wrap;">
                   <button type="button" id="btnPayMerchCartOrder" class="btn btn-primary">Pay merchandise order</button>
                   <button type="button" id="btnMerchCheckoutCancel" class="btn">Cancel</button>
