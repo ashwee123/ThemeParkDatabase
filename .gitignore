@@ -1,2 +1,6 @@
-backend/visitorbackend/node_modules/
-backend/visitorbackend/.env
+node_modules/
+**/node_modules/
+.env
+**/.env
+rm -r --cached backend/homepageBackend/node_modules*/.env.example
+.DS_Store
