@@ -236,22 +236,24 @@ const addStore = (retailName, areaID, callback) => {
     db.query(sql, [retailName, areaID], callback);
 };
 
-const getStores = (callback) => {
+const getStores = (areaID, callback) => {
     const sql = `
         SELECT RetailID, RetailName, AreaID
         FROM RetailPlace
+        WHERE AreaID = ?
         ORDER BY RetailID ASC
     `;
-    db.query(sql, callback);
+    db.query(sql, [areaID], callback);
 };
 
-const updateStoreName = (retailID, retailName, callback) => {
+const updateStoreName = (retailID, retailName, areaID, callback) => {
     const sql = `
         UPDATE RetailPlace
         SET RetailName = ?
         WHERE RetailID = ?
+        AND AreaID = ?
     `;
-    db.query(sql, [retailName, retailID], callback);
+    db.query(sql, [retailName, retailID, areaID], callback);
 };
 
 // -------------------------------------------------------
