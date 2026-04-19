@@ -174,7 +174,7 @@ module.exports = function registerRoutes(req, res, url, sendJSON, parseBody) {
         // -------------------------------------------------------
 
         } else if (path === "/stores" && req.method === "GET") {
-            queries.getStores((err, results) => {
+            queries.getStores(areaID, (err, results) => {
                 if (err) return sendJSON(res, 500, { error: err.message });
                 sendJSON(res, 200, results);
             });
@@ -183,8 +183,11 @@ module.exports = function registerRoutes(req, res, url, sendJSON, parseBody) {
             parseBody(req, (body) => {
                 if (!body) return sendJSON(res, 400, { error: "Invalid request body" });
                 const { retailID, retailName } = body;
-                queries.updateStoreName(retailID, retailName, (err) => {
+                queries.updateStoreName(retailID, retailName, areaID, (err, results) => {
                     if (err) return sendJSON(res, 500, { error: err.message });
+                    if (!results || results.affectedRows === 0) {
+                        return sendJSON(res, 403, { error: "Store not in your area" });
+                    }
                     sendJSON(res, 200, { message: "Store name updated successfully" });
                 });
             });
