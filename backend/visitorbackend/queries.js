@@ -390,6 +390,225 @@ async function listParks() {
   return rows;
 }
 
+const DEFAULT_VISITOR_PARK_DISPLAY = "Nightmare Nexus Main Park";
+
+function hashStringSeed(str) {
+  let h = 0;
+  const s = String(str || "");
+  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+/** Curated hover copy aligned with `visitor_portal_area_content_seed` where attractions match. */
+const ATTRACTION_HOVER_DETAIL_BY_NAME = {
+  "Escape the Backrooms": {
+    Description: "Navigate endless liminal corridors and find the exit before the lights fail.",
+    HeightRequirementCm: 120,
+    DurationMinutes: 9,
+    ThrillLevel: "High",
+    LocationHint: "Uncanny Valley East Wing",
+  },
+  "Alternate Invasion": {
+    Description: "Reality fractures as alternate selves invade the city.",
+    HeightRequirementCm: 115,
+    DurationMinutes: 8,
+    ThrillLevel: "High",
+    LocationHint: "Uncanny Valley Transit Tunnel",
+  },
+  "The Offering": {
+    Description: "Witness a midnight offering deep in the ceremonial grounds.",
+    HeightRequirementCm: 120,
+    DurationMinutes: 8,
+    ThrillLevel: "High",
+    LocationHint: "Bloodmoon Inner Circle",
+  },
+  "Forest of Whispers": {
+    Description: "A torch-lit trek where whispers follow every step.",
+    HeightRequirementCm: 110,
+    DurationMinutes: 10,
+    ThrillLevel: "High",
+    LocationHint: "Bloodmoon Forest Path",
+  },
+  "AI Override": {
+    Description: "A rogue AI takes command of life support systems—can you regain control?",
+    HeightRequirementCm: 120,
+    DurationMinutes: 8,
+    ThrillLevel: "High",
+    LocationHint: "Space Station Core",
+  },
+  "Containment Breach": {
+    Description: "Containment fails and the creature escapes; evacuate through sealed corridors.",
+    HeightRequirementCm: 125,
+    DurationMinutes: 9,
+    ThrillLevel: "Extreme",
+    LocationHint: "Bio-Lab Sector",
+  },
+  "Zero-Gravity Situation": {
+    Description: "Simulated zero gravity with catastrophic malfunctions—strap in tight.",
+    HeightRequirementCm: 120,
+    DurationMinutes: 7,
+    ThrillLevel: "High",
+    LocationHint: "Orbital Ring",
+  },
+  "Watchtower Drop": {
+    Description: "A vertical drop from the ranger watchtower with blackout moments.",
+    HeightRequirementCm: 130,
+    DurationMinutes: 2,
+    ThrillLevel: "Extreme",
+    LocationHint: "Camp Ridge",
+  },
+  "Cryptid Hunt": {
+    Description: "A nighttime hunt for creatures in dense forest—stay with your group.",
+    HeightRequirementCm: 120,
+    DurationMinutes: 9,
+    ThrillLevel: "High",
+    LocationHint: "Blackwood Trailhead",
+  },
+  "Trail Tour": {
+    Description: "A scenic tour that turns into a survival route when the trail shifts.",
+    HeightRequirementCm: 100,
+    DurationMinutes: 11,
+    ThrillLevel: "Medium",
+    LocationHint: "North Trail Loop",
+  },
+  "Lake Terror": {
+    Description: "A peaceful lake ride interrupted by unknown movement beneath the hull.",
+    HeightRequirementCm: 110,
+    DurationMinutes: 8,
+    ThrillLevel: "High",
+    LocationHint: "Blackwood Lakefront",
+  },
+  "Psych Ward Tour": {
+    Description: "A guided walk through a ward with no clear exit and shifting rooms.",
+    HeightRequirementCm: 115,
+    DurationMinutes: 8,
+    ThrillLevel: "High",
+    LocationHint: "Dead End Clinic",
+  },
+  "Midnight Stalker": {
+    Description: "Stay hidden while a killer roams the block—silence is survival.",
+    HeightRequirementCm: 120,
+    DurationMinutes: 9,
+    ThrillLevel: "High",
+    LocationHint: "Midnight Avenue",
+  },
+  "Final Girl: The Chase": {
+    Description: "A chase sequence where you must keep moving—no standing still.",
+    HeightRequirementCm: 120,
+    DurationMinutes: 7,
+    ThrillLevel: "Extreme",
+    LocationHint: "Final Street",
+  },
+  "Outbreak: Day Zero": {
+    Description: "Patient zero escapes and the ward falls—seal the doors or run.",
+    HeightRequirementCm: 120,
+    DurationMinutes: 8,
+    ThrillLevel: "High",
+    LocationHint: "Isolation Block A",
+  },
+  "Evacuation Protocol": {
+    Description: "Attempt evacuation while systems collapse around you.",
+    HeightRequirementCm: 120,
+    DurationMinutes: 9,
+    ThrillLevel: "High",
+    LocationHint: "Emergency Corridor",
+  },
+  "Containment Collapse": {
+    Description: "Containment barriers fail one by one—reach the exit before lockdown.",
+    HeightRequirementCm: 125,
+    DurationMinutes: 8,
+    ThrillLevel: "Extreme",
+    LocationHint: "Biohazard Gate",
+  },
+  "Last Stand Barricade": {
+    Description: "Defend the final barricade against waves of infected.",
+    HeightRequirementCm: 120,
+    DurationMinutes: 9,
+    ThrillLevel: "High",
+    LocationHint: "Ward Perimeter",
+  },
+};
+
+function generatedAttractionFallback(attractionName) {
+  const h = hashStringSeed(attractionName);
+  const heights = [0, 100, 105, 110, 115, 120, 125, 130];
+  const thrills = ["Low", "Medium", "High", "Extreme"];
+  return {
+    Description: `${attractionName}: a full-sensory horror experience—expect tight spaces, loud audio, and strobe effects.`,
+    HeightRequirementCm: heights[h % heights.length],
+    DurationMinutes: 6 + (h % 9),
+    ThrillLevel: thrills[h % 4],
+    LocationHint: "Check the park map at the nearest guest services kiosk.",
+  };
+}
+
+function enrichAttractionVisitorRow(row) {
+  const name = String(row.AttractionName || "");
+  const base = ATTRACTION_HOVER_DETAIL_BY_NAME[name] || generatedAttractionFallback(name);
+  const rawThrill = row.ThrillLevel || base.ThrillLevel;
+  const thrillOk = ["Low", "Medium", "High", "Extreme"].includes(String(rawThrill)) ? String(rawThrill) : base.ThrillLevel;
+  const desc =
+    row.Description != null && String(row.Description).trim() !== "" ? String(row.Description).trim() : base.Description;
+  const height = row.HeightRequirementCm != null ? row.HeightRequirementCm : base.HeightRequirementCm;
+  const duration = row.DurationMinutes != null ? row.DurationMinutes : base.DurationMinutes;
+  const hint = row.LocationHint != null && String(row.LocationHint).trim() !== "" ? String(row.LocationHint).trim() : base.LocationHint;
+  const wait = row.WaitTimeMinutes != null && !Number.isNaN(Number(row.WaitTimeMinutes)) ? row.WaitTimeMinutes : 12 + (hashStringSeed(name) % 55);
+  const severity =
+    row.SeverityLevel != null && String(row.SeverityLevel).trim() !== ""
+      ? row.SeverityLevel
+      : ["Mild", "Moderate", "High alert"][hashStringSeed(name) % 3];
+  return {
+    ...row,
+    Description: desc,
+    HeightRequirementCm: height,
+    DurationMinutes: duration,
+    ThrillLevel: thrillOk,
+    LocationHint: hint,
+    Status: row.Status && String(row.Status).trim() ? row.Status : "Open",
+    WaitTimeMinutes: wait,
+    SeverityLevel: severity,
+    AreaName: row.AreaName && String(row.AreaName).trim() ? row.AreaName : "Park grounds",
+    ParkName: row.ParkName && String(row.ParkName).trim() ? row.ParkName : DEFAULT_VISITOR_PARK_DISPLAY,
+  };
+}
+
+const EVENT_VENUE_HINT_BY_NAME = {
+  "Broadcast Hijack": "Uncanny Valley Broadcast Hall",
+  "Body Count": "District Courtyard",
+  "Camper Safety Orientation": "Camp Assembly Hall",
+  "Emergency Broadcast Live": "Broadcast Room",
+  "Execution Alley": "Execution Alley Stage",
+  "Harvest Festival": "Bloodmoon Village Square",
+  "Looping Day": "Uncanny Valley Theater",
+  "Pastor John's Sermon": "Bloodmoon Chapel",
+  "Smile Protocol": "Uncanny Valley Main Plaza",
+  "The Last Transmission": "Comms Deck",
+};
+
+function enrichEventVisitorRow(row) {
+  const name = String(row.EventName || "Special event");
+  const h = hashStringSeed(name);
+  const park = row.ParkName && String(row.ParkName).trim() ? row.ParkName : DEFAULT_VISITOR_PARK_DISPLAY;
+  const desc =
+    row.EventDescription != null && String(row.EventDescription).trim() !== ""
+      ? String(row.EventDescription).trim()
+      : `${name}: an evening show with practical effects, low visibility sections, and sudden sound cues.`;
+  const venue = EVENT_VENUE_HINT_BY_NAME[name] || "Listed venue on your ticket or main amphitheater";
+  const start = row.StartTime || "19:00:00";
+  const end = row.EndTime || "19:30:00";
+  const runtime = 25 + (h % 35);
+  return {
+    ...row,
+    EventDescription: desc,
+    ParkName: park,
+    EventDate: row.EventDate || toISODate(new Date()),
+    StartTime: start,
+    EndTime: end,
+    RuntimeMinutes: runtime,
+    VenueHint: venue,
+  };
+}
+
 async function listAttractionsWithDetails() {
   /* Rides / non-shows only — rows with AttractionType = 'Show' appear under /api/events instead. */
   const allowedAttractionNames = [
@@ -436,11 +655,11 @@ async function listAttractionsWithDetails() {
      LEFT JOIN visitor_park p ON p.ParkID = d.ParkID
      WHERE a.AttractionName IN (${placeholders})
        AND a.AttractionType <> 'Show'
-     ORDER BY a.AttractionName`
+     ORDER BY ar.AreaName, a.AttractionName, a.AttractionID`
     ,
     allowedAttractionNames
   );
-  return rows;
+  return rows.map(enrichAttractionVisitorRow);
 }
 
 async function listSpecialEvents() {
@@ -489,7 +708,7 @@ async function listSpecialEvents() {
     allowedShowNames
   );
 
-  return [...manualRows, ...showRows];
+  return [...manualRows, ...showRows].map(enrichEventVisitorRow);
 }
 
 async function listDiningOptions() {

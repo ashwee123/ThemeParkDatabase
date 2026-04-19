@@ -85,6 +85,14 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
+/** Short plain-text snippet for hover overlays (truncate then escape). */
+function overlaySnippet(text, maxLen) {
+  const s = String(text ?? "").trim();
+  if (!s) return "—";
+  const t = s.length <= maxLen ? s : `${s.slice(0, Math.max(0, maxLen - 1))}…`;
+  return escapeHtml(t);
+}
+
 function buildZoneFilterSelects() {
   ["diningZoneFilter", "merchZoneFilter"].forEach((id) => {
     const el = $(id);
@@ -284,6 +292,45 @@ function fillSelect(id, items, valueKey, labelKey, includeBlank = false) {
   }
 }
 
+/** Feedback: one option per attraction name, grouped by `AreaName` (zone) from the database. */
+function fillFeedbackAttractionSelect(attractions) {
+  const sel = $("feedbackAttraction");
+  if (!sel) return;
+  const unique = dedupeAttractionsByNameStable(attractions);
+  unique.sort((a, b) => {
+    const za = String(a.AreaName || "Other").trim() || "Other";
+    const zb = String(b.AreaName || "Other").trim() || "Other";
+    if (za === "Entrance" && zb !== "Entrance") return -1;
+    if (zb === "Entrance" && za !== "Entrance") return 1;
+    const zcmp = za.localeCompare(zb);
+    if (zcmp !== 0) return zcmp;
+    return String(a.AttractionName || "").localeCompare(String(b.AttractionName || ""));
+  });
+  const byZone = new Map();
+  for (const a of unique) {
+    const zone = String(a.AreaName || "Other").trim() || "Other";
+    if (!byZone.has(zone)) byZone.set(zone, []);
+    byZone.get(zone).push(a);
+  }
+  sel.innerHTML = `<option value="">-- Select --</option>`;
+  const zones = [...byZone.keys()].sort((a, b) => {
+    if (a === "Entrance") return -1;
+    if (b === "Entrance") return 1;
+    return a.localeCompare(b);
+  });
+  for (const zone of zones) {
+    const og = document.createElement("optgroup");
+    og.label = zone;
+    for (const a of byZone.get(zone)) {
+      const opt = document.createElement("option");
+      opt.value = String(a.AttractionID);
+      opt.textContent = a.AttractionName;
+      og.appendChild(opt);
+    }
+    sel.appendChild(og);
+  }
+}
+
 function updateTicketPricingPreview() {
   const category = $("ticketCategory").value || "General";
   const plan = $("ticketPlan").value || "SingleDay";
@@ -444,6 +491,22 @@ function dedupeAttractions(rows) {
     out.push(row);
   }
   return out;
+}
+
+/** One row per attraction name; if the API returns duplicate names, keep the lowest AttractionID (stable FK). */
+function dedupeAttractionsByNameStable(rows) {
+  const byKey = new Map();
+  for (const r of rows || []) {
+    const name = String(r.AttractionName || "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    const id = Number(r.AttractionID);
+    const prev = byKey.get(key);
+    if (!prev || (Number.isFinite(id) && (!Number.isFinite(Number(prev.AttractionID)) || id < Number(prev.AttractionID)))) {
+      byKey.set(key, r);
+    }
+  }
+  return [...byKey.values()];
 }
 
 function dedupeEvents(rows) {
@@ -744,7 +807,6 @@ function renderMerchCart() {
   if (!state.merchCart.length) {
     root.innerHTML = `<p class="hint" style="margin:0;">Your cart is empty.</p>`;
     $("merchCartTotal").textContent = "$0.00";
-    renderCombinedCartSummary();
     return;
   }
 
@@ -766,7 +828,6 @@ function renderMerchCart() {
     )
     .join("");
   $("merchCartTotal").textContent = `$${cartTotal().toFixed(2)}`;
-  renderCombinedCartSummary();
 }
 
 function addToMerchCart(item) {
@@ -800,7 +861,6 @@ function renderDiningCart() {
   if (!state.diningCart.length) {
     root.innerHTML = `<p class="hint" style="margin:0;">Your dining cart is empty.</p>`;
     $("diningCartTotal").textContent = "$0.00";
-    renderCombinedCartSummary();
     return;
   }
   root.innerHTML = state.diningCart
@@ -819,7 +879,6 @@ function renderDiningCart() {
     </div>`)
     .join("");
   $("diningCartTotal").textContent = `$${diningCartTotal().toFixed(2)}`;
-  renderCombinedCartSummary();
 }
 
 function addToDiningCart(item) {
@@ -844,45 +903,6 @@ function removeDiningCartItem(key) {
   renderDiningCart();
 }
 
-/** Always-visible summary of both carts (Dining & Shopping tab). */
-function renderCombinedCartSummary() {
-  const dinePrev = $("combinedDiningCartPreview");
-  const merchPrev = $("combinedMerchCartPreview");
-  const dineTot = $("combinedDiningCartTotal");
-  const merchTot = $("combinedMerchCartTotal");
-  if (!dinePrev || !merchPrev) return;
-
-  if (!state.diningCart.length) {
-    dinePrev.innerHTML = '<p class="hint" style="margin:0;">Nothing added yet.</p>';
-  } else {
-    dinePrev.innerHTML =
-      '<ul style="margin:0;padding-left:1.15rem;">' +
-      state.diningCart
-        .map(
-          (it) =>
-            `<li>${escapeHtml(it.name)} ×${it.qty} <span class="hint">($${(Number(it.price) * Number(it.qty)).toFixed(2)})</span></li>`
-        )
-        .join("") +
-      "</ul>";
-  }
-  if (dineTot) dineTot.textContent = `$${diningCartTotal().toFixed(2)}`;
-
-  if (!state.merchCart.length) {
-    merchPrev.innerHTML = '<p class="hint" style="margin:0;">Nothing added yet.</p>';
-  } else {
-    merchPrev.innerHTML =
-      '<ul style="margin:0;padding-left:1.15rem;">' +
-      state.merchCart
-        .map(
-          (it) =>
-            `<li>${escapeHtml(it.name)} ×${it.qty} <span class="hint">($${(Number(it.price) * Number(it.qty)).toFixed(2)})</span></li>`
-        )
-        .join("") +
-      "</ul>";
-  }
-  if (merchTot) merchTot.textContent = `$${cartTotal().toFixed(2)}`;
-}
-
 async function loadLookups(token) {
   const [areas, parks, attractions, events, dining, merchandise] = await Promise.all([
     api("/api/areas", { token }),
@@ -902,7 +922,7 @@ async function loadLookups(token) {
   fillSelect("itineraryAttraction", attractions, "AttractionID", "AttractionName", true);
   fillSelect("reservationAttraction", attractions, "AttractionID", "AttractionName", true);
   fillSelect("reservationDining", state.dining, "DiningID", "DiningName", true);
-  fillSelect("feedbackAttraction", attractions, "AttractionID", "AttractionName", true);
+  fillFeedbackAttractionSelect(attractions);
   fillSelect("diningOrderDining", state.dining, "DiningID", "DiningName", false);
   fillSelect("merchOrderItem", state.merchandise, "ItemID", "ItemName", false);
   preloadAttractionAndEventLinks(attractions, events);
@@ -958,11 +978,17 @@ async function renderAttractions() {
       </div>
       <div class="attraction-name">${a.AttractionName}</div>
       <div class="attraction-overlay">
-        <p><strong>Height:</strong> ${a.HeightRequirementCm || "-"} cm</p>
-        <p><strong>Duration:</strong> ${a.DurationMinutes || "-"} mins</p>
-        <p><strong>Thrill:</strong> ${a.ThrillLevel || "Medium"}</p>
-        <p><strong>Status:</strong> ${a.Status || "Unknown"}</p>
-        <p><strong>Wait:</strong> ${a.WaitTimeMinutes || 0} min</p>
+        <p><strong>Zone:</strong> ${overlaySnippet(a.AreaName, 48)}</p>
+        <p><strong>Height:</strong> ${
+          Number(a.HeightRequirementCm) > 0 ? `${escapeHtml(String(a.HeightRequirementCm))} cm minimum` : "No height minimum"
+        }</p>
+        <p><strong>Duration:</strong> ${escapeHtml(String(a.DurationMinutes ?? "—"))} min</p>
+        <p><strong>Thrill:</strong> ${escapeHtml(String(a.ThrillLevel || "Medium"))}</p>
+        <p><strong>Intensity:</strong> ${escapeHtml(String(a.SeverityLevel || "—"))}</p>
+        <p><strong>Status:</strong> ${escapeHtml(String(a.Status || "Open"))}</p>
+        <p><strong>Est. wait:</strong> ${escapeHtml(String(a.WaitTimeMinutes ?? "—"))} min</p>
+        <p><strong>Where:</strong> ${overlaySnippet(a.LocationHint, 56)}</p>
+        <p><strong>About:</strong> ${overlaySnippet(a.Description, 140)}</p>
       </div>
     </article>`
     )
@@ -993,10 +1019,14 @@ async function renderParksAndEvents() {
       </div>
       <div class="event-name">${e.EventName}</div>
       <div class="event-overlay">
-        <p><strong>Date:</strong> ${e.EventDate || "-"}</p>
-        <p><strong>Time:</strong> ${(e.StartTime || "-")}${e.EndTime ? ` - ${e.EndTime}` : ""}</p>
-        <p><strong>Park:</strong> ${e.ParkName || "-"}</p>
-        <p><strong>Details:</strong> ${e.EventDescription || "-"}</p>
+        <p><strong>Date:</strong> ${escapeHtml(String(e.EventDate || "—"))}</p>
+        <p><strong>Time:</strong> ${escapeHtml(String(e.StartTime || "—"))}${
+          e.EndTime ? ` – ${escapeHtml(String(e.EndTime))}` : ""
+        }</p>
+        <p><strong>Park:</strong> ${overlaySnippet(e.ParkName, 56)}</p>
+        <p><strong>Venue:</strong> ${overlaySnippet(e.VenueHint, 56)}</p>
+        <p><strong>Runtime:</strong> ${escapeHtml(String(e.RuntimeMinutes ?? "—"))} min</p>
+        <p><strong>Details:</strong> ${overlaySnippet(e.EventDescription, 160)}</p>
       </div>
     </article>`
     )
@@ -1048,7 +1078,6 @@ async function renderDiningAndMerch() {
   fillSelect("merchOrderItem", state.merchandise, "ItemID", "ItemName", false);
   renderDiningList();
   renderMerchList();
-  renderCombinedCartSummary();
 }
 
 async function renderOrders() {
