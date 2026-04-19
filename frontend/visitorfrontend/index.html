@@ -790,22 +790,23 @@
               <label class="ticket-multiday-field hidden">Number of days <select id="ticketMultiDayCount"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></label>
               <label>Payment method
                 <select id="ticketPaymentMethod" required>
+                  <option value="">Select debit or credit…</option>
                   <option value="Debit card">Debit card</option>
-                  <option value="Credit card" selected>Credit card</option>
+                  <option value="Credit card">Credit card</option>
                 </select>
               </label>
-              <div id="ticketCardFields" class="visitor-card-fields" style="display:grid;gap:10px;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);">
+              <div id="ticketCardFields" class="visitor-card-fields hidden" style="gap:10px;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);display:grid;">
                 <span style="font-weight:600;">Card details</span>
-                <label>Name on card <input id="ticketCardName" type="text" autocomplete="cc-name" placeholder="As shown on card" required /></label>
-                <label>Card number <input id="ticketCardNumber" type="text" inputmode="numeric" autocomplete="cc-number" maxlength="23" placeholder="4242 4242 4242 4242" required /></label>
+                <label>Name on card <input id="ticketCardName" type="text" autocomplete="cc-name" placeholder="As shown on card" /></label>
+                <label>Card number <input id="ticketCardNumber" type="text" inputmode="numeric" autocomplete="cc-number" maxlength="23" placeholder="4242 4242 4242 4242" /></label>
                 <div class="row" style="align-items:flex-end;">
-                  <label>Exp. month <select id="ticketCardExpMonth" required></select></label>
-                  <label>Exp. year <select id="ticketCardExpYear" required></select></label>
-                  <label>CVV <input id="ticketCardCvv" type="password" inputmode="numeric" maxlength="4" autocomplete="cc-csc" placeholder="•••" required /></label>
+                  <label>Exp. month <select id="ticketCardExpMonth"></select></label>
+                  <label>Exp. year <select id="ticketCardExpYear"></select></label>
+                  <label>CVV <input id="ticketCardCvv" type="password" inputmode="numeric" maxlength="4" autocomplete="cc-csc" placeholder="•••" /></label>
                 </div>
                 <p class="hint" style="margin:0;">Card data is validated in your browser only; the server stores the payment method label, not your full card number.</p>
               </div>
-              <button class="btn btn-primary" type="submit">Pay and issue ticket</button>
+              <button class="btn btn-primary" type="submit" id="btnPayTicket" disabled>Pay and issue ticket</button>
             </form>
             <form id="reservationForm" class="panel grid">
               <h3>Book reservation</h3>
@@ -904,22 +905,23 @@
                 <p class="hint" style="margin: 0 0 10px;">Choose a payment method, then confirm your order.</p>
                 <label>Payment method
                   <select id="diningPaymentMethod" required>
+                    <option value="">Select debit or credit…</option>
                     <option value="Debit card">Debit card</option>
-                    <option value="Credit card" selected>Credit card</option>
+                    <option value="Credit card">Credit card</option>
                   </select>
                 </label>
-                <div id="diningCardFields" class="visitor-card-fields" style="display:grid;gap:10px;margin-top:10px;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);">
+                <div id="diningCardFields" class="visitor-card-fields hidden" style="gap:10px;margin-top:10px;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);display:grid;">
                   <span style="font-weight:600;">Card details</span>
-                  <label>Name on card <input id="diningCardName" type="text" autocomplete="cc-name" required /></label>
-                  <label>Card number <input id="diningCardNumber" type="text" inputmode="numeric" maxlength="23" autocomplete="cc-number" required /></label>
+                  <label>Name on card <input id="diningCardName" type="text" autocomplete="cc-name" /></label>
+                  <label>Card number <input id="diningCardNumber" type="text" inputmode="numeric" maxlength="23" autocomplete="cc-number" /></label>
                   <div class="row" style="align-items:flex-end;">
-                    <label>Exp. month <select id="diningCardExpMonth" required></select></label>
-                    <label>Exp. year <select id="diningCardExpYear" required></select></label>
-                    <label>CVV <input id="diningCardCvv" type="password" inputmode="numeric" maxlength="4" autocomplete="cc-csc" required /></label>
+                    <label>Exp. month <select id="diningCardExpMonth"></select></label>
+                    <label>Exp. year <select id="diningCardExpYear"></select></label>
+                    <label>CVV <input id="diningCardCvv" type="password" inputmode="numeric" maxlength="4" autocomplete="cc-csc" /></label>
                   </div>
                 </div>
                 <div class="row" style="margin-top: 12px; gap: 8px; flex-wrap: wrap;">
-                  <button type="button" id="btnPayDiningCartOrder" class="btn btn-primary">Pay dining order</button>
+                  <button type="button" id="btnPayDiningCartOrder" class="btn btn-primary" disabled>Pay dining order</button>
                   <button type="button" id="btnDiningCheckoutCancel" class="btn">Cancel</button>
                 </div>
               </div>
@@ -975,22 +977,23 @@
                 <p class="hint" style="margin: 0 0 10px;">Choose a payment method, then confirm your order.</p>
                 <label>Payment method
                   <select id="merchPaymentMethod" required>
+                    <option value="">Select debit or credit…</option>
                     <option value="Debit card">Debit card</option>
-                    <option value="Credit card" selected>Credit card</option>
+                    <option value="Credit card">Credit card</option>
                   </select>
                 </label>
-                <div id="merchCardFields" class="visitor-card-fields" style="display:grid;gap:10px;margin-top:10px;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);">
+                <div id="merchCardFields" class="visitor-card-fields hidden" style="gap:10px;margin-top:10px;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.2);display:grid;">
                   <span style="font-weight:600;">Card details</span>
-                  <label>Name on card <input id="merchCardName" type="text" autocomplete="cc-name" required /></label>
-                  <label>Card number <input id="merchCardNumber" type="text" inputmode="numeric" maxlength="23" autocomplete="cc-number" required /></label>
+                  <label>Name on card <input id="merchCardName" type="text" autocomplete="cc-name" /></label>
+                  <label>Card number <input id="merchCardNumber" type="text" inputmode="numeric" maxlength="23" autocomplete="cc-number" /></label>
                   <div class="row" style="align-items:flex-end;">
-                    <label>Exp. month <select id="merchCardExpMonth" required></select></label>
-                    <label>Exp. year <select id="merchCardExpYear" required></select></label>
-                    <label>CVV <input id="merchCardCvv" type="password" inputmode="numeric" maxlength="4" autocomplete="cc-csc" required /></label>
+                    <label>Exp. month <select id="merchCardExpMonth"></select></label>
+                    <label>Exp. year <select id="merchCardExpYear"></select></label>
+                    <label>CVV <input id="merchCardCvv" type="password" inputmode="numeric" maxlength="4" autocomplete="cc-csc" /></label>
                   </div>
                 </div>
                 <div class="row" style="margin-top: 12px; gap: 8px; flex-wrap: wrap;">
-                  <button type="button" id="btnPayMerchCartOrder" class="btn btn-primary">Pay merchandise order</button>
+                  <button type="button" id="btnPayMerchCartOrder" class="btn btn-primary" disabled>Pay merchandise order</button>
                   <button type="button" id="btnMerchCheckoutCancel" class="btn">Cancel</button>
                 </div>
               </div>

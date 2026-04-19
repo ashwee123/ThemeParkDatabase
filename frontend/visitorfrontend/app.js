@@ -182,11 +182,64 @@ function clearCardPaymentFields(prefix) {
   });
 }
 
+function isCardPaymentMethod(pm) {
+  return pm === "Debit card" || pm === "Credit card";
+}
+
+/** Show card block and enable Pay only when a card method is chosen and card fields validate. */
+function refreshPaymentGate(prefix) {
+  const sel = $(`${prefix}PaymentMethod`);
+  const pm = sel && String(sel.value || "").trim();
+  const cardWrap = $(`${prefix}CardFields`);
+  const btn =
+    prefix === "ticket"
+      ? $("btnPayTicket")
+      : prefix === "dining"
+        ? $("btnPayDiningCartOrder")
+        : $("btnPayMerchCartOrder");
+
+  if (!isCardPaymentMethod(pm)) {
+    if (cardWrap) cardWrap.classList.add("hidden");
+    if (btn) {
+      btn.disabled = true;
+      btn.setAttribute("aria-disabled", "true");
+    }
+    return;
+  }
+  if (cardWrap) cardWrap.classList.remove("hidden");
+  const cardOk = validateCardPaymentFields(prefix) === null;
+  if (btn) {
+    btn.disabled = !cardOk;
+    if (cardOk) btn.removeAttribute("aria-disabled");
+    else btn.setAttribute("aria-disabled", "true");
+  }
+}
+
+function wirePaymentMethodGates() {
+  ["ticket", "dining", "merch"].forEach((prefix) => {
+    const sel = $(`${prefix}PaymentMethod`);
+    if (sel) sel.addEventListener("change", () => refreshPaymentGate(prefix));
+    ["CardName", "CardNumber", "CardCvv"].forEach((suffix) => {
+      const el = $(`${prefix}${suffix}`);
+      if (!el) return;
+      el.addEventListener("input", () => refreshPaymentGate(prefix));
+      el.addEventListener("change", () => refreshPaymentGate(prefix));
+    });
+    ["CardExpMonth", "CardExpYear"].forEach((suffix) => {
+      const el = $(`${prefix}${suffix}`);
+      if (!el) return;
+      el.addEventListener("change", () => refreshPaymentGate(prefix));
+    });
+  });
+}
+
 function initVisitorPaymentsAndDates() {
   setVisitorDateMinAttributes();
   populateCardExpirySelects("ticket");
   populateCardExpirySelects("dining");
   populateCardExpirySelects("merch");
+  wirePaymentMethodGates();
+  ["ticket", "dining", "merch"].forEach((p) => refreshPaymentGate(p));
   ["ticketVisitDate", "reservationDate", "itineraryDate"].forEach((id) => {
     const el = $(id);
     if (!el) return;
@@ -487,6 +540,7 @@ function syncTicketFormForPlan() {
     visitInput.setAttribute("required", "required");
   }
   setVisitorDateMinAttributes();
+  refreshPaymentGate("ticket");
 }
 
 const HORROR_IMAGE_PROMPTS_BY_NAME = {
@@ -1349,8 +1403,14 @@ function bindAppActions() {
 
   $("ticketPurchaseForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if ($("btnPayTicket")?.disabled) return;
     const plan = $("ticketPlan").value;
     const visitDate = $("ticketVisitDate").value || null;
+    const pmTicket = ($("ticketPaymentMethod") && $("ticketPaymentMethod").value) || "";
+    if (!isCardPaymentMethod(pmTicket)) {
+      showStatus("Select debit or credit as your payment method.", true);
+      return;
+    }
     if (plan !== "SeasonPass") {
       if (!visitDate || !dateStrNotBeforeToday(visitDate)) {
         showStatus("Choose a visit date that is today or in the future.", true);
@@ -1381,6 +1441,7 @@ function bindAppActions() {
     showStatus("Ticket purchased.");
     e.target.reset();
     clearCardPaymentFields("ticket");
+    refreshPaymentGate("ticket");
     syncTicketFormForPlan();
     updateTicketPricingPreview();
     setVisitorDateMinAttributes();
@@ -1501,6 +1562,10 @@ function bindAppActions() {
     }
     const cp = $("diningCheckoutConfirmPanel");
     if (cp) {
+      const sel = $("diningPaymentMethod");
+      if (sel) sel.value = "";
+      clearCardPaymentFields("dining");
+      refreshPaymentGate("dining");
       cp.classList.remove("hidden");
       cp.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
@@ -1512,19 +1577,22 @@ function bindAppActions() {
   });
 
   $("btnPayDiningCartOrder")?.addEventListener("click", async () => {
+    if ($("btnPayDiningCartOrder")?.disabled) return;
     if (!state.diningCart.length) {
       showStatus("Your dining cart is empty.", true);
       return;
     }
     const pm = ($("diningPaymentMethod") && $("diningPaymentMethod").value) || "";
-    if (pm === "Debit card" || pm === "Credit card") {
-      const err = validateCardPaymentFields("dining");
-      if (err) {
-        showStatus(err, true);
-        return;
-      }
+    if (!isCardPaymentMethod(pm)) {
+      showStatus("Select debit or credit as your payment method.", true);
+      return;
     }
-    const paymentMethod = ($("diningPaymentMethod") && $("diningPaymentMethod").value) || "Credit card";
+    const err = validateCardPaymentFields("dining");
+    if (err) {
+      showStatus(err, true);
+      return;
+    }
+    const paymentMethod = pm;
     const fallbackDiningId =
       state.dining && state.dining[0] && Number(state.dining[0].DiningID) > 0 ? Number(state.dining[0].DiningID) : 0;
     const anyMissingDiningId = state.diningCart.some((it) => !Number(it.diningId));
@@ -1552,6 +1620,9 @@ function bindAppActions() {
       }
       state.diningCart = [];
       clearCardPaymentFields("dining");
+      const dpm = $("diningPaymentMethod");
+      if (dpm) dpm.value = "";
+      refreshPaymentGate("dining");
       const cp = $("diningCheckoutConfirmPanel");
       if (cp) cp.classList.add("hidden");
       renderDiningCart();
@@ -1598,6 +1669,10 @@ function bindAppActions() {
     }
     const mp = $("merchCheckoutConfirmPanel");
     if (mp) {
+      const sel = $("merchPaymentMethod");
+      if (sel) sel.value = "";
+      clearCardPaymentFields("merch");
+      refreshPaymentGate("merch");
       mp.classList.remove("hidden");
       mp.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
@@ -1609,19 +1684,22 @@ function bindAppActions() {
   });
 
   $("btnPayMerchCartOrder")?.addEventListener("click", async () => {
+    if ($("btnPayMerchCartOrder")?.disabled) return;
     if (!state.merchCart.length) {
       showStatus("Your merch cart is empty.", true);
       return;
     }
     const pmM = ($("merchPaymentMethod") && $("merchPaymentMethod").value) || "";
-    if (pmM === "Debit card" || pmM === "Credit card") {
-      const errM = validateCardPaymentFields("merch");
-      if (errM) {
-        showStatus(errM, true);
-        return;
-      }
+    if (!isCardPaymentMethod(pmM)) {
+      showStatus("Select debit or credit as your payment method.", true);
+      return;
     }
-    const paymentMethod = ($("merchPaymentMethod") && $("merchPaymentMethod").value) || "Credit card";
+    const errM = validateCardPaymentFields("merch");
+    if (errM) {
+      showStatus(errM, true);
+      return;
+    }
+    const paymentMethod = pmM;
     const merchOrderIds = [];
     let merchTotal = 0;
     try {
@@ -1640,6 +1718,9 @@ function bindAppActions() {
       }
       state.merchCart = [];
       clearCardPaymentFields("merch");
+      const mpm = $("merchPaymentMethod");
+      if (mpm) mpm.value = "";
+      refreshPaymentGate("merch");
       const mp = $("merchCheckoutConfirmPanel");
       if (mp) mp.classList.add("hidden");
       renderMerchCart();
