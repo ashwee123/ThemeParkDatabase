@@ -102,14 +102,34 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify({ error: "Missing email or password" }));
       }
 
-      const [rows] = await db.query(
-        "SELECT * FROM users WHERE Email = ?",
-        [email]
-      );
+      let rows;
+      try {
+        [rows] = await db.query("SELECT * FROM users WHERE Email = ?", [email]);
+      } catch (dbErr) {
+        const msg = String(dbErr && dbErr.message);
+        const missing =
+          msg.includes("doesn't exist") ||
+          msg.includes("Unknown table") ||
+          dbErr.code === "ER_NO_SUCH_TABLE";
+        console.error("Login DB error:", dbErr);
+        res.writeHead(missing ? 503 : 500);
+        return res.end(
+          JSON.stringify({
+            error: missing
+              ? "Staff login is not initialized. Run sql files/homepage_users_seed.sql on this database."
+              : "Database error during login.",
+          })
+        );
+      }
 
       if (!rows.length) {
         res.writeHead(401);
-        return res.end(JSON.stringify({ error: "No user found" }));
+        return res.end(
+          JSON.stringify({
+            error: "No user found",
+            hint: "Use a staff account from homepage_users_seed.sql (e.g. admin@nightmarenexus.com).",
+          })
+        );
       }
 
       const user = rows[0];
