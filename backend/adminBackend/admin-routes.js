@@ -181,3 +181,158 @@ export async function markAlertHandled(alertId) {
   );
   return result.affectedRows > 0;
 }
+
+const ATTRACTION_STATUSES = [
+  "Open",
+  "Closed",
+  "Restricted",
+  "NeedsMaintenance",
+  "UnderMaintenance",
+  "ClosedDueToWeather",
+];
+
+/** Visitor directory for admin oversight (no password hash). */
+export async function listVisitors({ q = "", limit = 200 } = {}) {
+  const lim = Math.min(500, Math.max(1, Number(limit) || 200));
+  const pool = getPool();
+  const term = `%${String(q || "").trim()}%`;
+  const hasTerm = String(q || "").trim().length > 0;
+  const cols = "VisitorID, Name, Email, Phone, Gender, Age, IsActive, CreatedAt";
+  const colsNoCreated = "VisitorID, Name, Email, Phone, Gender, Age, IsActive";
+  const sql = hasTerm
+    ? `SELECT ${cols} FROM visitor WHERE Name LIKE ? OR Email LIKE ? OR Phone LIKE ? ORDER BY VisitorID DESC LIMIT ?`
+    : `SELECT ${cols} FROM visitor ORDER BY VisitorID DESC LIMIT ?`;
+  const params = hasTerm ? [term, term, term, lim] : [lim];
+  let rows;
+  try {
+    [rows] = await pool.execute(sql, params);
+  } catch (e) {
+    if (!String(e.message || "").includes("Unknown column 'CreatedAt'")) throw e;
+    const sql2 = hasTerm
+      ? `SELECT ${colsNoCreated} FROM visitor WHERE Name LIKE ? OR Email LIKE ? OR Phone LIKE ? ORDER BY VisitorID DESC LIMIT ?`
+      : `SELECT ${colsNoCreated} FROM visitor ORDER BY VisitorID DESC LIMIT ?`;
+    [rows] = await pool.execute(sql2, params);
+  }
+  return rows.map((r) => ({
+    ...r,
+    CreatedAt: r.CreatedAt != null ? rowDateTime(r.CreatedAt) : null,
+  }));
+}
+
+export async function setVisitorActive(visitorId, isActive) {
+  const id = Number(visitorId);
+  if (!Number.isInteger(id) || id < 1) return false;
+  const bit = isActive ? 1 : 0;
+  const [result] = await getPool().execute("UPDATE visitor SET IsActive = ? WHERE VisitorID = ?", [bit, id]);
+  return result.affectedRows > 0;
+}
+
+export async function listTicketsAdmin(limit = 250) {
+  const lim = Math.min(500, Math.max(1, Number(limit) || 250));
+  const pool = getPool();
+  const baseSelect = `t.TicketNumber, t.TicketType, t.Price, t.IssueDate, t.ExpiryDate,
+       t.VisitorID, t.IsActive, v.Name AS VisitorName, v.Email AS VisitorEmail`;
+  const join = `FROM ticket t JOIN visitor v ON v.VisitorID = t.VisitorID`;
+  try {
+    const [rows] = await pool.execute(
+      `SELECT ${baseSelect.replace("t.TicketType", "t.TicketType, t.DiscountFor")} ${join}
+       ORDER BY t.TicketNumber DESC LIMIT ?`,
+      [lim]
+    );
+    return rows.map((r) => ({
+      ...r,
+      IssueDate: rowDate(r.IssueDate),
+      ExpiryDate: rowDate(r.ExpiryDate),
+      Price: r.Price != null ? Number(r.Price) : null,
+    }));
+  } catch (e) {
+    if (!String(e.message || "").includes("DiscountFor")) throw e;
+    const [rows] = await pool.execute(
+      `SELECT ${baseSelect} ${join} ORDER BY t.TicketNumber DESC LIMIT ?`,
+      [lim]
+    );
+    return rows.map((r) => ({
+      ...r,
+      DiscountFor: "None",
+      IssueDate: rowDate(r.IssueDate),
+      ExpiryDate: rowDate(r.ExpiryDate),
+      Price: r.Price != null ? Number(r.Price) : null,
+    }));
+  }
+}
+
+export async function listShiftsAdmin(limit = 200) {
+  const lim = Math.min(500, Math.max(1, Number(limit) || 200));
+  const [rows] = await getPool().execute(
+    `SELECT s.ShiftID, s.EmployeeID, e.Name AS EmployeeName, s.ShiftDate, s.StartTime, s.EndTime
+     FROM shift s
+     LEFT JOIN employee e ON e.EmployeeID = s.EmployeeID
+     ORDER BY s.ShiftDate DESC, s.ShiftID DESC
+     LIMIT ?`,
+    [lim]
+  );
+  return rows.map((r) => ({
+    ...r,
+    ShiftDate: rowDate(r.ShiftDate),
+    StartTime: r.StartTime != null ? String(r.StartTime).slice(0, 8) : null,
+    EndTime: r.EndTime != null ? String(r.EndTime).slice(0, 8) : null,
+  }));
+}
+
+export async function listNotificationLog(limit = 100) {
+  const lim = Math.min(300, Math.max(1, Number(limit) || 100));
+  const [rows] = await getPool().execute(
+    `SELECT n.NotificationID, n.ManagerID, n.ItemID, n.Message, n.CreatedAt,
+            ri.ItemName, rp.RetailName
+     FROM notificationlog n
+     LEFT JOIN retailitem ri ON ri.ItemID = n.ItemID
+     LEFT JOIN retailplace rp ON rp.RetailID = ri.RetailID
+     ORDER BY n.CreatedAt DESC
+     LIMIT ?`,
+    [lim]
+  );
+  return rows.map((r) => ({
+    ...r,
+    CreatedAt: rowDateTime(r.CreatedAt),
+  }));
+}
+
+export async function getReportSnapshot() {
+  const p = getPool();
+  const [
+    [[{ visitorsTotal }]],
+    [[{ visitorsActive }]],
+    [[{ ticketsTotal }]],
+    [[{ ticketsActive }]],
+    [[{ retailTxCount }]],
+    [[{ retailRevenue }]],
+    [[{ incidents90d }]],
+  ] = await Promise.all([
+    p.execute("SELECT COUNT(*) AS visitorsTotal FROM visitor"),
+    p.execute("SELECT COUNT(*) AS visitorsActive FROM visitor WHERE IsActive = 1"),
+    p.execute("SELECT COUNT(*) AS ticketsTotal FROM ticket"),
+    p.execute("SELECT COUNT(*) AS ticketsActive FROM ticket WHERE IsActive = 1"),
+    p.execute("SELECT COUNT(*) AS retailTxCount FROM transactionlog"),
+    p.execute("SELECT COALESCE(SUM(TotalCost), 0) AS retailRevenue FROM transactionlog"),
+    p.execute(
+      "SELECT COUNT(*) AS incidents90d FROM incidentreport WHERE ReportDate >= (CURRENT_DATE - INTERVAL 90 DAY)"
+    ),
+  ]);
+  return {
+    visitorsTotal,
+    visitorsActive,
+    ticketsTotal,
+    ticketsActive,
+    retailTxCount,
+    retailRevenue: retailRevenue != null ? Number(retailRevenue) : 0,
+    incidents90d,
+  };
+}
+
+export async function updateAttractionStatus(attractionId, status) {
+  const id = Number(attractionId);
+  if (!Number.isInteger(id) || id < 1) return false;
+  if (!ATTRACTION_STATUSES.includes(status)) return false;
+  const [result] = await getPool().execute("UPDATE attraction SET Status = ? WHERE AttractionID = ?", [status, id]);
+  return result.affectedRows > 0;
+}
