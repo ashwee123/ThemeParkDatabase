@@ -1,5 +1,5 @@
 // 🔥 IMPORTANT: replace with your actual Render backend URL
-const API = "https://your-backend.onrender.com";
+const API = "https://hrmanager-39yw.onrender.com/";
 
 /* ================= TAB SWITCHING ================= */
 document.querySelectorAll(".tab").forEach(btn => {
