@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In | Nightmare Nexus</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="auth-page">
+    <div class="noise"></div>
+    <main class="login-container">
+        <div class="card">
+            <h2 class="nexus-title">SIGN IN</h2>
+            <p class="nexus-subtitle">Enter your credentials to access your portal</p>
+            
+            <div class="input-group">
+                <label>EMAIL ADDRESS</label>
+                <input type="email" id="email" placeholder="hr@nightmarenexus.com">
+            </div>
+
+            <div class="input-group">
+                <label>PASSWORD</label>
+                <input type="password" id="password" placeholder="••••••••">
+            </div>
+
+            <button class="btn-nexus" onclick="login()">ENTER THE NEXUS</button>
+            
+            <div class="login-footer">
+                <span>Forgot Password?</span>
+                <span>Request Access</span>
+            </div>
+        </div>
+    </main>
+    <script src="app.js"></script>
+</body>
+</html>
