@@ -13,6 +13,14 @@ function getApiBase() {
 }
 
 const API = getApiBase();
+const API_ORIGIN = API.replace(/\/api$/, "");
+const IS_REMOTE_API = API.startsWith("http");
+const WAKEUP_RETRY_DELAYS_MS = [0, 1500, 3000, 5000, 8000];
+const BACKEND_WAKEUP_ERROR =
+  "Backend is waking up. Please wait a moment, then retry.";
+
+let apiReady = !IS_REMOTE_API;
+let apiWakePromise = null;
 
 function fetchCredentials() {
   return API.startsWith("http") ? "omit" : "same-origin";
@@ -35,6 +43,18 @@ function showToast(msg, err) {
   }, 3500);
 }
 
+function setBackendStatus(message, options = {}) {
+  const wrap = $("#backend-status");
+  const text = $("#backend-status-text");
+  const retryBtn = $("#btn-backend-retry");
+  if (!wrap || !text || !retryBtn) return;
+  const visible = !!options.visible;
+  wrap.classList.toggle("hidden", !visible);
+  wrap.classList.toggle("error", !!options.error);
+  text.textContent = message || "";
+  retryBtn.classList.toggle("hidden", !options.showRetry);
+}
+
 function escapeHtml(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -43,7 +63,63 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+function sleep(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function ping(url) {
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+      credentials: "omit",
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function ensureApiReady(force) {
+  if (!IS_REMOTE_API) return;
+  if (apiReady && !force) return;
+  if (apiWakePromise && !force) return apiWakePromise;
+  apiWakePromise = (async function () {
+    apiReady = false;
+    setBackendStatus("Connecting to backend service…", { visible: true });
+    for (let i = 0; i < WAKEUP_RETRY_DELAYS_MS.length; i += 1) {
+      if (WAKEUP_RETRY_DELAYS_MS[i] > 0) {
+        await sleep(WAKEUP_RETRY_DELAYS_MS[i]);
+      }
+      const [healthOk, summaryOk] = await Promise.all([
+        ping(API_ORIGIN + "/health"),
+        ping(API + "/summary"),
+      ]);
+      if (healthOk || summaryOk) {
+        apiReady = true;
+        setBackendStatus("", { visible: false });
+        return;
+      }
+    }
+    setBackendStatus(BACKEND_WAKEUP_ERROR, {
+      visible: true,
+      error: true,
+      showRetry: true,
+    });
+    throw new Error(BACKEND_WAKEUP_ERROR);
+  })();
+
+  try {
+    await apiWakePromise;
+  } finally {
+    apiWakePromise = null;
+  }
+}
+
 async function apiGet(path) {
+  await ensureApiReady(false);
   const res = await fetch(API + path, { credentials: fetchCredentials() });
   const text = await res.text();
   let data = null;
@@ -59,6 +135,7 @@ async function apiGet(path) {
 }
 
 async function apiPatch(path, body) {
+  await ensureApiReady(false);
   const opts = { method: "PATCH", credentials: fetchCredentials() };
   if (body !== undefined) {
     opts.headers = { "Content-Type": "application/json" };
@@ -73,6 +150,19 @@ async function apiPatch(path, body) {
   }
   if (!res.ok) throw new Error(data.error || res.statusText);
   return data;
+}
+
+const retryBackendBtn = $("#btn-backend-retry");
+if (retryBackendBtn) {
+  retryBackendBtn.addEventListener("click", function () {
+    ensureApiReady(true)
+      .then(function () {
+        return loadDashboard();
+      })
+      .catch(function (e) {
+        showToast(e.message, true);
+      });
+  });
 }
 
 function downloadCsv(filename, rows, columns) {

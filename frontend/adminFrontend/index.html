@@ -27,6 +27,10 @@
     <button type="button" class="tab" data-tab="security">Security</button>
   </nav>
   <main>
+    <div id="backend-status" class="backend-status hidden" role="status" aria-live="polite">
+      <span id="backend-status-text">Connecting to backend service…</span>
+      <button type="button" id="btn-backend-retry" class="btn btn-ghost btn-small hidden">Retry now</button>
+    </div>
     <section id="panel-dash" class="panel active" role="tabpanel">
       <div class="toolbar">
         <h2>Dashboard</h2>
