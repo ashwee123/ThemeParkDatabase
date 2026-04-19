@@ -807,6 +807,8 @@ function renderMerchCart() {
   if (!state.merchCart.length) {
     root.innerHTML = `<p class="hint" style="margin:0;">Your cart is empty.</p>`;
     $("merchCartTotal").textContent = "$0.00";
+    const mp = $("merchCheckoutConfirmPanel");
+    if (mp) mp.classList.add("hidden");
     return;
   }
 
@@ -861,6 +863,8 @@ function renderDiningCart() {
   if (!state.diningCart.length) {
     root.innerHTML = `<p class="hint" style="margin:0;">Your dining cart is empty.</p>`;
     $("diningCartTotal").textContent = "$0.00";
+    const cp = $("diningCheckoutConfirmPanel");
+    if (cp) cp.classList.add("hidden");
     return;
   }
   root.innerHTML = state.diningCart
@@ -923,8 +927,6 @@ async function loadLookups(token) {
   fillSelect("reservationAttraction", attractions, "AttractionID", "AttractionName", true);
   fillSelect("reservationDining", state.dining, "DiningID", "DiningName", true);
   fillFeedbackAttractionSelect(attractions);
-  fillSelect("diningOrderDining", state.dining, "DiningID", "DiningName", false);
-  fillSelect("merchOrderItem", state.merchandise, "ItemID", "ItemName", false);
   preloadAttractionAndEventLinks(attractions, events);
   preloadAttractionImages(attractions);
   preloadEventImages(events);
@@ -1074,8 +1076,6 @@ async function renderDiningAndMerch() {
   state.dining = catalogDiningRows(dining);
   state.merchandise = catalogMerchRows(merch);
   fillSelect("reservationDining", state.dining, "DiningID", "DiningName", true);
-  fillSelect("diningOrderDining", state.dining, "DiningID", "DiningName", false);
-  fillSelect("merchOrderItem", state.merchandise, "ItemID", "ItemName", false);
   renderDiningList();
   renderMerchList();
 }
@@ -1304,27 +1304,6 @@ function bindAppActions() {
     await renderItinerary();
   });
 
-  $("diningOrderForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const qty = Number($("diningOrderQty").value || 1);
-    const unit = Number($("diningOrderUnitPrice").value);
-    const res = await api("/api/orders/dining", {
-      method: "POST",
-      token: getToken(),
-      body: {
-        DiningID: Number($("diningOrderDining").value),
-        Quantity: qty,
-        UnitPrice: unit,
-        PaymentMethod: $("diningPaymentMethod").value || null,
-      },
-    });
-    await renderOrders();
-    showPaymentConfirmModal({
-      orderIds: [res.OrderID],
-      amount: qty * unit,
-    });
-  });
-
   $("diningCards").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-add-dining-name]");
     if (!btn) return;
@@ -1334,7 +1313,6 @@ function bindAppActions() {
     const venue = btn.dataset.addDiningVenue || "Park Dining";
     const price = Number(btn.dataset.addDiningPrice || 0);
     addToDiningCart({ diningId, name, zone, venue, price });
-    $("diningOrderUnitPrice").value = price.toFixed(2);
     showStatus(`${name} added to dining cart ($${price.toFixed(2)}).`);
   });
 
@@ -1349,66 +1327,70 @@ function bindAppActions() {
 
   $("btnClearDiningCart").addEventListener("click", () => {
     state.diningCart = [];
+    const cp = $("diningCheckoutConfirmPanel");
+    if (cp) cp.classList.add("hidden");
     renderDiningCart();
     showStatus("Dining cart cleared.");
   });
 
-  $("btnCheckoutDiningCart").addEventListener("click", async () => {
+  $("btnCheckoutDiningCart").addEventListener("click", () => {
     if (!state.diningCart.length) {
       showStatus("Your dining cart is empty.", true);
       return;
     }
-    const paymentMethod = $("diningPaymentMethod").value || "Credit card";
-    const fallbackDiningId = Number($("diningOrderDining").value || 0);
+    const cp = $("diningCheckoutConfirmPanel");
+    if (cp) {
+      cp.classList.remove("hidden");
+      cp.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  });
+
+  $("btnDiningCheckoutCancel")?.addEventListener("click", () => {
+    const cp = $("diningCheckoutConfirmPanel");
+    if (cp) cp.classList.add("hidden");
+  });
+
+  $("btnPayDiningCartOrder")?.addEventListener("click", async () => {
+    if (!state.diningCart.length) {
+      showStatus("Your dining cart is empty.", true);
+      return;
+    }
+    const paymentMethod = ($("diningPaymentMethod") && $("diningPaymentMethod").value) || "Credit card";
+    const fallbackDiningId =
+      state.dining && state.dining[0] && Number(state.dining[0].DiningID) > 0 ? Number(state.dining[0].DiningID) : 0;
     const anyMissingDiningId = state.diningCart.some((it) => !Number(it.diningId));
     if (anyMissingDiningId && !fallbackDiningId) {
-      showStatus("Select a dining venue under Pay for dining, or add items from the menu cards.", true);
+      showStatus("Add items from the menu cards so each line is tied to a dining venue.", true);
       return;
     }
     const diningOrderIds = [];
     let diningTotal = 0;
-    for (const item of state.diningCart) {
-      const diningId = Number(item.diningId || fallbackDiningId) || fallbackDiningId;
-      const res = await api("/api/orders/dining", {
-        method: "POST",
-        token: getToken(),
-        body: {
-          DiningID: diningId,
-          Quantity: Number(item.qty),
-          UnitPrice: Number(item.price),
-          PaymentMethod: paymentMethod,
-        },
-      });
-      diningOrderIds.push(res.OrderID);
-      diningTotal += Number(item.price) * Number(item.qty);
+    try {
+      for (const item of state.diningCart) {
+        const diningId = Number(item.diningId || fallbackDiningId) || fallbackDiningId;
+        const res = await api("/api/orders/dining", {
+          method: "POST",
+          token: getToken(),
+          body: {
+            DiningID: diningId,
+            Quantity: Number(item.qty),
+            UnitPrice: Number(item.price),
+            PaymentMethod: paymentMethod,
+          },
+        });
+        diningOrderIds.push(res.OrderID);
+        diningTotal += Number(item.price) * Number(item.qty);
+      }
+      state.diningCart = [];
+      const cp = $("diningCheckoutConfirmPanel");
+      if (cp) cp.classList.add("hidden");
+      renderDiningCart();
+      await renderOrders();
+      showStatus("Dining cart checkout complete.");
+      showPaymentConfirmModal({ orderIds: diningOrderIds, amount: diningTotal });
+    } catch (err) {
+      showStatus(err.message || "Payment failed.", true);
     }
-    state.diningCart = [];
-    renderDiningCart();
-    await renderOrders();
-    showStatus("Dining cart checkout complete.");
-    showPaymentConfirmModal({ orderIds: diningOrderIds, amount: diningTotal });
-  });
-
-  $("merchOrderForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const itemId = Number($("merchOrderItem").value);
-    const qty = Number($("merchOrderQty").value || 1);
-    const m = state.merchandise.find((x) => Number(x.ItemID) === itemId);
-    const unit = m ? Number(m.DiscountPrice || m.SellPrice || 0) : 0;
-    const res = await api("/api/orders/merchandise", {
-      method: "POST",
-      token: getToken(),
-      body: {
-        ItemID: itemId,
-        Quantity: qty,
-        PaymentMethod: $("merchPaymentMethod").value || null,
-      },
-    });
-    await renderOrders();
-    showPaymentConfirmModal({
-      orderIds: [res.OrderID],
-      amount: unit * qty,
-    });
   });
 
   $("merchCards").addEventListener("click", (e) => {
@@ -1419,8 +1401,7 @@ function bindAppActions() {
     const shopName = btn.dataset.addMerchShop || "Unknown shop";
     const price = Number(btn.dataset.addMerchPrice || 0);
     addToMerchCart({ itemId, name: itemName, shop: shopName, price });
-    $("merchOrderItem").value = String(itemId);
-    showStatus(`${itemName} added to quick order ($${price.toFixed(2)}). Complete payment below.`);
+    showStatus(`${itemName} added to cart ($${price.toFixed(2)}).`);
   });
 
   $("merchCartItems").addEventListener("click", (e) => {
@@ -1434,38 +1415,61 @@ function bindAppActions() {
 
   $("btnClearMerchCart").addEventListener("click", () => {
     state.merchCart = [];
+    const mp = $("merchCheckoutConfirmPanel");
+    if (mp) mp.classList.add("hidden");
     renderMerchCart();
     showStatus("Merch cart cleared.");
   });
 
-  $("btnCheckoutMerchCart").addEventListener("click", async () => {
+  $("btnCheckoutMerchCart").addEventListener("click", () => {
     if (!state.merchCart.length) {
       showStatus("Your merch cart is empty.", true);
       return;
     }
-    const paymentMethod = $("merchPaymentMethod").value || "Credit card";
+    const mp = $("merchCheckoutConfirmPanel");
+    if (mp) {
+      mp.classList.remove("hidden");
+      mp.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  });
 
+  $("btnMerchCheckoutCancel")?.addEventListener("click", () => {
+    const mp = $("merchCheckoutConfirmPanel");
+    if (mp) mp.classList.add("hidden");
+  });
+
+  $("btnPayMerchCartOrder")?.addEventListener("click", async () => {
+    if (!state.merchCart.length) {
+      showStatus("Your merch cart is empty.", true);
+      return;
+    }
+    const paymentMethod = ($("merchPaymentMethod") && $("merchPaymentMethod").value) || "Credit card";
     const merchOrderIds = [];
     let merchTotal = 0;
-    for (const item of state.merchCart) {
-      const res = await api("/api/orders/merchandise", {
-        method: "POST",
-        token: getToken(),
-        body: {
-          ItemID: Number(item.itemId),
-          Quantity: Number(item.qty),
-          PaymentMethod: paymentMethod,
-        },
-      });
-      merchOrderIds.push(res.OrderID);
-      merchTotal += Number(item.price) * Number(item.qty);
+    try {
+      for (const item of state.merchCart) {
+        const res = await api("/api/orders/merchandise", {
+          method: "POST",
+          token: getToken(),
+          body: {
+            ItemID: Number(item.itemId),
+            Quantity: Number(item.qty),
+            PaymentMethod: paymentMethod,
+          },
+        });
+        merchOrderIds.push(res.OrderID);
+        merchTotal += Number(item.price) * Number(item.qty);
+      }
+      state.merchCart = [];
+      const mp = $("merchCheckoutConfirmPanel");
+      if (mp) mp.classList.add("hidden");
+      renderMerchCart();
+      await renderOrders();
+      showStatus("Merch cart checkout complete.");
+      showPaymentConfirmModal({ orderIds: merchOrderIds, amount: merchTotal });
+    } catch (err) {
+      showStatus(err.message || "Payment failed.", true);
     }
-
-    state.merchCart = [];
-    renderMerchCart();
-    await renderOrders();
-    showStatus("Merch cart checkout complete.");
-    showPaymentConfirmModal({ orderIds: merchOrderIds, amount: merchTotal });
   });
 
   $("ordersTbody").addEventListener("click", async (e) => {
