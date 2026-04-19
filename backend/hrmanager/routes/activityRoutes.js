@@ -1,22 +1,24 @@
 import pool from "../db.js";
+import { logPortalActivity } from "./portalActivity.js";
 
 export async function getActivity(res, send) {
   const [rows] = await pool.query(`
-    SELECT e.Name, p.PerformanceScore, p.WorkloadNotes
-    FROM employeeperformance p
-    JOIN employee e ON e.EmployeeID = p.EmployeeID
+    SELECT ActivityID AS id, CreatedAt AS created_at, \`Action\` AS action, Detail AS detail
+    FROM hr_portal_activity
+    ORDER BY created_at DESC, id DESC
+    LIMIT 200
   `);
 
   send(res, 200, rows);
 }
 
 export async function addActivity(res, send, body) {
-  await pool.query(
-    `INSERT INTO employeeperformance 
-     (EmployeeID, ReviewDate, PerformanceScore, WorkloadNotes)
-     VALUES (?, CURDATE(), ?, ?)`,
-    [body.employeeId, body.score, body.notes]
-  );
+  const action = (body.action || body.Activity || "").trim();
+  const detail = body.detail ?? body.notes ?? null;
+  if (!action) {
+    return send(res, 400, { error: "action is required" });
+  }
 
-  send(res, 200, { message: "Activity added" });
+  await logPortalActivity(action, detail);
+  send(res, 200, { message: "Activity recorded" });
 }
