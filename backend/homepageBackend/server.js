@@ -1,9 +1,20 @@
 const http = require("http");
-const url = require("url");
+const path = require("path");
+const { parse: parseUrl, pathToFileURL } = require("url");
 const db = require("./db");
 const { generateToken } = require("./auth");
 
 const PORT = process.env.PORT || 4000;
+
+/** Lazy-load ESM admin API so Vercel static admin UI can call this Render service at /api/*. */
+let adminApiLoad;
+function loadAdminApi() {
+  if (!adminApiLoad) {
+    const adminModulePath = path.join(__dirname, "..", "adminBackend", "admin-api.js");
+    adminApiLoad = import(pathToFileURL(adminModulePath).href);
+  }
+  return adminApiLoad;
+}
 
 // Helper: read request body safely
 function getBody(req) {
@@ -21,10 +32,32 @@ function getBody(req) {
 }
 
 const server = http.createServer(async (req, res) => {
+  const parsedUrl = parseUrl(req.url, true);
+  const pathname = parsedUrl.pathname || "/";
+
+  // Admin portal JSON API (same DB as login service)
+  if (pathname.startsWith("/api")) {
+    try {
+      const { handleAdminApi } = await loadAdminApi();
+      const u = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+      await handleAdminApi(req, res, u);
+    } catch (err) {
+      console.error("Admin API error:", err);
+      if (!res.headersSent) {
+        res.writeHead(500, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Access-Control-Allow-Origin": "*",
+        });
+        res.end(JSON.stringify({ error: "Admin API failed", detail: String(err && err.message) }));
+      }
+    }
+    return;
+  }
+
   // ✅ CORS (required for Render + frontend)
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PATCH");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Content-Type", "application/json");
 
   // Preflight
@@ -32,9 +65,6 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(204);
     return res.end();
   }
-
-  const parsedUrl = url.parse(req.url, true);
-  const pathname = parsedUrl.pathname;
 
   try {
     // ======================
