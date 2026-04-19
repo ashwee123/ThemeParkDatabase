@@ -13,6 +13,10 @@ function hrUrl(path) {
     return base ? `${base}/${clean}` : clean;
 }
 
+function isHrAuthenticated() {
+    return localStorage.getItem("loggedIn") === "true" || Boolean(localStorage.getItem("token"));
+}
+
 /* ================= AUTH & LOGIN ================= */
 async function login() {
     const email = document.getElementById("email").value;
@@ -51,15 +55,32 @@ async function loadEmployees() {
                 <tr>
                     <td>${e.EmployeeID ?? "—"}</td>
                     <td>${e.Name || "Unknown"}</td>
-                    <td>${e.Position || '<span style="color:gray">N/A</span>'}</td>
-                    <td>${e.Salary ? '$' + Number(e.Salary).toLocaleString() : '—'}</td>
+                    <td>${e.Position && String(e.Position).trim() ? e.Position : '<span style="color:gray">N/A</span>'}</td>
+                    <td>${e.Salary != null && e.Salary !== "" ? '$' + Number(e.Salary).toLocaleString() : '—'}</td>
                     <td>${Number.isFinite(Number(e.EmployeeID))
-                        ? `<button class="btn btn-ghost" onclick="deleteEmployee(${Number(e.EmployeeID)})">-</button>`
+                        ? `
+                          <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                            <button class="btn btn-ghost" title="Delete employee" onclick="deleteEmployee(${Number(e.EmployeeID)})">Delete</button>
+                          </div>`
                         : "—"}</td>
                 </tr>
             `).join("");
         }
     } catch (err) { console.error("Employee Load Error:", err); }
+}
+
+function showEmployeeFormMessage(message, isError = true) {
+    const el = document.getElementById("empFormMessage");
+    if (!el) return;
+    if (!message) {
+        el.style.display = "none";
+        el.textContent = "";
+        el.style.color = "";
+        return;
+    }
+    el.style.display = "block";
+    el.textContent = message;
+    el.style.color = isError ? "#ff9a9a" : "";
 }
 
 async function loadManagers() {
@@ -254,12 +275,42 @@ async function loadSalary() {
 
 /* ================= DATA SUBMISSION ================= */
 async function addEmployee() {
+    const name = document.getElementById("empName").value.trim();
+    const position = document.getElementById("empRole").value.trim();
+    const salaryRaw = document.getElementById("empSalary").value;
+    const managerIdRaw = document.getElementById("empManager").value.trim();
+    const areaIdRaw = document.getElementById("empArea").value.trim();
+    const salary = Number(salaryRaw);
+
+    showEmployeeFormMessage("");
+
+    if (!name) {
+        showEmployeeFormMessage("Please enter employee name.");
+        return;
+    }
+    if (!position) {
+        showEmployeeFormMessage("Please enter role/position.");
+        return;
+    }
+    if (!salaryRaw || Number.isNaN(salary) || salary < 0) {
+        showEmployeeFormMessage("Please enter a valid non-negative salary.");
+        return;
+    }
+    if (managerIdRaw && (!Number.isInteger(Number(managerIdRaw)) || Number(managerIdRaw) < 1)) {
+        showEmployeeFormMessage("Manager ID must be a positive whole number.");
+        return;
+    }
+    if (areaIdRaw && (!Number.isInteger(Number(areaIdRaw)) || Number(areaIdRaw) < 1)) {
+        showEmployeeFormMessage("Area ID must be a positive whole number.");
+        return;
+    }
+
     const body = {
-        name: document.getElementById("empName").value,
-        position: document.getElementById("empRole").value,
-        salary: document.getElementById("empSalary").value,
-        managerId: document.getElementById("empManager").value,
-        areaId: document.getElementById("empArea").value
+        name,
+        position,
+        salary,
+        managerId: managerIdRaw ? Number(managerIdRaw) : null,
+        areaId: areaIdRaw ? Number(areaIdRaw) : null
     };
 
     try {
@@ -270,19 +321,27 @@ async function addEmployee() {
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
+            showEmployeeFormMessage("Employee added successfully.", false);
             alert("Employee added to the Nexus!");
             appendLocalActivity(
                 "Employee added",
                 `${body.name} — ${body.position || "position unset"}; salary ${body.salary || "—"}`
             );
+            document.getElementById("empName").value = "";
+            document.getElementById("empRole").value = "";
+            document.getElementById("empSalary").value = "";
+            document.getElementById("empManager").value = "";
+            document.getElementById("empArea").value = "";
             loadEmployees();
             loadActivity();
             loadSalary();
         } else {
+            showEmployeeFormMessage(data.error || "Could not add employee.");
             alert(data.error || "Could not add employee.");
         }
     } catch (err) {
         console.error(err);
+        showEmployeeFormMessage("Network error — try again.");
         alert("Network error — try again.");
     }
 }
@@ -338,7 +397,7 @@ async function deleteEmployee(employeeId) {
             loadActivity();
             loadSalary();
         } else {
-            alert(data.error || "Could not delete employee.");
+            alert(data.error || "Could not delete employee. This can happen when the employee is referenced by shifts, timelog, or assignments.");
         }
     } catch (err) {
         console.error(err);
@@ -384,13 +443,13 @@ window.onload = () => {
     const isDashboard = Boolean(document.getElementById("empTable"));
     const isLoginPage = Boolean(document.getElementById("email"));
 
-    if (isLoginPage && localStorage.getItem("loggedIn")) {
+    if (isLoginPage && isHrAuthenticated()) {
         window.location.href = hrUrl("index.html");
         return;
     }
 
     if (isDashboard) {
-        if (!localStorage.getItem("loggedIn")) {
+        if (!isHrAuthenticated()) {
             window.location.href = hrUrl("login.html");
         } else {
             loadEmployees();
