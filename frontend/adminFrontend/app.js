@@ -15,7 +15,7 @@ function getApiBase() {
 const API = getApiBase();
 const API_ORIGIN = API.replace(/\/api$/, "");
 const IS_REMOTE_API = API.startsWith("http");
-const WAKEUP_RETRY_DELAYS_MS = [0, 1500, 3000, 5000, 8000];
+const WAKEUP_RETRY_DELAYS_MS = [0, 3000, 5000, 8000, 10000, 12000, 15000];
 const BACKEND_WAKEUP_ERROR =
   "Backend is waking up. Please wait a moment, then retry.";
 
