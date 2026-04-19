@@ -1,3 +1,4 @@
+const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const { parse: parseUrl, pathToFileURL } = require("url");
@@ -11,6 +12,15 @@ let adminApiLoad;
 function loadAdminApi() {
   if (!adminApiLoad) {
     const adminModulePath = path.join(__dirname, "..", "adminBackend", "admin-api.js");
+    if (!fs.existsSync(adminModulePath)) {
+      adminApiLoad = Promise.reject(
+        new Error(
+          `admin-api.js not found at ${adminModulePath}. ` +
+            `Set Render Root Directory to the repo (or "backend") so both homepageBackend and adminBackend deploy.`
+        )
+      );
+      return adminApiLoad;
+    }
     adminApiLoad = import(pathToFileURL(adminModulePath).href);
   }
   return adminApiLoad;
@@ -136,4 +146,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  loadAdminApi()
+    .then(() => console.log("[admin] API module preloaded OK"))
+    .catch((e) => console.error("[admin] API module preload failed:", e && e.message, e && e.stack));
 });
