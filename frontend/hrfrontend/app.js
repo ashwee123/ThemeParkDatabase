@@ -49,9 +49,13 @@ async function loadEmployees() {
         if (table) {
             table.innerHTML = data.map(e => `
                 <tr>
+                    <td>${e.EmployeeID ?? "—"}</td>
                     <td>${e.Name || "Unknown"}</td>
                     <td>${e.Position || '<span style="color:gray">N/A</span>'}</td>
                     <td>${e.Salary ? '$' + Number(e.Salary).toLocaleString() : '—'}</td>
+                    <td>${Number.isFinite(Number(e.EmployeeID))
+                        ? `<button class="btn btn-ghost" onclick="deleteEmployee(${Number(e.EmployeeID)})">-</button>`
+                        : "—"}</td>
                 </tr>
             `).join("");
         }
@@ -69,6 +73,9 @@ async function loadManagers() {
                     <td>${m.ManagerID}</td>
                     <td>${m.ManagerName ?? "—"}</td>
                     <td>${m.ManagerEmail ?? "—"}</td>
+                    <td>${Number.isFinite(Number(m.ManagerID))
+                        ? `<button class="btn btn-ghost" onclick="deleteManager(${Number(m.ManagerID)})">-</button>`
+                        : "—"}</td>
                 </tr>
             `).join("");
         }
@@ -312,6 +319,46 @@ async function addManager() {
             loadSalary();
         } else {
             alert(data.error || "Could not add manager.");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Network error — try again.");
+    }
+}
+
+async function deleteEmployee(employeeId) {
+    if (!Number.isFinite(employeeId) || employeeId < 1) return;
+    if (!confirm(`Delete employee #${employeeId}?`)) return;
+    try {
+        const res = await fetch(`${API}/employees/${employeeId}`, { method: "DELETE" });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            appendLocalActivity("Employee deleted", `Employee ID ${employeeId}`);
+            loadEmployees();
+            loadActivity();
+            loadSalary();
+        } else {
+            alert(data.error || "Could not delete employee.");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Network error — try again.");
+    }
+}
+
+async function deleteManager(managerId) {
+    if (!Number.isFinite(managerId) || managerId < 1) return;
+    if (!confirm(`Delete manager #${managerId}?`)) return;
+    try {
+        const res = await fetch(`${API}/managers/${managerId}`, { method: "DELETE" });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            appendLocalActivity("Manager deleted", `Manager ID ${managerId}`);
+            loadManagers();
+            loadActivity();
+            loadSalary();
+        } else {
+            alert(data.error || "Could not delete manager.");
         }
     } catch (err) {
         console.error(err);
