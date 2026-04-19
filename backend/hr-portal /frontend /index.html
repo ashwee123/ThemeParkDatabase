@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>HR Portal</title>
+
+  <!-- Your CSS -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+<div class="noise"></div>
+
+<header class="site-header">
+  <h1>HR Portal</h1>
+  <p class="tagline">Manage Employees, Managers, Activity & Salary</p>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="employees">Employees</button>
+  <button class="tab" data-tab="managers">Managers</button>
+  <button class="tab" data-tab="activity">Activity</button>
+  <button class="tab" data-tab="salary">Salary</button>
+</nav>
+
+<main>
+
+<!-- EMPLOYEES -->
+<section id="employees" class="panel active">
+  <div class="card form-card">
+    <h3>Add Employee</h3>
+    <input id="empName" placeholder="Name">
+    <input id="empRole" placeholder="Role">
+    <button class="btn btn-primary" onclick="addEmployee()">Add</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Name</th><th>Role</th></tr></thead>
+      <tbody id="empTable"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- MANAGERS -->
+<section id="managers" class="panel">
+  <div class="card">
+    <h3>Add Manager</h3>
+    <input id="mgrName" placeholder="Name">
+    <button class="btn btn-primary" onclick="addManager()">Add</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table">
+      <tbody id="mgrTable"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ACTIVITY -->
+<section id="activity" class="panel">
+  <div class="card">
+    <h3>Add Activity</h3>
+    <input id="actDesc" placeholder="Description">
+    <button class="btn btn-primary" onclick="addActivity()">Add</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table">
+      <tbody id="actTable"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SALARY -->
+<section id="salary" class="panel">
+  <div class="card">
+    <h3>Add Salary</h3>
+    <input id="salName" placeholder="Employee Name">
+    <input id="salAmount" placeholder="Salary">
+    <button class="btn btn-primary" onclick="addSalary()">Add</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data-table">
+      <tbody id="salTable"></tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
