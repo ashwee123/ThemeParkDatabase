@@ -69,13 +69,22 @@ function extractAreaIdFromPath() {
     return Number.isNaN(possibleAreaId) ? null : possibleAreaId;
 }
 
-const AREA_ID = (
-    sessionStorage.getItem("areaID")
-    || sessionStorage.getItem("areaId")
-    || extractAreaIdFromPath()
-);
+function resolveAreaID() {
+    const sessionAreaID = sessionStorage.getItem("areaID");
+    if (sessionAreaID !== null && sessionAreaID !== "") return sessionAreaID;
 
-if (AREA_ID) {
+    const sessionAreaId = sessionStorage.getItem("areaId");
+    if (sessionAreaId !== null && sessionAreaId !== "") return sessionAreaId;
+
+    const areaFromPath = extractAreaIdFromPath();
+    if (areaFromPath !== null && areaFromPath !== undefined) return areaFromPath;
+
+    return null;
+}
+
+const AREA_ID = resolveAreaID();
+
+if (AREA_ID !== null && AREA_ID !== undefined && AREA_ID !== "") {
     sessionStorage.setItem("areaID", String(AREA_ID));
     sessionStorage.setItem("areaId", String(AREA_ID));
 }
@@ -88,7 +97,7 @@ function authHeader() {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json"
     };
-    if (AREA_ID) {
+    if (AREA_ID !== null && AREA_ID !== undefined && AREA_ID !== "") {
         headers["X-Area-ID"] = String(AREA_ID);
     }
     return headers;
@@ -98,7 +107,9 @@ function showToast(msg, isError = false) {
     const toast = document.getElementById("toast");
     toast.textContent = msg;
     toast.className = "toast show" + (isError ? " error" : "");
-    setTimeout(() => toast.className = "toast", 3000);
+    setTimeout(() => {
+        toast.className = "toast";
+    }, 3000);
 }
 
 function formatCurrency(val) {
@@ -113,6 +124,22 @@ function buildReportQuery(startDate, endDate, retailID) {
     const params = new URLSearchParams({ startDate, endDate });
     if (retailID) params.set("retailID", retailID);
     return params.toString();
+}
+
+function ensureReportDateRangeDefaults() {
+    const startInput = document.getElementById("report-start");
+    const endInput = document.getElementById("report-end");
+    if (!startInput || !endInput) return;
+
+    if (!startInput.value || !endInput.value) {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(end.getDate() - 30);
+
+        const toISO = (d) => d.toISOString().slice(0, 10);
+        startInput.value = toISO(start);
+        endInput.value = toISO(end);
+    }
 }
 
 function stockStatus(qty, threshold) {
@@ -590,33 +617,44 @@ document.getElementById("btn-logout").addEventListener("click", () => {
     window.location.replace(HOME_URL);
 });
 
+const tabPanelAliases = {
+    items: "inventory",
+    "transaction-history": "transactions",
+    "restock-orders": "restock"
+};
+
+const tabLoaders = {
+    dashboard: async () => loadDashboard(),
+    inventory: async () => Promise.all([loadStores(), loadItems()]),
+    items: async () => Promise.all([loadStores(), loadItems()]),
+    transactions: async () => Promise.all([loadStores(), loadTransactions()]),
+    "transaction-history": async () => Promise.all([loadStores(), loadTransactions()]),
+    restock: async () => Promise.all([loadStores(), loadRestock()]),
+    "restock-orders": async () => Promise.all([loadStores(), loadRestock()]),
+    reports: async () => {
+        await loadStores();
+        ensureReportDateRangeDefaults();
+        await loadReports();
+    },
+    stores: async () => loadStores()
+};
+
 document.querySelectorAll(".tab").forEach(tab => {
     tab.addEventListener("click", async () => {
         document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
         document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
         tab.classList.add("active");
-        document.getElementById(`tab-${tab.dataset.tab}`).classList.add("active");
+        const requestedKey = tab.dataset.tab;
+        const panelKey = tabPanelAliases[requestedKey] || requestedKey;
+        const panel = document.getElementById(`tab-${panelKey}`);
+        if (panel) {
+            panel.classList.add("active");
+        }
 
         try {
-            switch (tab.dataset.tab) {
-                case "dashboard":
-                    await loadDashboard();
-                    break;
-                case "inventory":
-                    await Promise.all([loadStores(), loadItems()]);
-                    break;
-                case "transactions":
-                    await Promise.all([loadStores(), loadTransactions()]);
-                    break;
-                case "restock":
-                    await Promise.all([loadStores(), loadRestock()]);
-                    break;
-                case "reports":
-                    await loadStores();
-                    break;
-                case "stores":
-                    await loadStores();
-                    break;
+            const loader = tabLoaders[requestedKey] || tabLoaders[panelKey];
+            if (loader) {
+                await loader();
             }
         } catch (error) {
             console.error(error);
@@ -629,6 +667,7 @@ document.querySelectorAll(".tab").forEach(tab => {
     try {
         await loadStores();
         await loadDashboard();
+        ensureReportDateRangeDefaults();
     } catch (error) {
         console.error(error);
         showToast(error.message || "Failed to initialize portal", true);
