@@ -1,5 +1,18 @@
 const API = "https://hrmanager-39yw.onrender.com";
 
+/** Base path when deployed under Vercel `/hr/*`; empty for same-dir local opens. */
+function hrBasePath() {
+    const p = window.location.pathname;
+    if (p === "/hr" || p.startsWith("/hr/")) return "/hr";
+    return "";
+}
+
+function hrUrl(path) {
+    const base = hrBasePath();
+    const clean = path.replace(/^\//, "");
+    return base ? `${base}/${clean}` : clean;
+}
+
 /* ================= AUTH & LOGIN ================= */
 async function login() {
     const email = document.getElementById("email").value;
@@ -17,7 +30,7 @@ async function login() {
         if (res.ok) {
             localStorage.setItem("loggedIn", "true");
             localStorage.setItem("userEmail", email);
-            window.location.href = "index.html";
+            window.location.href = hrUrl("index.html");
         } else {
             alert(data.error || "Invalid Credentials");
         }
@@ -93,25 +106,27 @@ document.querySelectorAll(".tab").forEach(btn => {
         document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
 
         btn.classList.add("active");
-        const panelId = btn.getAttribute("data-tab");
+        const panelId = btn.getAttribute("data-target");
         document.getElementById(panelId).classList.add("active");
     };
 });
 
 /* ================= INITIALIZATION ================= */
 window.onload = () => {
-    const path = window.location.pathname;
-    const isDashboard = path.includes("index.html") || path.endsWith("/");
+    const isDashboard = Boolean(document.getElementById("empTable"));
+    const isLoginPage = Boolean(document.getElementById("email"));
+
+    if (isLoginPage && localStorage.getItem("loggedIn")) {
+        window.location.href = hrUrl("index.html");
+        return;
+    }
 
     if (isDashboard) {
         if (!localStorage.getItem("loggedIn")) {
-            window.location.href = "login.html";
+            window.location.href = hrUrl("login.html");
         } else {
-            // Load everything
             loadEmployees();
             loadManagers();
-            // loadActivity(); 
-            // loadSalary();
         }
     }
 };
