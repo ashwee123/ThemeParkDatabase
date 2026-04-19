@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS hr_portal_activity (
   ActivityID INT NOT NULL AUTO_INCREMENT,
   CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  Action VARCHAR(120) NOT NULL,
+  `Action` VARCHAR(120) NOT NULL,
   Detail VARCHAR(500) DEFAULT NULL,
   PRIMARY KEY (ActivityID),
   KEY idx_hr_activity_created (CreatedAt)
