@@ -67,7 +67,8 @@ async function loadManagers() {
             table.innerHTML = data.map(m => `
                 <tr>
                     <td>${m.ManagerID}</td>
-                    <td>${m.ManagerName}</td>
+                    <td>${m.ManagerName ?? "—"}</td>
+                    <td>${m.ManagerEmail ?? "—"}</td>
                 </tr>
             `).join("");
         }
@@ -108,7 +109,10 @@ async function addEmployee() {
 async function addManager() {
     const body = {
         id: document.getElementById("mgrId").value,
-        name: document.getElementById("mgrName").value
+        name: document.getElementById("mgrName").value.trim(),
+        email: document.getElementById("mgrEmail").value.trim(),
+        username: document.getElementById("mgrUsername").value.trim(),
+        password: document.getElementById("mgrPassword").value
     };
 
     try {
@@ -122,6 +126,9 @@ async function addManager() {
             alert("Manager added to the Nexus!");
             document.getElementById("mgrId").value = "";
             document.getElementById("mgrName").value = "";
+            document.getElementById("mgrEmail").value = "";
+            document.getElementById("mgrUsername").value = "";
+            document.getElementById("mgrPassword").value = "";
             loadManagers();
         } else {
             alert(data.error || "Could not add manager.");
@@ -163,3 +170,4 @@ window.onload = () => {
         }
     }
 };
+
