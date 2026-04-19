@@ -48,12 +48,21 @@
     <section id="managers" class="panel">
        <div class="card">
         <h3>Add Manager</h3>
-        <input id="mgrId" placeholder="Manager ID">
-        <input id="mgrName" placeholder="Name">
+        <p class="hint">After the retail schema migration, <code>manager</code> rows must include email, username, and password (used for retail manager login).</p>
+        <div class="form-grid">
+          <input id="mgrId" type="number" placeholder="Manager ID">
+          <input id="mgrName" placeholder="Name">
+          <input id="mgrEmail" type="email" placeholder="Manager email">
+          <input id="mgrUsername" placeholder="Username">
+          <input id="mgrPassword" type="password" placeholder="Password">
+        </div>
         <button class="btn btn-primary" onclick="addManager()">Add Manager</button>
       </div>
       <div class="table-wrap">
         <table class="data-table">
+          <thead>
+            <tr><th>ID</th><th>Name</th><th>Email</th></tr>
+          </thead>
           <tbody id="mgrTable"></tbody>
         </table>
       </div>
@@ -63,3 +72,4 @@
   <script src="/hr/app.js"></script>
 </body>
 </html>
+
