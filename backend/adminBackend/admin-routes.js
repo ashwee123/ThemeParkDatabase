@@ -307,6 +307,9 @@ export async function getReportSnapshot() {
     [[{ retailTxCount }]],
     [[{ retailRevenue }]],
     [[{ incidents90d }]],
+    [[{ visitorReviewsTotal }]],
+    [[{ visitorReviewsLast30d }]],
+    [[{ visitorReviewsAvgRating30d }]],
   ] = await Promise.all([
     p.execute("SELECT COUNT(*) AS visitorsTotal FROM visitor"),
     p.execute("SELECT COUNT(*) AS visitorsActive FROM visitor WHERE IsActive = 1"),
@@ -317,7 +320,19 @@ export async function getReportSnapshot() {
     p.execute(
       "SELECT COUNT(*) AS incidents90d FROM incidentreport WHERE ReportDate >= (CURRENT_DATE - INTERVAL 90 DAY)"
     ),
+    p.execute("SELECT COUNT(*) AS visitorReviewsTotal FROM review WHERE IsActive = 1"),
+    p.execute(
+      `SELECT COUNT(*) AS visitorReviewsLast30d FROM review
+       WHERE IsActive = 1 AND DateSubmitted >= (CURRENT_DATE - INTERVAL 30 DAY)`
+    ),
+    p.execute(
+      `SELECT AVG(Feedback) AS visitorReviewsAvgRating30d FROM review
+       WHERE IsActive = 1 AND DateSubmitted >= (CURRENT_DATE - INTERVAL 30 DAY)`
+    ),
   ]);
+  const avgRaw = visitorReviewsAvgRating30d;
+  const visitorReviewsAvg30dNum =
+    avgRaw != null && Number.isFinite(Number(avgRaw)) ? Number(avgRaw) : null;
   return {
     visitorsTotal,
     visitorsActive,
@@ -326,7 +341,31 @@ export async function getReportSnapshot() {
     retailTxCount,
     retailRevenue: retailRevenue != null ? Number(retailRevenue) : 0,
     incidents90d,
+    visitorReviewsTotal,
+    visitorReviewsLast30d,
+    visitorReviewsAvgRating30d: visitorReviewsAvg30dNum,
   };
+}
+
+/** Visitor-area reviews (1–10 + comment), including rows synced from the visitor portal feedback form — for HR / reporting. */
+export async function listVisitorReviewsReport(limit) {
+  const p = getPool();
+  const lim = Math.min(Math.max(Number(limit) || 200, 1), 10000);
+  const [rows] = await p.execute(
+    `SELECT r.ReviewID, r.VisitorID, v.Name AS VisitorName, r.AreaID, ar.AreaName,
+            r.Feedback AS Rating, r.Comment, r.DateSubmitted
+     FROM review r
+     INNER JOIN area ar ON ar.AreaID = r.AreaID
+     LEFT JOIN visitor v ON v.VisitorID = r.VisitorID
+     WHERE r.IsActive = 1
+     ORDER BY r.ReviewID DESC
+     LIMIT ?`,
+    [lim]
+  );
+  return rows.map((r) => ({
+    ...r,
+    DateSubmitted: rowDate(r.DateSubmitted),
+  }));
 }
 
 export async function updateAttractionStatus(attractionId, status) {

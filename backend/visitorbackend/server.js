@@ -481,17 +481,30 @@ async function handleApi(req, res, method, pathname, query) {
 
   if (pathname === "/api/feedback-submissions" && method === "POST") {
     const body = await readJson(req);
-    if (!body || !body.Message) {
+    if (!body || !String(body.Message ?? "").trim()) {
       sendJson(res, 400, { error: "Message is required" });
       return true;
     }
-    const id = await q.createFeedbackSubmission(visitor.VisitorID, {
-      AttractionID: body.AttractionID ? Number(body.AttractionID) : null,
-      Rating: body.Rating == null || body.Rating === "" ? null : Number(body.Rating),
-      FeedbackType: body.FeedbackType || "General",
-      Message: String(body.Message),
-    });
-    sendJson(res, 201, { FeedbackID: id });
+    try {
+      const id = await q.createFeedbackSubmission(visitor.VisitorID, {
+        AttractionID: body.AttractionID ? Number(body.AttractionID) : null,
+        Rating: body.Rating,
+        FeedbackType: body.FeedbackType || "General",
+        Message: String(body.Message),
+      });
+      sendJson(res, 201, { FeedbackID: id });
+    } catch (err) {
+      if (err && err.code === "INVALID_RATING") {
+        sendJson(res, 400, { error: err.message || "Invalid rating" });
+      } else if (err && err.code === "MESSAGE_REQUIRED") {
+        sendJson(res, 400, { error: err.message || "Message is required" });
+      } else if (err && err.code === "NO_AREA") {
+        sendJson(res, 500, { error: err.message || "Server misconfiguration" });
+      } else {
+        console.error(err);
+        sendJson(res, 500, { error: "Could not save feedback" });
+      }
+    }
     return true;
   }
 

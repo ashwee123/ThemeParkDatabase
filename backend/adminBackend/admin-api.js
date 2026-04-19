@@ -19,6 +19,7 @@ import {
   listShiftsAdmin,
   listNotificationLog,
   getReportSnapshot,
+  listVisitorReviewsReport,
   updateAttractionStatus,
 } from "./admin-routes.js";
 
@@ -128,6 +129,11 @@ export async function handleAdminApi(req, res, url) {
     }
     if (method === "GET" && pathname === "/api/reports/snapshot") {
       sendJson(res, 200, await getReportSnapshot(), h);
+      return;
+    }
+    if (method === "GET" && pathname === "/api/reports/visitor-reviews") {
+      const limit = url.searchParams.get("limit");
+      sendJson(res, 200, await listVisitorReviewsReport(limit), h);
       return;
     }
 

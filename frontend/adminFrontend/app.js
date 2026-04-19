@@ -252,7 +252,11 @@ async function loadVisitorsPanel() {
 }
 
 async function loadHrPanel() {
-  const [emps, shifts] = await Promise.all([apiGet("/employees"), apiGet("/shifts")]);
+  const [emps, shifts, vrevs] = await Promise.all([
+    apiGet("/employees"),
+    apiGet("/shifts"),
+    apiGet("/reports/visitor-reviews?limit=200"),
+  ]);
   fillEmployeeTable("#tbody-hr-staff", emps);
   const ts = $("#tbody-shifts");
   if (ts) {
@@ -269,6 +273,24 @@ async function loadHrPanel() {
       );
     }).join("");
     if (!shifts.length) ts.innerHTML = '<tr><td colspan="6" class="hint">No shifts</td></tr>';
+  }
+  const vr = $("#tbody-hr-visitor-reviews");
+  if (vr) {
+    vr.innerHTML = vrevs.map(function (r) {
+      var comment = String(r.Comment || "").replace(/\s+/g, " ");
+      if (comment.length > 120) comment = comment.slice(0, 117) + "…";
+      return (
+        "<tr>" +
+          '<td class="num">' + escapeHtml(r.ReviewID) + "</td>" +
+          "<td>" + escapeHtml(r.VisitorName || "—") + ' <span class="hint">#' + escapeHtml(r.VisitorID) + "</span></td>" +
+          "<td>" + escapeHtml(r.AreaName || "—") + "</td>" +
+          '<td class="num">' + escapeHtml(r.Rating) + "</td>" +
+          "<td>" + escapeHtml(r.DateSubmitted || "—") + "</td>" +
+          "<td>" + escapeHtml(comment) + "</td>" +
+        "</tr>"
+      );
+    }).join("");
+    if (!vrevs.length) vr.innerHTML = '<tr><td colspan="6" class="hint">No visitor reviews yet</td></tr>';
   }
 }
 
@@ -307,6 +329,9 @@ async function loadReportsPanel() {
   const snap = await apiGet("/reports/snapshot");
   const g = $("#report-snapshot-grid");
   if (g) {
+    const avgRaw = snap.visitorReviewsAvgRating30d;
+    const avg30 =
+      avgRaw != null && Number.isFinite(Number(avgRaw)) ? Number(avgRaw).toFixed(2) : "—";
     const cards = [
       ["Visitors (total)", snap.visitorsTotal],
       ["Visitors (active accts)", snap.visitorsActive],
@@ -315,6 +340,9 @@ async function loadReportsPanel() {
       ["Retail transactions", snap.retailTxCount],
       ["Retail revenue (sum)", snap.retailRevenue.toFixed(2)],
       ["Incidents (90d)", snap.incidents90d],
+      ["Visitor reviews (total)", snap.visitorReviewsTotal ?? "—"],
+      ["Visitor reviews (30d)", snap.visitorReviewsLast30d ?? "—"],
+      ["Avg visitor rating (30d, 1–10)", avg30],
     ];
     g.innerHTML = cards.map(function (c) {
       return (
@@ -603,6 +631,21 @@ async function exportTicketsCsv() {
   showToast("Downloaded tickets-export.csv");
 }
 
+async function exportVisitorReviewsCsv() {
+  const rows = await apiGet("/reports/visitor-reviews?limit=10000");
+  downloadCsv("visitor-reviews-export.csv", rows, [
+    { key: "ReviewID", label: "ReviewID" },
+    { key: "VisitorID", label: "VisitorID" },
+    { key: "VisitorName", label: "VisitorName" },
+    { key: "AreaID", label: "AreaID" },
+    { key: "AreaName", label: "AreaName" },
+    { key: "Rating", label: "Rating" },
+    { key: "DateSubmitted", label: "DateSubmitted" },
+    { key: "Comment", label: "Comment" },
+  ]);
+  showToast("Downloaded visitor-reviews-export.csv");
+}
+
 async function exportIncidentsCsv() {
   const rows = await apiGet("/incidents?limit=400");
   downloadCsv("incidents-export.csv", rows, [
@@ -620,7 +663,8 @@ async function exportIncidentsCsv() {
 [
   ["#btn-export-visitors", exportVisitorsCsv],
   ["#btn-export-tickets", exportTicketsCsv],
-  ["#btn-export-incidents", exportIncidentsCsv],
+    ["#btn-export-incidents", exportIncidentsCsv],
+    ["#btn-export-visitor-reviews", exportVisitorReviewsCsv],
 ].forEach(function (pair) {
   const el = $(pair[0]);
   if (el) {

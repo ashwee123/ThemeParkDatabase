@@ -142,7 +142,7 @@
         <button type="button" id="btn-refresh-hr" class="btn btn-ghost">Refresh</button>
       </div>
       <div class="callout">
-        <strong>Oversight:</strong> park-wide roster below. Extend with HR manager approvals, disciplinary records, and department reorgs via dedicated HR service routes.
+        <strong>Oversight:</strong> park-wide roster below. Visitor feedback from the guest portal is mirrored into <code>review</code> (1–10 scores and comments) so HR and ops can trend satisfaction alongside staffing.
       </div>
       <h3 class="subheading">Employees</h3>
       <div class="table-wrap">
@@ -162,6 +162,18 @@
             <tr><th>Shift ID</th><th>Emp ID</th><th>Name</th><th>Date</th><th>Start</th><th>End</th></tr>
           </thead>
           <tbody id="tbody-shifts"></tbody>
+        </table>
+      </div>
+      <h3 class="subheading">Visitor feedback &amp; reviews (<code>review</code>)</h3>
+      <p class="hint">Includes ratings submitted through the visitor portal feedback form (synced for reporting).</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Review ID</th><th>Visitor</th><th>Area</th><th>Rating</th><th>Submitted</th><th>Comment</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-hr-visitor-reviews"></tbody>
         </table>
       </div>
     </section>
@@ -232,6 +244,7 @@
         <button type="button" id="btn-export-visitors" class="btn btn-ghost">Visitors</button>
         <button type="button" id="btn-export-tickets" class="btn btn-ghost">Tickets</button>
         <button type="button" id="btn-export-incidents" class="btn btn-ghost">Incidents</button>
+        <button type="button" id="btn-export-visitor-reviews" class="btn btn-ghost">Visitor reviews</button>
       </div>
     </section>
 

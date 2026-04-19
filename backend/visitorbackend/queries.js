@@ -1,4 +1,10 @@
 const pool = require("./db");
+const { seedParkCatalog } = require("./park-catalog-seed");
+
+/** Retail catalog rows used only so visitor purchases can INSERT into transactionlog (FK to retailitem). */
+const VP_RETAIL_PLACE_NAME = "Visitor Portal (online)";
+const VP_ITEM_TICKET = "Park ticket (visitor portal)";
+const VP_ITEM_DINING = "Dining (visitor portal)";
 
 function toISODate(d) {
   const dt = d instanceof Date ? d : new Date(d);
@@ -101,6 +107,7 @@ async function ensureVisitorPortalSchema() {
       DiningName VARCHAR(120) NOT NULL,
       CuisineType VARCHAR(80) NULL,
       MenuSummary TEXT NULL,
+      MenuItemsJSON TEXT NULL,
       IsActive TINYINT(1) NOT NULL DEFAULT 1,
       PRIMARY KEY (DiningID),
       CONSTRAINT fk_vdo_area FOREIGN KEY (AreaID) REFERENCES area(AreaID) ON DELETE SET NULL,
@@ -234,6 +241,87 @@ async function ensureVisitorPortalSchema() {
     SELECT 'FAMILY25', 'Flat', 25, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 365 DAY), 1
     WHERE NOT EXISTS (SELECT 1 FROM visitor_promo_code WHERE Code = 'FAMILY25')
   `);
+
+  await seedParkCatalog(pool);
+  await ensureVisitorPortalTransactionPlaceholderItems();
+}
+
+/**
+ * Creates a retail shop + two non-inventory catalog lines so ticket/dining visitor sales can log to transactionlog.
+ * Merchandise uses the real ItemID from retailitem.
+ */
+async function ensureVisitorPortalTransactionPlaceholderItems() {
+  try {
+    const [areas] = await pool.execute(`SELECT MIN(AreaID) AS aid FROM area`);
+    const areaId = areas[0] && areas[0].aid;
+    if (!areaId) return;
+
+    await pool.execute(
+      `INSERT INTO retailplace (RetailName, AreaID)
+       SELECT ?, ? FROM DUAL
+       WHERE NOT EXISTS (SELECT 1 FROM retailplace WHERE RetailName = ?)`,
+      [VP_RETAIL_PLACE_NAME, areaId, VP_RETAIL_PLACE_NAME]
+    );
+
+    const [rpRows] = await pool.execute(
+      `SELECT RetailID FROM retailplace WHERE RetailName = ? LIMIT 1`,
+      [VP_RETAIL_PLACE_NAME]
+    );
+    const retailId = rpRows[0] && rpRows[0].RetailID;
+    if (!retailId) return;
+
+    for (const itemName of [VP_ITEM_TICKET, VP_ITEM_DINING]) {
+      const [exists] = await pool.execute(`SELECT ItemID FROM retailitem WHERE ItemName = ? LIMIT 1`, [itemName]);
+      if (exists[0]) continue;
+      await pool.execute(
+        `INSERT INTO retailitem (ItemName, BuyPrice, SellPrice, DiscountPrice, Quantity, LowStockThreshold, IsActive, RetailID)
+         VALUES (?, 0.01, 0.01, NULL, 999999, 10, 1, ?)`,
+        [itemName, retailId]
+      );
+    }
+  } catch (e) {
+    console.warn("[visitor] ensureVisitorPortalTransactionPlaceholderItems:", e && e.message);
+  }
+}
+
+async function getVisitorPortalStubLogItemIds() {
+  const [t] = await pool.execute(`SELECT ItemID FROM retailitem WHERE ItemName = ? LIMIT 1`, [VP_ITEM_TICKET]);
+  const [d] = await pool.execute(`SELECT ItemID FROM retailitem WHERE ItemName = ? LIMIT 1`, [VP_ITEM_DINING]);
+  return {
+    ticketItemId: t[0] ? t[0].ItemID : null,
+    diningItemId: d[0] ? d[0].ItemID : null,
+  };
+}
+
+/**
+ * Logs a sale to transactionlog for the retail portal (VisitorID set).
+ * If your DB has BEFORE INSERT triggers on transactionlog that overwrite Price, amounts may not match visitor totals.
+ */
+async function logVisitorPurchaseToTransactionLog({
+  visitorId,
+  itemId,
+  quantity,
+  unitPrice,
+  totalCost,
+  useDiscountType,
+}) {
+  const id = Number(itemId);
+  const vid = Number(visitorId);
+  if (!Number.isFinite(id) || id < 1 || !Number.isFinite(vid) || vid < 1) return;
+  const q = Math.max(1, Math.floor(Number(quantity) || 1));
+  const up = Number(Number(unitPrice).toFixed(2));
+  const tc = Number(Number(totalCost).toFixed(2));
+  if (!Number.isFinite(up) || up < 0 || !Number.isFinite(tc) || tc < 0) return;
+  const logType = useDiscountType ? "Discount" : "Normal";
+  try {
+    await pool.execute(
+      `INSERT INTO transactionlog (ItemID, VisitorID, \`Date\`, \`Time\`, Type, Price, Quantity, TotalCost)
+       VALUES (?, ?, CURDATE(), CURTIME(), ?, ?, ?, ?)`,
+      [id, vid, logType, up, q, tc]
+    );
+  } catch (e) {
+    console.warn("[visitor] transactionlog insert failed:", e && e.message);
+  }
 }
 
 async function createVisitor({ Name, Phone, Email, PasswordHash, Gender, Age }) {
@@ -411,13 +499,14 @@ async function listDiningOptions() {
         d.DiningName,
         d.CuisineType,
         d.MenuSummary,
+        d.MenuItemsJSON,
         a.AreaName,
         p.ParkName
      FROM visitor_dining_option d
      LEFT JOIN area a ON a.AreaID = d.AreaID
      LEFT JOIN visitor_park p ON p.ParkID = d.ParkID
      WHERE d.IsActive = 1
-     ORDER BY d.DiningName`
+     ORDER BY a.AreaID, d.DiningName`
   );
   return rows;
 }
@@ -431,12 +520,13 @@ async function listMerchandiseOptions() {
         i.DiscountPrice,
         i.Quantity,
         rp.RetailName,
-        a.AreaName
+        a.AreaName,
+        rp.AreaID
      FROM retailitem i
      JOIN retailplace rp ON rp.RetailID = i.RetailID
      LEFT JOIN area a ON a.AreaID = rp.AreaID
      WHERE i.IsActive = 1
-     ORDER BY i.ItemName`
+     ORDER BY rp.AreaID, rp.RetailName, i.ItemName`
   );
   return rows;
 }
@@ -563,6 +653,19 @@ async function purchaseTicketForVisitor(
   );
 
   await addVisitHistory(VisitorID, "TicketPurchase", `Purchased ${TicketPlan} ticket (${TicketCategory})`);
+
+  const { ticketItemId } = await getVisitorPortalStubLogItemIds();
+  const qty = 1;
+  const unit = Number((total / qty).toFixed(2));
+  await logVisitorPurchaseToTransactionLog({
+    visitorId: VisitorID,
+    itemId: ticketItemId,
+    quantity: qty,
+    unitPrice: unit,
+    totalCost: total,
+    useDiscountType: discountAmount > 0,
+  });
+
   return {
     ticket,
     orderId: orderResult.insertId,
@@ -675,14 +778,65 @@ async function deleteItineraryItem(VisitorID, ItineraryID) {
 }
 
 async function createFeedbackSubmission(VisitorID, { AttractionID, Rating, FeedbackType, Message }) {
-  const [result] = await pool.execute(
-    `INSERT INTO visitor_feedback_submission
-      (VisitorID, AttractionID, Rating, FeedbackType, Message)
-     VALUES (?, ?, ?, ?, ?)`,
-    [VisitorID, AttractionID || null, Rating || null, FeedbackType || "General", Message]
-  );
-  await addVisitHistory(VisitorID, "Feedback", `Submitted ${FeedbackType || "General"} feedback`);
-  return result.insertId;
+  const r = Number(Rating);
+  if (!Number.isInteger(r) || r < 1 || r > 10) {
+    const err = new Error("Rating must be an integer from 1 to 10");
+    err.code = "INVALID_RATING";
+    throw err;
+  }
+  const type = FeedbackType || "General";
+  const msg = String(Message ?? "").trim();
+  if (!msg) {
+    const err = new Error("Message is required");
+    err.code = "MESSAGE_REQUIRED";
+    throw err;
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [result] = await conn.execute(
+      `INSERT INTO visitor_feedback_submission
+        (VisitorID, AttractionID, Rating, FeedbackType, Message)
+       VALUES (?, ?, ?, ?, ?)`,
+      [VisitorID, AttractionID || null, r, type, msg]
+    );
+    const feedbackId = result.insertId;
+
+    let areaId = null;
+    if (AttractionID) {
+      const aid = Number(AttractionID);
+      if (Number.isInteger(aid) && aid >= 1) {
+        const [ar] = await conn.execute(`SELECT AreaID FROM attraction WHERE AttractionID = ? LIMIT 1`, [aid]);
+        areaId = ar[0] ? ar[0].AreaID : null;
+      }
+    }
+    if (areaId == null) {
+      const [ar2] = await conn.execute(`SELECT MIN(AreaID) AS aid FROM area`);
+      areaId = ar2[0]?.aid ?? null;
+    }
+    if (areaId == null) {
+      const err = new Error("No park area available to record visitor review");
+      err.code = "NO_AREA";
+      throw err;
+    }
+
+    const prefix = type && type !== "General" ? `[${type}] ` : "";
+    await conn.execute(
+      `INSERT INTO review (VisitorID, AreaID, Feedback, Comment, IsActive)
+       VALUES (?, ?, ?, ?, 1)`,
+      [VisitorID, areaId, r, prefix + msg]
+    );
+
+    await conn.commit();
+    await addVisitHistory(VisitorID, "Feedback", `Submitted ${type} feedback (${r}/10)`);
+    return feedbackId;
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
 }
 
 async function listFeedbackSubmissions(VisitorID) {
@@ -729,6 +883,19 @@ async function createDiningOrder(VisitorID, { DiningID, Quantity, UnitPrice, Pro
   );
 
   await addVisitHistory(VisitorID, "DiningOrder", `Placed dining order at ${diningName}`);
+
+  const { diningItemId } = await getVisitorPortalStubLogItemIds();
+  const qtyD = Math.max(1, Math.floor(Number(Quantity || 1)));
+  const unitD = Number((total / qtyD).toFixed(2));
+  await logVisitorPurchaseToTransactionLog({
+    visitorId: VisitorID,
+    itemId: diningItemId,
+    quantity: qtyD,
+    unitPrice: unitD,
+    totalCost: total,
+    useDiscountType: discountAmount > 0,
+  });
+
   return orderResult.insertId;
 }
 
@@ -762,6 +929,17 @@ async function createMerchOrder(VisitorID, { ItemID, Quantity, PromoCode, Paymen
     [orderResult.insertId, ItemID, items[0].ItemName, qty, unitPrice, total]
   );
   await addVisitHistory(VisitorID, "MerchOrder", `Purchased merchandise: ${items[0].ItemName}`);
+
+  const unitM = Number((total / qty).toFixed(2));
+  await logVisitorPurchaseToTransactionLog({
+    visitorId: VisitorID,
+    itemId: ItemID,
+    quantity: qty,
+    unitPrice: unitM,
+    totalCost: total,
+    useDiscountType: discountAmount > 0,
+  });
+
   return orderResult.insertId;
 }
 

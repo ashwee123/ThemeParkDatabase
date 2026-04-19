@@ -282,6 +282,45 @@
         box-shadow: 0 0 0 1px rgba(110, 176, 106, 0.2);
       }
       label { display: grid; gap: 6px; min-width: 180px; }
+
+      /* Tickets & reservations: date pickers stand out on dark UI */
+      #tab-tickets input[type="date"].date-input-prominent {
+        min-height: 48px;
+        font-size: 1.08rem;
+        padding: 12px 14px;
+        border: 2px solid rgba(196, 80, 100, 0.75);
+        background: rgba(28, 24, 32, 0.98);
+        color: var(--ghost);
+        color-scheme: dark;
+        max-width: 100%;
+      }
+      #tab-tickets input[type="date"].date-input-prominent:focus {
+        border-color: rgba(110, 176, 106, 0.85);
+        box-shadow: 0 0 0 2px rgba(110, 176, 106, 0.25);
+      }
+      #tab-tickets input[type="date"].date-input-prominent::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: 1;
+        filter: brightness(1.35) contrast(1.1);
+        padding: 6px;
+        margin-left: 4px;
+        transform: scale(1.35);
+      }
+      #tab-tickets label.ticket-visit-field,
+      #tab-tickets label.date-field-label {
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(196, 60, 80, 0.4);
+        background: rgba(40, 18, 26, 0.45);
+        gap: 10px;
+      }
+      #tab-tickets label.ticket-visit-field > span:first-child,
+      #tab-tickets label.date-field-label > span.date-label-text {
+        font-weight: 600;
+        color: var(--ghost);
+        font-size: 0.98rem;
+      }
+
       .tabs { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 18px; }
       .tab-btn.active {
         background: linear-gradient(180deg, rgba(110, 24, 36, 0.95), rgba(52, 14, 28, 0.95));
@@ -690,10 +729,10 @@
             <form id="ticketPurchaseForm" class="panel grid">
               <h3>Purchase ticket</h3>
               <label>Ticket plan <select id="ticketPlan"><option value="SingleDay">Single day</option><option value="MultiDay">Multi-day</option><option value="SeasonPass">Season pass</option></select></label>
-              <label>Ticket category <select id="ticketCategory"><option value="General">General</option><option value="Senior">Discounted - Seniors</option><option value="Veteran">Discounted - Veterans</option><option value="Child">Discounted - Children</option><option value="Membership">Membership</option></select></label>
-              <label>Price (auto-set) <input id="ticketPrice" type="number" min="0" step="0.01" readonly /></label>
+              <label>Ticket category <select id="ticketCategory"><option value="General">General</option><option value="Senior">Discounted - Seniors</option><option value="Veteran">Discounted - Veterans</option><option value="Child">Discounted - Children (13 and under)</option><option value="Membership">Membership</option></select></label>
+              <label>Price <input id="ticketPrice" type="number" min="0" step="0.01" readonly /></label>
               <p id="ticketBenefits" class="hint" style="margin: 0;">Price: $40.00.</p>
-              <label class="ticket-visit-field"><span id="ticketVisitLabel">Visit date</span> <input id="ticketVisitDate" type="date" /></label>
+              <label class="ticket-visit-field"><span id="ticketVisitLabel">Visit date</span> <input id="ticketVisitDate" type="date" class="date-input-prominent" title="Choose your visit date" /></label>
               <label class="ticket-multiday-field hidden">Number of days <select id="ticketMultiDayCount"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></label>
               <label>Payment method
                 <select id="ticketPaymentMethod" required>
@@ -708,7 +747,7 @@
               <label>Reservation type <select id="reservationType"><option value="FastPass">FastPass</option><option value="Ride">Ride reservation</option><option value="Dining">Dining reservation</option></select></label>
               <label>Attraction <select id="reservationAttraction"></select></label>
               <label>Dining option <select id="reservationDining"></select></label>
-              <label>Date <input id="reservationDate" type="date" required /></label>
+              <label class="date-field-label"><span class="date-label-text">Date</span> <input id="reservationDate" type="date" class="date-input-prominent" required title="Choose reservation date" /></label>
               <label>Time slot <input id="reservationTimeSlot" required /></label>
               <label>Party size <input id="reservationPartySize" type="number" min="1" value="1" /></label>
               <label>Notes <input id="reservationNotes" /></label>
@@ -723,7 +762,6 @@
             <h3>Add to itinerary or wishlist</h3>
             <label>Type <select id="itineraryType"><option value="Wishlist">Wishlist</option><option value="Itinerary">Itinerary</option></select></label>
             <label>Attraction <select id="itineraryAttraction"></select></label>
-            <label>Park <select id="itineraryPark"></select></label>
             <label>Planned date <input id="itineraryDate" type="date" /></label>
             <label>Notes <input id="itineraryNotes" /></label>
             <button class="btn btn-primary" type="submit">Add planning item</button>
@@ -764,7 +802,7 @@
               <label>
                 Zone
                 <select id="diningZoneFilter">
-                  <option value="all">All zones</option>
+                  <option value="">Select a zone</option>
                 </select>
               </label>
               <label>
@@ -780,8 +818,9 @@
                 <input id="diningMaxPrice" type="number" min="0" step="0.01" placeholder="No max" />
               </label>
             </div>
-            <div class="shop-stats">
-              <div class="shop-stat">Total item: <strong id="diningTotalItems">0</strong></div>
+            <p id="diningZoneHint" class="hint" style="margin-top: 8px;">Select a zone to browse dining menus and prices.</p>
+            <div id="diningShopStats" class="shop-stats hidden" style="margin-top: 8px;">
+              <div class="shop-stat">Total items: <strong id="diningTotalItems">0</strong></div>
               <div class="shop-stat">Lowest price: <strong id="diningLowestPrice">$0.00</strong></div>
               <div class="shop-stat">Highest price: <strong id="diningHighestPrice">$0.00</strong></div>
             </div>
@@ -815,7 +854,7 @@
               <label>
                 Zone
                 <select id="merchZoneFilter">
-                  <option value="all">All zones</option>
+                  <option value="">Select a zone</option>
                 </select>
               </label>
               <label>
@@ -831,7 +870,8 @@
                 <input id="merchMaxPrice" type="number" min="0" step="0.01" placeholder="No max" />
               </label>
             </div>
-            <div class="shop-stats">
+            <p id="merchZoneHint" class="hint" style="margin-top: 8px;">Select a zone to see shops, item counts, and price range.</p>
+            <div id="merchShopStats" class="shop-stats hidden" style="margin-top: 8px;">
               <div class="shop-stat">Items shown: <strong id="merchTotalItems">0</strong></div>
               <div class="shop-stat">Shops: <strong id="merchTotalShops">0</strong></div>
               <div class="shop-stat">Lowest price: <strong id="merchLowestPrice">$0.00</strong></div>
@@ -895,7 +935,7 @@
               <h3>Rate, review, complain, or provide feedback</h3>
               <label>Type <select id="feedbackType"><option value="Review">Review</option><option value="Complaint">Complaint</option><option value="General">General</option></select></label>
               <label>Attraction <select id="feedbackAttraction"></select></label>
-              <label>Rating (optional) <input id="feedbackRating" type="number" min="1" max="10" /></label>
+              <label>Rating (1–10) <input id="feedbackRating" type="number" min="1" max="10" step="1" required /></label>
               <label>Message <textarea id="feedbackMessage" rows="4" required></textarea></label>
               <button class="btn btn-primary" type="submit">Submit feedback</button>
             </form>

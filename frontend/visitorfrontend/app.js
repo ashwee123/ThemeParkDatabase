@@ -8,53 +8,6 @@ const TICKET_PRICES = {
   Membership: 100,
 };
 const MEMBERSHIP_PERKS_TEXT = "Membership perks: skip lines, exclusive zones, and priority access.";
-const PARK_ZONES = [
-  "Uncanny Valley",
-  "Bloodmoon Village",
-  "Space Station X",
-  "Camp Blackwood",
-  "Dead End District",
-  "Isolation Ward",
-];
-const DINING_MENU_ITEMS = [
-  { zone: "Uncanny Valley", venue: "Artificial Appetite Cafe", name: "Symmetry Burger", price: 13.99 },
-  { zone: "Uncanny Valley", venue: "Artificial Appetite Cafe", name: "Repeated Ravioli Plate", price: 12.49 },
-  { zone: "Uncanny Valley", venue: "Artificial Appetite Cafe", name: "Synthetic Steak Cut", price: 18.99 },
-  { zone: "Uncanny Valley", venue: "The TV Dinner Lounge", name: "Fried Chicken TV Dinner", price: 11.49 },
-  { zone: "Uncanny Valley", venue: "The TV Dinner Lounge", name: "Mac & Cheese Combo Tray", price: 10.49 },
-  { zone: "Bloodmoon Village", venue: "Great Feast Hall", name: "Roasted Beast Feast", price: 19.99 },
-  { zone: "Bloodmoon Village", venue: "Great Feast Hall", name: "Feast of the Chosen (Sampler)", price: 18.49 },
-  { zone: "Bloodmoon Village", venue: "Great Feast Hall", name: "Sacrificial Lamb Plate", price: 16.99 },
-  { zone: "Bloodmoon Village", venue: "Crimson Tavern", name: "Dark Harvest Plate", price: 13.99 },
-  { zone: "Bloodmoon Village", venue: "Witch's Brew Stand", name: "Mystery Brew", price: 4.99 },
-  { zone: "Bloodmoon Village", venue: "Witch's Brew Stand", name: "Potion Flight (Sampler)", price: 6.99 },
-  { zone: "Space Station X", venue: "Orbit Mess Hall", name: "Space Station Burger", price: 13.49 },
-  { zone: "Space Station X", venue: "Orbit Mess Hall", name: "Zero-G Taco Plate", price: 12.49 },
-  { zone: "Space Station X", venue: "Orbit Mess Hall", name: "Galaxy Sampler Tray", price: 13.99 },
-  { zone: "Space Station X", venue: "The Airlock Lounge", name: "Black Hole Cocktail", price: 8.99 },
-  { zone: "Space Station X", venue: "The Airlock Lounge", name: "Airlock Sliders", price: 6.99 },
-  { zone: "Space Station X", venue: "Cryo Cafe", name: "Cryo Ice Cream Sphere", price: 5.49 },
-  { zone: "Camp Blackwood", venue: "Dockside Grill", name: "Grilled Fish Basket", price: 13.49 },
-  { zone: "Camp Blackwood", venue: "Dockside Grill", name: "Dockside BBQ Plate", price: 14.99 },
-  { zone: "Camp Blackwood", venue: "Smores Stand", name: "Classic Chocolate S’more", price: 4.49 },
-  { zone: "Camp Blackwood", venue: "Smores Stand", name: "S’mores Party Platter", price: 9.99 },
-  { zone: "Dead End District", venue: "Freddy Fazbears Pizzaria", name: "Classic Cheese Pizza", price: 10.49 },
-  { zone: "Dead End District", venue: "Freddy Fazbears Pizzaria", name: "Pepperoni Pizza", price: 11.49 },
-  { zone: "Dead End District", venue: "Freddy Fazbears Pizzaria", name: "Fazbear Special Pizza", price: 13.99 },
-  { zone: "Dead End District", venue: "Billy's Butcher Shop", name: "Meat Lover's Platter", price: 16.99 },
-  { zone: "Dead End District", venue: "Billy's Butcher Shop", name: "Red Sauce Special Drink", price: 4.29 },
-  { zone: "Dead End District", venue: "Midnight Snack Shack", name: "After Hours Deal", price: 6.99 },
-  { zone: "Dead End District", venue: "Midnight Snack Shack", name: "Last Call Special", price: 9.49 },
-  { zone: "Isolation Ward", venue: "Ration Station", name: "Canned Chili", price: 5.49 },
-  { zone: "Isolation Ward", venue: "Ration Station", name: "Protein Ration Pack", price: 6.49 },
-  { zone: "Isolation Ward", venue: "Contamination Cafe", name: "Pickled Veggie Cup", price: 2.99 },
-  { zone: "Isolation Ward", venue: "Contamination Cafe", name: "Mutant Mac & Cheese", price: 6.99 },
-  { zone: "Isolation Ward", venue: "Contamination Cafe", name: "Pandemic Pizza Slice", price: 5.49 },
-  { zone: "Isolation Ward", venue: "Contamination Cafe", name: "Quarantine Quesadilla", price: 7.49 },
-  { zone: "Isolation Ward", venue: "Contamination Cafe", name: "Radioactive Lemonade", price: 3.99 },
-  { zone: "Isolation Ward", venue: "Field Medic Kitchen", name: "Medic Chicken Soup", price: 6.49 },
-  { zone: "Isolation Ward", venue: "Field Medic Kitchen", name: "Restorative Combo", price: 8.99 },
-];
 const state = {
   areas: [],
   parks: [],
@@ -68,6 +21,48 @@ const state = {
   diningCart: [],
   visitorEmail: "",
 };
+
+/** Expand API dining venues (MenuItemsJSON) into one row per menu line for the grid. */
+function flattenDiningMenuFromApi() {
+  const out = [];
+  for (const d of state.dining || []) {
+    const zone = String(d.AreaName || "").trim();
+    const venue = String(d.DiningName || "").trim();
+    let menu = [];
+    if (d.MenuItemsJSON) {
+      try {
+        menu = JSON.parse(d.MenuItemsJSON);
+      } catch (_) {
+        menu = [];
+      }
+    }
+    if (Array.isArray(menu) && menu.length) {
+      for (const it of menu) {
+        const name = String(it.name || it.n || "").trim();
+        const price = Number(it.price != null ? it.price : it.p);
+        if (!name || !Number.isFinite(price)) continue;
+        out.push({
+          diningId: d.DiningID,
+          name,
+          price,
+          venue,
+          zone,
+          cuisine: d.CuisineType,
+        });
+      }
+    } else if (venue) {
+      out.push({
+        diningId: d.DiningID,
+        name: venue,
+        price: 12,
+        venue,
+        zone,
+        cuisine: d.CuisineType,
+      });
+    }
+  }
+  return out;
+}
 
 function $(id) {
   return document.getElementById(id);
@@ -87,6 +82,27 @@ function escapeHtml(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function buildZoneFilterSelects() {
+  ["diningZoneFilter", "merchZoneFilter"].forEach((id) => {
+    const el = $(id);
+    if (!el) return;
+    const names = (state.areas || []).map((a) => String(a.AreaName || "").trim()).filter(Boolean);
+    const uniq = [...new Set(names)];
+    uniq.sort((a, b) => {
+      if (a === "Entrance") return -1;
+      if (b === "Entrance") return 1;
+      return a.localeCompare(b);
+    });
+    el.innerHTML =
+      `<option value="">Select a zone</option>` +
+      uniq.map((z) => `<option value="${z.toLowerCase()}">${escapeHtml(z)}</option>`).join("");
+  });
+}
+
+function areaMatchesZoneFilter(areaName, zoneLower) {
+  return String(areaName || "").trim().toLowerCase() === String(zoneLower || "").trim().toLowerCase();
 }
 
 const ORDER_LINE_EMOJI = { Dining: "🍽", Ticket: "🎫", Merchandise: "🛍" };
@@ -523,18 +539,6 @@ function textMatchesSearch(value, query) {
   return String(value || "").toLowerCase().includes(query);
 }
 
-function normalizeZoneName(rawZone) {
-  const z = String(rawZone || "").trim().toLowerCase();
-  if (!z) return "Uncanny Valley";
-  if (z.includes("uncanny")) return "Uncanny Valley";
-  if (z.includes("bloodmoon") || z.includes("cult")) return "Bloodmoon Village";
-  if (z.includes("space") || z.includes("sci-fi") || z.includes("scifi")) return "Space Station X";
-  if (z.includes("blackwood") || z.includes("camp")) return "Camp Blackwood";
-  if (z.includes("dead end") || z.includes("slasher")) return "Dead End District";
-  if (z.includes("isolation") || z.includes("outbreak") || z.includes("biohazard")) return "Isolation Ward";
-  return "Uncanny Valley";
-}
-
 function setDiningShopView(view) {
   state.diningShopView = view === "merch" ? "merch" : "dining";
   const showingDining = state.diningShopView === "dining";
@@ -552,18 +556,32 @@ function setParkContentView(view) {
 
 function renderDiningList() {
   const query = String(($("diningSearch") && $("diningSearch").value) || "").trim().toLowerCase();
-  const zone = (($("diningZoneFilter") && $("diningZoneFilter").value) || "all").toLowerCase();
+  const zoneRaw = ($("diningZoneFilter") && $("diningZoneFilter").value) || "";
+  const zone = String(zoneRaw).trim().toLowerCase();
+  const noZone = !zoneRaw.trim();
   const sortBy = ($("diningSort") && $("diningSort").value) || "name-asc";
   const maxPrice = Number(($("diningMaxPrice") && $("diningMaxPrice").value) || "");
   const hasMaxPrice = Number.isFinite(maxPrice) && maxPrice > 0;
 
-  const rows = DINING_MENU_ITEMS.filter((d) => {
-    const matchesSearch = !query || textMatchesSearch(d.name, query) || textMatchesSearch(d.venue, query) || textMatchesSearch(d.zone, query);
-    if (!matchesSearch) return false;
-    if (zone !== "all" && String(d.zone || "").toLowerCase() !== zone) return false;
-    if (hasMaxPrice && Number(d.price || 0) > maxPrice) return false;
-    return true;
-  });
+  const hint = $("diningZoneHint");
+  const stats = $("diningShopStats");
+  if (hint) hint.classList.toggle("hidden", !noZone);
+  if (stats) stats.classList.toggle("hidden", noZone);
+
+  let rows = [];
+  if (!noZone) {
+    rows = flattenDiningMenuFromApi().filter((d) => {
+      const matchesSearch =
+        !query ||
+        textMatchesSearch(d.name, query) ||
+        textMatchesSearch(d.venue, query) ||
+        textMatchesSearch(d.zone, query);
+      if (!matchesSearch) return false;
+      if (!areaMatchesZoneFilter(d.zone, zone)) return false;
+      if (hasMaxPrice && Number(d.price || 0) > maxPrice) return false;
+      return true;
+    });
+  }
 
   rows.sort((a, b) => {
     if (sortBy === "price-asc") return a.price - b.price;
@@ -574,45 +592,74 @@ function renderDiningList() {
   const prices = rows.map((r) => Number(r.price || 0));
   const low = prices.length ? Math.min(...prices) : 0;
   const high = prices.length ? Math.max(...prices) : 0;
-  $("diningTotalItems").textContent = String(rows.length);
-  $("diningLowestPrice").textContent = `$${low.toFixed(2)}`;
-  $("diningHighestPrice").textContent = `$${high.toFixed(2)}`;
+  if ($("diningTotalItems")) $("diningTotalItems").textContent = String(rows.length);
+  if ($("diningLowestPrice")) $("diningLowestPrice").textContent = `$${low.toFixed(2)}`;
+  if ($("diningHighestPrice")) $("diningHighestPrice").textContent = `$${high.toFixed(2)}`;
 
-  $("diningCards").innerHTML = rows
-    .map((d) => `<article class="merch-card">
-      <div class="zone">${d.zone}</div>
-      <div class="item-name">${d.name}</div>
-      <div class="shop-name">${d.venue}</div>
+  if (noZone) {
+    $("diningCards").innerHTML =
+      '<p class="hint" style="margin:0;">Choose a zone above to load dining menus for that area.</p>';
+    return;
+  }
+
+  $("diningCards").innerHTML = rows.length
+    ? rows
+        .map(
+          (d) => `<article class="merch-card">
+      <div class="zone">${escapeHtml(d.zone)}</div>
+      <div class="item-name">${escapeHtml(d.name)}</div>
+      <div class="shop-name">${escapeHtml(d.venue)}</div>
       <div class="price-row">
         <strong>$${Number(d.price).toFixed(2)}</strong>
         <button class="btn small" type="button"
+          data-add-dining-id="${Number(d.diningId)}"
           data-add-dining-name="${String(d.name).replace(/"/g, "&quot;")}"
           data-add-dining-zone="${String(d.zone).replace(/"/g, "&quot;")}"
           data-add-dining-venue="${String(d.venue).replace(/"/g, "&quot;")}"
           data-add-dining-price="${Number(d.price).toFixed(2)}"
         >+ Add</button>
       </div>
-    </article>`)
-    .join("");
+    </article>`
+        )
+        .join("")
+    : '<p class="hint" style="margin:0;">No dining items match your search in this zone.</p>';
 }
 
 function renderMerchList() {
   const query = String(($("merchSearch") && $("merchSearch").value) || "").trim().toLowerCase();
-  const zone = (($("merchZoneFilter") && $("merchZoneFilter").value) || "all").toLowerCase();
+  const zoneRaw = ($("merchZoneFilter") && $("merchZoneFilter").value) || "";
+  const zone = String(zoneRaw).trim().toLowerCase();
+  const noZone = !zoneRaw.trim();
   const sortBy = ($("merchSort") && $("merchSort").value) || "name-asc";
   const maxPrice = Number(($("merchMaxPrice") && $("merchMaxPrice").value) || "");
   const hasMaxPrice = Number.isFinite(maxPrice) && maxPrice > 0;
 
+  const mh = $("merchZoneHint");
+  const ms = $("merchShopStats");
+  if (mh) mh.classList.toggle("hidden", !noZone);
+  if (ms) ms.classList.toggle("hidden", noZone);
+
+  if (noZone) {
+    const capEl0 = $("merchCapNotice");
+    if (capEl0) {
+      capEl0.textContent = "";
+      capEl0.classList.add("hidden");
+    }
+    $("merchCards").innerHTML =
+      '<p class="hint" style="margin:0;">Choose a zone above to see merchandise and shop counts for that area.</p>';
+    return;
+  }
+
   const rows = state.merchandise.filter((m) => {
-    const zoneName = normalizeZoneName(m.AreaName);
+    const zoneName = String(m.AreaName || "").trim();
     const price = Number(m.DiscountPrice || m.SellPrice || 0);
-    const matchesSearch = !query || (
+    const matchesSearch =
+      !query ||
       textMatchesSearch(m.ItemName, query) ||
       textMatchesSearch(m.RetailName, query) ||
-      textMatchesSearch(zoneName, query)
-    );
+      textMatchesSearch(zoneName, query);
     if (!matchesSearch) return false;
-    if (zone !== "all" && zoneName.toLowerCase() !== zone) return false;
+    if (!areaMatchesZoneFilter(zoneName, zone)) return false;
     if (hasMaxPrice && price > maxPrice) return false;
     return true;
   });
@@ -640,8 +687,8 @@ function renderMerchList() {
     }
   }
 
-  const uniqueShops = new Set(displayRows.map((m) => String(m.RetailName || "Unknown")));
-  const prices = displayRows.map((m) => Number(m.DiscountPrice || m.SellPrice || 0));
+  const uniqueShops = new Set(rows.map((m) => String(m.RetailName || "Unknown")));
+  const prices = rows.map((m) => Number(m.DiscountPrice || m.SellPrice || 0));
   const lowest = prices.length ? Math.min(...prices) : 0;
   const highest = prices.length ? Math.max(...prices) : 0;
   $("merchTotalItems").textContent = String(displayRows.length);
@@ -649,14 +696,15 @@ function renderMerchList() {
   $("merchLowestPrice").textContent = `$${lowest.toFixed(2)}`;
   $("merchHighestPrice").textContent = `$${highest.toFixed(2)}`;
 
-  $("merchCards").innerHTML = displayRows
-    .map((m) => {
-      const zoneName = normalizeZoneName(m.AreaName);
+  $("merchCards").innerHTML = displayRows.length
+    ? displayRows
+        .map((m) => {
+      const zoneName = String(m.AreaName || "Unknown").trim();
       const price = Number(m.DiscountPrice || m.SellPrice || 0);
       return `<article class="merch-card">
-        <div class="zone">${zoneName}</div>
-        <div class="item-name">${m.ItemName}</div>
-        <div class="shop-name">${m.RetailName || "Unknown Shop"}</div>
+        <div class="zone">${escapeHtml(zoneName)}</div>
+        <div class="item-name">${escapeHtml(m.ItemName)}</div>
+        <div class="shop-name">${escapeHtml(m.RetailName || "Unknown Shop")}</div>
         <div class="price-row">
           <strong>$${price.toFixed(2)}</strong>
           <button
@@ -669,8 +717,9 @@ function renderMerchList() {
           >+ Add</button>
         </div>
       </article>`;
-    })
-    .join("");
+        })
+        .join("")
+    : '<p class="hint" style="margin:0;">No merchandise matches your search in this zone.</p>';
 }
 
 function cartTotal() {
@@ -757,7 +806,7 @@ function renderDiningCart() {
 }
 
 function addToDiningCart(item) {
-  const key = `${item.name}|${item.venue}|${item.zone}`;
+  const key = `${item.diningId || ""}|${item.name}|${item.venue}|${item.zone}`;
   const existing = state.diningCart.find((it) => it.key === key);
   if (existing) existing.qty += 1;
   else state.diningCart.push({ ...item, key, qty: 1 });
@@ -794,7 +843,6 @@ async function loadLookups(token) {
   state.merchandise = merchandise;
 
   fillSelect("itineraryAttraction", attractions, "AttractionID", "AttractionName", true);
-  fillSelect("itineraryPark", parks, "ParkID", "ParkName", true);
   fillSelect("reservationAttraction", attractions, "AttractionID", "AttractionName", true);
   fillSelect("reservationDining", dining, "DiningID", "DiningName", true);
   fillSelect("feedbackAttraction", attractions, "AttractionID", "AttractionName", true);
@@ -804,21 +852,7 @@ async function loadLookups(token) {
   preloadAttractionImages(attractions);
   preloadEventImages(events);
 
-  const zones = Array.from(
-    new Set(PARK_ZONES)
-  );
-  if ($("merchZoneFilter")) {
-    $("merchZoneFilter").innerHTML =
-      `<option value="all">All zones</option>` +
-      zones.map((z) => `<option value="${z.toLowerCase()}">${z}</option>`).join("");
-  }
-
-  const diningZones = Array.from(new Set(PARK_ZONES));
-  if ($("diningZoneFilter")) {
-    $("diningZoneFilter").innerHTML =
-      `<option value="all">All zones</option>` +
-      diningZones.map((z) => `<option value="${z.toLowerCase()}">${z}</option>`).join("");
-  }
+  buildZoneFilterSelects();
 }
 
 function showAuth(isAuthView) {
@@ -952,6 +986,9 @@ async function renderDiningAndMerch() {
   const [dining, merch] = await Promise.all([api("/api/dining", { token: getToken() }), api("/api/merchandise", { token: getToken() })]);
   state.dining = dining;
   state.merchandise = merch;
+  fillSelect("reservationDining", dining, "DiningID", "DiningName", true);
+  fillSelect("diningOrderDining", dining, "DiningID", "DiningName", false);
+  fillSelect("merchOrderItem", merch, "ItemID", "ItemName", false);
   renderDiningList();
   renderMerchList();
 }
@@ -973,7 +1010,10 @@ async function renderOrders() {
 async function renderFeedback() {
   const rows = await api("/api/feedback-submissions", { token: getToken() });
   $("feedbackList").innerHTML = rows
-    .map((f) => `<li><strong>${f.FeedbackType}</strong> ${f.AttractionName ? `for ${f.AttractionName}` : ""}: ${f.Message}</li>`)
+    .map(
+      (f) =>
+        `<li><strong>${f.FeedbackType}</strong> (${f.Rating}/10)${f.AttractionName ? ` for ${f.AttractionName}` : ""}: ${f.Message}</li>`
+    )
     .join("");
 }
 
@@ -1160,7 +1200,7 @@ function bindAppActions() {
       token: getToken(),
       body: {
         AttractionID: $("itineraryAttraction").value || null,
-        ParkID: $("itineraryPark").value || null,
+        ParkID: null,
         PlannedDate: $("itineraryDate").value || null,
         ItemType: $("itineraryType").value,
         Notes: $("itineraryNotes").value || null,
@@ -1201,11 +1241,12 @@ function bindAppActions() {
   $("diningCards").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-add-dining-name]");
     if (!btn) return;
+    const diningId = Number(btn.dataset.addDiningId || 0);
     const name = btn.dataset.addDiningName || "Dining item";
     const zone = btn.dataset.addDiningZone || "General";
     const venue = btn.dataset.addDiningVenue || "Park Dining";
     const price = Number(btn.dataset.addDiningPrice || 0);
-    addToDiningCart({ name, zone, venue, price });
+    addToDiningCart({ diningId, name, zone, venue, price });
     $("diningOrderUnitPrice").value = price.toFixed(2);
     showStatus(`${name} added to dining cart ($${price.toFixed(2)}).`);
   });
@@ -1232,18 +1273,20 @@ function bindAppActions() {
     }
     const paymentMethod = $("diningPaymentMethod").value || "Credit card";
     const fallbackDiningId = Number($("diningOrderDining").value || 0);
-    if (!fallbackDiningId) {
-      showStatus("Select a dining option before checkout.", true);
+    const anyMissingDiningId = state.diningCart.some((it) => !Number(it.diningId));
+    if (anyMissingDiningId && !fallbackDiningId) {
+      showStatus("Select a dining venue under Pay for dining, or add items from the menu cards.", true);
       return;
     }
     const diningOrderIds = [];
     let diningTotal = 0;
     for (const item of state.diningCart) {
+      const diningId = Number(item.diningId || fallbackDiningId) || fallbackDiningId;
       const res = await api("/api/orders/dining", {
         method: "POST",
         token: getToken(),
         body: {
-          DiningID: fallbackDiningId,
+          DiningID: diningId,
           Quantity: Number(item.qty),
           UnitPrice: Number(item.price),
           PaymentMethod: paymentMethod,
@@ -1363,18 +1406,28 @@ function bindAppActions() {
 
   $("feedbackForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    await api("/api/feedback-submissions", {
-      method: "POST",
-      token: getToken(),
-      body: {
-        AttractionID: $("feedbackAttraction").value || null,
-        Rating: $("feedbackRating").value === "" ? null : Number($("feedbackRating").value),
-        FeedbackType: $("feedbackType").value,
-        Message: $("feedbackMessage").value,
-      },
-    });
-    e.target.reset();
-    await renderFeedback();
+    const rating = Number($("feedbackRating").value);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
+      showStatus("Rating must be a whole number from 1 to 10.", true);
+      return;
+    }
+    try {
+      await api("/api/feedback-submissions", {
+        method: "POST",
+        token: getToken(),
+        body: {
+          AttractionID: $("feedbackAttraction").value || null,
+          Rating,
+          FeedbackType: $("feedbackType").value,
+          Message: $("feedbackMessage").value,
+        },
+      });
+      e.target.reset();
+      showStatus("Feedback submitted.");
+      await renderFeedback();
+    } catch (err) {
+      showStatus(err.message || "Could not submit feedback.", true);
+    }
   });
 }
 
