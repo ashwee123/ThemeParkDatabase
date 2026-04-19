@@ -1,6 +1,21 @@
 const API_BASE = "https://retail-portal-backend-pg0i.onrender.com";
 const HOME_URL = "https://theme-park-database.vercel.app/";
 
+const state = {
+    stores: [],
+    stockRows: [],
+    itemRows: [],
+    transactionItems: [],
+    restockItems: [],
+    editingItemId: null,
+    selectedPriceField: "sellPrice",
+    reportsData: {
+        profit: [],
+        loss: [],
+        bought: []
+    }
+};
+
 function hydrateAuthFromQuery() {
     const params = new URLSearchParams(window.location.search);
     let hydrated = false;
@@ -44,8 +59,7 @@ if (!token) {
     throw new Error("Missing authentication token for retail portal");
 }
 
-// Get area info from session set by main site
-const AREA_NAME    = sessionStorage.getItem("areaName");
+const AREA_NAME = sessionStorage.getItem("areaName");
 const MANAGER_NAME = sessionStorage.getItem("managerName");
 
 function extractAreaIdFromPath() {
@@ -55,78 +69,55 @@ function extractAreaIdFromPath() {
     return Number.isNaN(possibleAreaId) ? null : possibleAreaId;
 }
 
-const AREA_ID = (
-    sessionStorage.getItem("areaID")
-    || sessionStorage.getItem("areaId")
-    || extractAreaIdFromPath()
-);
-if (AREA_ID) {
+function resolveAreaID() {
+    const sessionAreaID = sessionStorage.getItem("areaID");
+    if (sessionAreaID !== null && sessionAreaID !== "") return sessionAreaID;
+
+    const sessionAreaId = sessionStorage.getItem("areaId");
+    if (sessionAreaId !== null && sessionAreaId !== "") return sessionAreaId;
+
+    const areaFromPath = extractAreaIdFromPath();
+    if (areaFromPath !== null && areaFromPath !== undefined) return areaFromPath;
+
+    return null;
+}
+
+const AREA_ID = resolveAreaID();
+
+if (AREA_ID !== null && AREA_ID !== undefined && AREA_ID !== "") {
     sessionStorage.setItem("areaID", String(AREA_ID));
     sessionStorage.setItem("areaId", String(AREA_ID));
 }
 
-// Set portal title
-document.getElementById("portal-title").textContent = `${AREA_NAME || "Retail"} Retail`;
-
-// =============================================================
-// AUTH HEADER HELPER
-// =============================================================
+document.getElementById("portal-title").textContent = AREA_NAME ? `${AREA_NAME} Retail` : "Retail";
+document.getElementById("welcome-line").textContent = `Welcome ${MANAGER_NAME || "Manager"}.`;
 
 function authHeader() {
     const headers = {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json"
     };
-    if (AREA_ID) {
-        // Helps backend resolve manager area when token payload does not include user id.
+    if (AREA_ID !== null && AREA_ID !== undefined && AREA_ID !== "") {
         headers["X-Area-ID"] = String(AREA_ID);
     }
     return headers;
 }
 
-// =============================================================
-// TABS
-// =============================================================
-
-document.querySelectorAll(".tab").forEach(tab => {
-    tab.addEventListener("click", () => {
-        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-        document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
-        tab.classList.add("active");
-        document.getElementById(`tab-${tab.dataset.tab}`).classList.add("active");
-
-        switch (tab.dataset.tab) {
-            case "dashboard":    loadDashboard();    break;
-            case "inventory":    loadInventory();    break;
-            case "transactions": loadTransactions(); break;
-            case "restock":      loadRestock();      break;
-            case "reports":      loadStores();       break;
-            case "stores":       loadStores();       break;
-        }
-    });
-});
-
-// =============================================================
-// TOAST
-// =============================================================
-
 function showToast(msg, isError = false) {
     const toast = document.getElementById("toast");
     toast.textContent = msg;
     toast.className = "toast show" + (isError ? " error" : "");
-    setTimeout(() => toast.className = "toast", 3000);
+    setTimeout(() => {
+        toast.className = "toast";
+    }, 3000);
 }
 
-// =============================================================
-// HELPERS
-// =============================================================
-
 function formatCurrency(val) {
-    return `$${parseFloat(val).toFixed(2)}`;
+    return `$${parseFloat(val || 0).toFixed(2)}`;
 }
 
 function formatDate(val) {
-    return val ? val.split("T")[0] : "";
+    return val ? String(val).split("T")[0] : "";
 }
 
 function buildReportQuery(startDate, endDate, retailID) {
@@ -135,24 +126,112 @@ function buildReportQuery(startDate, endDate, retailID) {
     return params.toString();
 }
 
+function ensureReportDateRangeDefaults() {
+    const startInput = document.getElementById("report-start");
+    const endInput = document.getElementById("report-end");
+    if (!startInput || !endInput) return;
+
+    if (!startInput.value || !endInput.value) {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(end.getDate() - 30);
+
+        const toISO = (d) => d.toISOString().slice(0, 10);
+        startInput.value = toISO(start);
+        endInput.value = toISO(end);
+    }
+}
+
 function stockStatus(qty, threshold) {
-    if (qty <= 0)         return `<span class="status status-critical">Out of Stock</span>`;
+    if (qty <= 0) return `<span class="status status-critical">Out of Stock</span>`;
     if (qty <= threshold) return `<span class="status status-low">Low</span>`;
-    return                       `<span class="status status-ok">OK</span>`;
+    return `<span class="status status-ok">OK</span>`;
 }
 
 function txnType(type) {
-    return `<span class="type-${type.toLowerCase()}">${type}</span>`;
+    return `<span class="type-${String(type || "").toLowerCase()}">${type}</span>`;
 }
 
-// =============================================================
-// DASHBOARD
-// =============================================================
+function safeArray(data) {
+    return Array.isArray(data) ? data : [];
+}
+
+function activePanelName() {
+    const panel = document.querySelector(".panel.active");
+    return panel ? panel.id.replace("tab-", "") : "inventory";
+}
+
+function applyStoreSelect(selectId, includeAllLabel = "All Stores") {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    const selectedValue = select.value;
+    select.innerHTML = [
+        `<option value="">${includeAllLabel}</option>`,
+        ...state.stores.map(s => `<option value="${s.RetailID}">${s.RetailName}</option>`)
+    ].join("");
+    if (selectedValue) select.value = selectedValue;
+}
+
+function getStoreNameById(retailID) {
+    const match = state.stores.find(s => Number(s.RetailID) === Number(retailID));
+    return match ? match.RetailName : "";
+}
+
+async function fetchJSON(path, options = {}) {
+    const response = await fetch(`${API_BASE}${path}`, options);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.error || `${response.status} ${response.statusText}`);
+    }
+    return data;
+}
+
+async function loadStores() {
+    const stores = safeArray(await fetchJSON("/stores", { headers: authHeader() }));
+    state.stores = stores;
+
+    const tbody = document.querySelector("#tbl-stores tbody");
+    tbody.innerHTML = stores.length ? stores.map(s => `
+        <tr>
+            <td>${s.RetailName}</td>
+            <td>
+                <button class="btn btn-ghost btn-small" onclick="openStoreRename(${s.RetailID}, '${String(s.RetailName).replace(/'/g, "\\'")}')">Rename</button>
+            </td>
+        </tr>
+    `).join("") : `<tr><td colspan="2" style="color:var(--text-dim)">No stores found</td></tr>`;
+
+    applyStoreSelect("dashboard-store", "All Stores");
+    applyStoreSelect("items-store-filter", "All Stores");
+    applyStoreSelect("txn-store-filter", "All Stores");
+    applyStoreSelect("restock-store-filter", "All Stores");
+    applyStoreSelect("report-store", "All Stores");
+    applyStoreSelect("new-item-store", "Select Store");
+}
+
+function renderDashboardStock() {
+    const selectedStore = document.getElementById("dashboard-store").value;
+    const rows = state.stockRows.filter(row => !selectedStore || String(row.RetailID) === String(selectedStore));
+
+    const tbody = document.querySelector("#tbl-inventory tbody");
+    tbody.innerHTML = rows.length ? rows.map(i => `
+        <tr>
+            <td>${i.ItemName}</td>
+            <td>${i.Quantity}</td>
+            <td>${stockStatus(i.Quantity, i.LowStockThreshold)}</td>
+        </tr>
+    `).join("") : `<tr><td colspan="3" style="color:var(--text-dim)">No items found</td></tr>`;
+}
 
 async function loadDashboard() {
-    const notifRes  = await fetch(`${API_BASE}/notifications`, { headers: authHeader() });
-    const notifs    = await notifRes.json();
+    const [notifications, inventory] = await Promise.all([
+        fetchJSON("/notifications", { headers: authHeader() }),
+        fetchJSON("/inventory", { headers: authHeader() })
+    ]);
+
+    state.stockRows = safeArray(inventory);
+
     const notifBody = document.querySelector("#tbl-notifications tbody");
+    const notifs = safeArray(notifications);
     notifBody.innerHTML = notifs.length ? notifs.map(n => `
         <tr>
             <td>${n.ItemName}</td>
@@ -161,162 +240,186 @@ async function loadDashboard() {
         </tr>
     `).join("") : `<tr><td colspan="3" style="color:var(--text-dim)">No notifications</td></tr>`;
 
-    const invRes  = await fetch(`${API_BASE}/inventory`, { headers: authHeader() });
-    const inv     = await invRes.json();
-    const invBody = document.querySelector("#tbl-inventory tbody");
-    invBody.innerHTML = inv.length ? inv.map(i => `
-        <tr>
-            <td>${i.ItemName}</td>
-            <td>${i.RetailName}</td>
-            <td>${i.Quantity}</td>
-            <td>${i.LowStockThreshold}</td>
-            <td>${stockStatus(i.Quantity, i.LowStockThreshold)}</td>
-        </tr>
-    `).join("") : `<tr><td colspan="5" style="color:var(--text-dim)">No items found</td></tr>`;
+    renderDashboardStock();
 }
 
-// =============================================================
-// INVENTORY
-// =============================================================
-
-async function loadInventory() {
-    const [invRes, storeRes] = await Promise.all([
-        fetch(`${API_BASE}/inventory`, { headers: authHeader() }),
-        fetch(`${API_BASE}/stores`,    { headers: authHeader() })
-    ]);
-    const inv    = await invRes.json();
-    const stores = await storeRes.json();
-
-    const storeSelect = document.getElementById("new-item-store");
-    storeSelect.innerHTML = stores.map(s => `<option value="${s.RetailID}">${s.RetailName}</option>`).join("");
-
+function renderItemsTable() {
+    const selectedStore = document.getElementById("items-store-filter").value;
+    const rows = state.itemRows.filter(row => !selectedStore || String(row.RetailID) === String(selectedStore));
     const tbody = document.querySelector("#tbl-inventory-full tbody");
-    tbody.innerHTML = inv.length ? inv.map(i => `
-        <tr>
-            <td>${i.ItemName}</td>
-            <td>${i.RetailName}</td>
-            <td>${formatCurrency(i.BuyPrice)}</td>
-            <td>${formatCurrency(i.SellPrice)}</td>
-            <td>${i.DiscountPrice ? formatCurrency(i.DiscountPrice) : "—"}</td>
-            <td>${i.Quantity}</td>
-            <td>${i.LowStockThreshold}</td>
-            <td>${stockStatus(i.Quantity, i.LowStockThreshold)}</td>
-            <td>
-                <div class="table-actions">
-                    <button class="btn btn-ghost btn-small" onclick="openEditPrice(${i.ItemID}, ${i.BuyPrice}, ${i.SellPrice}, ${i.DiscountPrice || 0})">Price</button>
-                    <button class="btn btn-ghost btn-small" onclick="openAdjustQty(${i.ItemID}, ${i.Quantity})">Qty</button>
-                    <button class="btn btn-ghost btn-small" onclick="openThreshold(${i.ItemID}, ${i.LowStockThreshold})">Threshold</button>
-                    <button class="btn btn-danger btn-small" onclick="toggleActive(${i.ItemID}, false)">Deactivate</button>
-                </div>
-            </td>
-        </tr>
-    `).join("") : `<tr><td colspan="9" style="color:var(--text-dim)">No items found</td></tr>`;
+
+    tbody.innerHTML = rows.length ? rows.map(i => {
+        const isEditing = state.editingItemId === i.ItemID;
+        const priceField = state.selectedPriceField;
+
+        if (isEditing) {
+            return `
+                <tr>
+                    <td><input id="edit-item-name" value="${String(i.ItemName).replace(/"/g, "&quot;")}" /></td>
+                    <td>
+                        <select id="edit-price-field">
+                            <option value="buyPrice" ${priceField === "buyPrice" ? "selected" : ""}>Buy Price</option>
+                            <option value="sellPrice" ${priceField === "sellPrice" ? "selected" : ""}>Sell Price</option>
+                            <option value="discountPrice" ${priceField === "discountPrice" ? "selected" : ""}>Discount Price</option>
+                        </select>
+                    </td>
+                    <td><input id="edit-price-value" type="number" step="0.01" value="${priceField === "buyPrice" ? i.BuyPrice : (priceField === "sellPrice" ? i.SellPrice : (i.DiscountPrice || ""))}" /></td>
+                    <td><input id="edit-threshold" type="number" value="${i.LowStockThreshold}" /></td>
+                    <td><input id="edit-quantity" type="number" value="${i.Quantity}" /></td>
+                    <td>
+                        <div class="table-actions">
+                            <button class="btn btn-primary btn-small" onclick="saveItemEdit(${i.ItemID})">Save</button>
+                            <button class="btn btn-ghost btn-small" onclick="cancelItemEdit()">Cancel</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        return `
+            <tr>
+                <td>${i.ItemName}</td>
+                <td>${formatCurrency(i.BuyPrice)}</td>
+                <td>${formatCurrency(i.SellPrice)}</td>
+                <td>${i.DiscountPrice ? formatCurrency(i.DiscountPrice) : "—"}</td>
+                <td>${i.LowStockThreshold}</td>
+                <td>
+                    <div class="table-actions">
+                        <button class="btn btn-ghost btn-small" onclick="startItemEdit(${i.ItemID})">Edit</button>
+                        <button class="btn btn-danger btn-small" onclick="toggleActive(${i.ItemID}, false)">Deactivate</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join("") : `<tr><td colspan="6" style="color:var(--text-dim)">No items found</td></tr>`;
 }
+
+async function loadItems() {
+    const inventory = await fetchJSON("/inventory", { headers: authHeader() });
+    state.itemRows = safeArray(inventory);
+    state.stockRows = safeArray(inventory);
+    renderItemsTable();
+    renderDashboardStock();
+}
+
+async function saveItemEdit(itemID) {
+    const item = state.itemRows.find(i => Number(i.ItemID) === Number(itemID));
+    if (!item) return;
+
+    const itemName = document.getElementById("edit-item-name").value.trim();
+    const threshold = Number.parseInt(document.getElementById("edit-threshold").value, 10);
+    const quantity = Number.parseInt(document.getElementById("edit-quantity").value, 10);
+    const priceField = document.getElementById("edit-price-field").value;
+    const priceValueRaw = document.getElementById("edit-price-value").value;
+
+    const buyPrice = priceField === "buyPrice" ? Number.parseFloat(priceValueRaw) : Number.parseFloat(item.BuyPrice);
+    const sellPrice = priceField === "sellPrice" ? Number.parseFloat(priceValueRaw) : Number.parseFloat(item.SellPrice);
+    const discountPrice = priceField === "discountPrice"
+        ? (priceValueRaw === "" ? null : Number.parseFloat(priceValueRaw))
+        : (item.DiscountPrice === null ? null : Number.parseFloat(item.DiscountPrice));
+
+    if (!itemName || Number.isNaN(threshold) || Number.isNaN(quantity) || Number.isNaN(buyPrice) || Number.isNaN(sellPrice)) {
+        return showToast("Please enter valid values before saving", true);
+    }
+
+    await fetchJSON("/item/name", {
+        method: "PUT",
+        headers: authHeader(),
+        body: JSON.stringify({ itemID, itemName })
+    });
+
+    await fetchJSON("/item/price", {
+        method: "PUT",
+        headers: authHeader(),
+        body: JSON.stringify({ itemID, buyPrice, sellPrice, discountPrice })
+    });
+
+    await fetchJSON("/inventory/threshold", {
+        method: "PUT",
+        headers: authHeader(),
+        body: JSON.stringify({ itemID, threshold })
+    });
+
+    await fetchJSON("/inventory/adjust", {
+        method: "PUT",
+        headers: authHeader(),
+        body: JSON.stringify({ itemID, newQuantity: quantity })
+    });
+
+    state.editingItemId = null;
+    showToast("Item updated successfully");
+    await loadItems();
+}
+
+function startItemEdit(itemID) {
+    state.editingItemId = itemID;
+    state.selectedPriceField = "sellPrice";
+    renderItemsTable();
+}
+
+function cancelItemEdit() {
+    state.editingItemId = null;
+    renderItemsTable();
+}
+
+window.startItemEdit = startItemEdit;
+window.cancelItemEdit = cancelItemEdit;
+window.saveItemEdit = saveItemEdit;
 
 document.getElementById("btn-add-item").addEventListener("click", async () => {
-    const name      = document.getElementById("new-item-name").value.trim();
-    const buy       = parseFloat(document.getElementById("new-item-buy").value);
-    const sell      = parseFloat(document.getElementById("new-item-sell").value);
-    const discount  = parseFloat(document.getElementById("new-item-discount").value) || null;
-    const qty       = parseInt(document.getElementById("new-item-qty").value);
-    const threshold = parseInt(document.getElementById("new-item-threshold").value) || 10;
-    const retailID  = parseInt(document.getElementById("new-item-store").value);
+    const itemName = document.getElementById("new-item-name").value.trim();
+    const buyPrice = Number.parseFloat(document.getElementById("new-item-buy").value);
+    const sellPrice = Number.parseFloat(document.getElementById("new-item-sell").value);
+    const discountPriceRaw = document.getElementById("new-item-discount").value;
+    const quantity = Number.parseInt(document.getElementById("new-item-qty").value, 10);
+    const threshold = Number.parseInt(document.getElementById("new-item-threshold").value || "10", 10);
+    const retailID = Number.parseInt(document.getElementById("new-item-store").value, 10);
+    const discountPrice = discountPriceRaw === "" ? null : Number.parseFloat(discountPriceRaw);
 
-    if (!name || !buy || !sell || !qty || !retailID) return showToast("Please fill in all required fields", true);
+    if (!itemName || Number.isNaN(buyPrice) || Number.isNaN(sellPrice) || Number.isNaN(quantity) || Number.isNaN(retailID)) {
+        return showToast("Please fill in all required fields", true);
+    }
 
-    const res  = await fetch(`${API_BASE}/item`, {
+    await fetchJSON("/item", {
         method: "POST",
         headers: authHeader(),
-        body: JSON.stringify({ itemName: name, buyPrice: buy, sellPrice: sell, discountPrice: discount, quantity: qty, threshold, retailID })
+        body: JSON.stringify({ itemName, buyPrice, sellPrice, discountPrice, quantity, threshold, retailID })
     });
-    const data = await res.json();
-    if (data.error) return showToast(data.error, true);
+
     showToast("Item added successfully");
-    loadInventory();
+    await loadItems();
 });
 
-function openEditPrice(itemID, buy, sell, discount) {
-    const newBuy      = prompt("New Buy Price:", buy);
-    const newSell     = prompt("New Sell Price:", sell);
-    const newDiscount = prompt("New Discount Price (leave blank to clear):", discount || "");
-    if (!newBuy || !newSell) return;
-
-    fetch(`${API_BASE}/item/price`, {
-        method: "PUT",
-        headers: authHeader(),
-        body: JSON.stringify({
-            itemID,
-            buyPrice:      parseFloat(newBuy),
-            sellPrice:     parseFloat(newSell),
-            discountPrice: newDiscount ? parseFloat(newDiscount) : null
-        })
-    }).then(r => r.json()).then(data => {
-        if (data.error) return showToast(data.error, true);
-        showToast("Prices updated");
-        loadInventory();
-    });
-}
-
-function openAdjustQty(itemID, current) {
-    const newQty = prompt("New Quantity:", current);
-    if (newQty === null) return;
-
-    fetch(`${API_BASE}/inventory/adjust`, {
-        method: "PUT",
-        headers: authHeader(),
-        body: JSON.stringify({ itemID, newQuantity: parseInt(newQty) })
-    }).then(r => r.json()).then(data => {
-        if (data.error) return showToast(data.error, true);
-        showToast("Quantity updated");
-        loadInventory();
-    });
-}
-
-function openThreshold(itemID, current) {
-    const newThreshold = prompt("New Low Stock Threshold:", current);
-    if (newThreshold === null) return;
-
-    fetch(`${API_BASE}/inventory/threshold`, {
-        method: "PUT",
-        headers: authHeader(),
-        body: JSON.stringify({ itemID, threshold: parseInt(newThreshold) })
-    }).then(r => r.json()).then(data => {
-        if (data.error) return showToast(data.error, true);
-        showToast("Threshold updated");
-        loadInventory();
-    });
-}
-
-function toggleActive(itemID, isActive) {
+async function toggleActive(itemID, isActive) {
     if (!confirm(`Are you sure you want to ${isActive ? "activate" : "deactivate"} this item?`)) return;
-
-    fetch(`${API_BASE}/item/active`, {
+    await fetchJSON("/item/active", {
         method: "PUT",
         headers: authHeader(),
         body: JSON.stringify({ itemID, isActive })
-    }).then(r => r.json()).then(data => {
-        if (data.error) return showToast(data.error, true);
-        showToast(`Item ${isActive ? "activated" : "deactivated"}`);
-        loadInventory();
     });
+    showToast(`Item ${isActive ? "activated" : "deactivated"} successfully`);
+    await loadItems();
 }
 
-// =============================================================
-// TRANSACTIONS
-// =============================================================
+window.toggleActive = toggleActive;
+
+function renderTransactionItemOptions() {
+    const selectedStore = document.getElementById("txn-store-filter").value;
+    const itemSelect = document.getElementById("txn-item");
+    const filtered = state.transactionItems.filter(i => !selectedStore || String(i.RetailID) === String(selectedStore));
+    itemSelect.innerHTML = filtered.map(i => `<option value="${i.ItemID}">${i.ItemName} (${i.RetailName})</option>`).join("");
+}
 
 async function loadTransactions() {
-    const [txnRes, invRes] = await Promise.all([
-        fetch(`${API_BASE}/transactions`, { headers: authHeader() }),
-        fetch(`${API_BASE}/inventory`,    { headers: authHeader() })
+    const [transactions, inventory] = await Promise.all([
+        fetchJSON("/transactions", { headers: authHeader() }),
+        fetchJSON("/inventory", { headers: authHeader() })
     ]);
-    const txns = await txnRes.json();
-    const inv  = await invRes.json();
-
-    const itemSelect = document.getElementById("txn-item");
-    itemSelect.innerHTML = inv.map(i => `<option value="${i.ItemID}">${i.ItemName} (${i.RetailName})</option>`).join("");
+    state.transactionItems = safeArray(inventory);
+    renderTransactionItemOptions();
 
     const tbody = document.querySelector("#tbl-transactions tbody");
+    const txns = safeArray(transactions);
     tbody.innerHTML = txns.length ? txns.map(t => `
         <tr>
             <td>${t.ItemName}</td>
@@ -330,41 +433,46 @@ async function loadTransactions() {
     `).join("") : `<tr><td colspan="7" style="color:var(--text-dim)">No transactions found</td></tr>`;
 }
 
+document.getElementById("txn-store-filter").addEventListener("change", renderTransactionItemOptions);
+
 document.getElementById("btn-log-txn").addEventListener("click", async () => {
-    const itemID   = parseInt(document.getElementById("txn-item").value);
-    const type     = document.getElementById("txn-type").value;
-    const quantity = parseInt(document.getElementById("txn-qty").value);
+    const itemID = Number.parseInt(document.getElementById("txn-item").value, 10);
+    const type = document.getElementById("txn-type").value;
+    const quantity = Number.parseInt(document.getElementById("txn-qty").value, 10);
 
-    if (!itemID || !type || !quantity) return showToast("Please fill in all fields", true);
+    if (Number.isNaN(itemID) || !type || Number.isNaN(quantity)) {
+        return showToast("Please fill in all fields", true);
+    }
 
-    const res  = await fetch(`${API_BASE}/transaction`, {
+    await fetchJSON("/transaction", {
         method: "POST",
         headers: authHeader(),
-        body: JSON.stringify({ itemID, type, quantity })
+        body: JSON.stringify({ itemID, type, quantity, visitorID: 0 })
     });
-    const data = await res.json();
-    if (data.error) return showToast(data.error, true);
+
     showToast("Transaction logged successfully");
-    loadTransactions();
+    await loadTransactions();
 });
 
-// =============================================================
-// RESTOCK
-// =============================================================
+function renderRestockItemOptions() {
+    const selectedStore = document.getElementById("restock-store-filter").value;
+    const select = document.getElementById("restock-item");
+    const filtered = state.restockItems.filter(i => !selectedStore || String(i.RetailID) === String(selectedStore));
+    select.innerHTML = filtered.map(i => `<option value="${i.ItemID}">${i.ItemName} (${i.RetailName})</option>`).join("");
+}
 
 async function loadRestock() {
-    const [restockRes, invRes] = await Promise.all([
-        fetch(`${API_BASE}/restock/history`, { headers: authHeader() }),
-        fetch(`${API_BASE}/inventory`,        { headers: authHeader() })
+    const [restockHistory, inventory] = await Promise.all([
+        fetchJSON("/restock/history", { headers: authHeader() }),
+        fetchJSON("/inventory", { headers: authHeader() })
     ]);
-    const restocks = await restockRes.json();
-    const inv      = await invRes.json();
 
-    const itemSelect = document.getElementById("restock-item");
-    itemSelect.innerHTML = inv.map(i => `<option value="${i.ItemID}">${i.ItemName} (${i.RetailName})</option>`).join("");
+    state.restockItems = safeArray(inventory);
+    renderRestockItemOptions();
 
+    const rows = safeArray(restockHistory);
     const tbody = document.querySelector("#tbl-restock tbody");
-    tbody.innerHTML = restocks.length ? restocks.map(r => `
+    tbody.innerHTML = rows.length ? rows.map(r => `
         <tr>
             <td>${r.ItemName}</td>
             <td>${r.Quantity}</td>
@@ -373,49 +481,62 @@ async function loadRestock() {
     `).join("") : `<tr><td colspan="3" style="color:var(--text-dim)">No restock history</td></tr>`;
 }
 
+document.getElementById("restock-store-filter").addEventListener("change", renderRestockItemOptions);
+
 document.getElementById("btn-log-restock").addEventListener("click", async () => {
-    const itemID   = parseInt(document.getElementById("restock-item").value);
-    const quantity = parseInt(document.getElementById("restock-qty").value);
+    const itemID = Number.parseInt(document.getElementById("restock-item").value, 10);
+    const quantity = Number.parseInt(document.getElementById("restock-qty").value, 10);
 
-    if (!itemID || !quantity) return showToast("Please fill in all fields", true);
+    if (Number.isNaN(itemID) || Number.isNaN(quantity)) {
+        return showToast("Please fill in all fields", true);
+    }
 
-    const res  = await fetch(`${API_BASE}/restock`, {
+    await fetchJSON("/restock", {
         method: "POST",
         headers: authHeader(),
         body: JSON.stringify({ itemID, quantity })
     });
-    const data = await res.json();
-    if (data.error) return showToast(data.error, true);
-    showToast("Restock logged successfully");
-    loadRestock();
+
+    showToast("Restock order logged");
+    await loadRestock();
 });
 
-// =============================================================
-// REPORTS
-// =============================================================
-
-document.getElementById("btn-run-report").addEventListener("click", async () => {
+async function loadReports() {
     const startDate = document.getElementById("report-start").value;
-    const endDate   = document.getElementById("report-end").value;
-    const retailID  = document.getElementById("report-store").value;
+    const endDate = document.getElementById("report-end").value;
+    const retailID = document.getElementById("report-store").value;
 
-    if (!startDate || !endDate) return showToast("Please select a date range", true);
+    if (!startDate || !endDate) {
+        showToast("Please select a date range", true);
+        return;
+    }
 
-    const reportQuery = buildReportQuery(startDate, endDate, retailID);
-    const [reportRes, damagedRes, boughtRes] = await Promise.all([
-        fetch(`${API_BASE}/report?${reportQuery}`,         { headers: authHeader() }),
-        fetch(`${API_BASE}/damaged-stolen?${reportQuery}`, { headers: authHeader() }),
-        fetch(`${API_BASE}/items-bought?${reportQuery}`,   { headers: authHeader() })
+    const query = buildReportQuery(startDate, endDate, retailID);
+    const [profit, loss, bought] = await Promise.all([
+        fetchJSON(`/report?${query}`, { headers: authHeader() }),
+        fetchJSON(`/inventory-loss?${query}`, { headers: authHeader() }),
+        fetchJSON(`/items-bought?${query}`, { headers: authHeader() })
     ]);
 
-    const [report, damaged, bought] = await Promise.all([
-        reportRes.json(),
-        damagedRes.json(),
-        boughtRes.json()
-    ]);
+    state.reportsData.profit = safeArray(profit);
+    state.reportsData.loss = safeArray(loss);
+    state.reportsData.bought = safeArray(bought);
+    renderActiveReport();
+}
 
-    const reportBody = document.querySelector("#tbl-report tbody");
-    reportBody.innerHTML = report.length ? report.map(r => `
+function renderActiveReport() {
+    const selectedReport = document.getElementById("report-type").value;
+
+    const profitWrap = document.getElementById("profit-report-wrap");
+    const lossWrap = document.getElementById("loss-report-wrap");
+    const boughtWrap = document.getElementById("bought-report-wrap");
+
+    profitWrap.style.display = selectedReport === "profit" ? "block" : "none";
+    lossWrap.style.display = selectedReport === "loss" ? "block" : "none";
+    boughtWrap.style.display = selectedReport === "bought" ? "block" : "none";
+
+    const profitBody = document.querySelector("#tbl-report tbody");
+    profitBody.innerHTML = state.reportsData.profit.length ? state.reportsData.profit.map(r => `
         <tr>
             <td>${r.RetailName}</td>
             <td>${r.ItemName}</td>
@@ -423,15 +544,15 @@ document.getElementById("btn-run-report").addEventListener("click", async () => 
             <td>${formatCurrency(r.Revenue)}</td>
             <td>${formatCurrency(r.COGS)}</td>
             <td>${formatCurrency(r.GrossProfit)}</td>
-            <td>${r.GrossMarginPct}%</td>
+            <td>${Number(r.GrossMarginPct || 0).toFixed(2)}%</td>
             <td>${r.DiscountTransactions}</td>
             <td>${r.DamagedCount}</td>
             <td>${r.StolenCount}</td>
         </tr>
     `).join("") : `<tr><td colspan="10" style="color:var(--text-dim)">No data for selected range</td></tr>`;
 
-    const damagedBody = document.querySelector("#tbl-damaged tbody");
-    damagedBody.innerHTML = damaged.length ? damaged.map(d => `
+    const lossBody = document.querySelector("#tbl-damaged tbody");
+    lossBody.innerHTML = state.reportsData.loss.length ? state.reportsData.loss.map(d => `
         <tr>
             <td>${d.RetailName}</td>
             <td>${d.ItemName}</td>
@@ -440,61 +561,141 @@ document.getElementById("btn-run-report").addEventListener("click", async () => 
             <td>${formatDate(d.Date)}</td>
             <td>${d.Time}</td>
         </tr>
-    `).join("") : `<tr><td colspan="6" style="color:var(--text-dim)">No damaged or stolen items in range</td></tr>`;
+    `).join("") : `<tr><td colspan="6" style="color:var(--text-dim)">No inventory loss records in range</td></tr>`;
 
     const boughtBody = document.querySelector("#tbl-items-bought tbody");
-    boughtBody.innerHTML = bought.length ? bought.map(b => `
+    boughtBody.innerHTML = state.reportsData.bought.length ? state.reportsData.bought.map(b => `
         <tr>
             <td>${b.RetailName}</td>
             <td>${b.ItemName}</td>
             <td>${b.TotalQuantityBought}</td>
         </tr>
     `).join("") : `<tr><td colspan="3" style="color:var(--text-dim)">No purchased items in range</td></tr>`;
-});
-
-// =============================================================
-// STORES
-// =============================================================
-
-async function loadStores() {
-    const res    = await fetch(`${API_BASE}/stores`, { headers: authHeader() });
-    const stores = await res.json();
-
-    const tbody = document.querySelector("#tbl-stores tbody");
-    tbody.innerHTML = stores.length ? stores.map(s => `
-        <tr>
-            <td>${s.RetailID}</td>
-            <td>${s.RetailName}</td>
-        </tr>
-    `).join("") : `<tr><td colspan="2" style="color:var(--text-dim)">No stores found</td></tr>`;
-
-    const reportStoreSelect = document.getElementById("report-store");
-    const selectedValue = reportStoreSelect.value;
-    reportStoreSelect.innerHTML = [
-        `<option value="">All Stores</option>`,
-        ...stores.map(s => `<option value="${s.RetailID}">${s.RetailName}</option>`)
-    ].join("");
-    if (selectedValue) {
-        reportStoreSelect.value = selectedValue;
-    }
 }
+
+document.getElementById("btn-run-report").addEventListener("click", loadReports);
+document.getElementById("report-type").addEventListener("change", renderActiveReport);
+
+document.getElementById("dashboard-store").addEventListener("change", renderDashboardStock);
+document.getElementById("items-store-filter").addEventListener("change", renderItemsTable);
 
 document.getElementById("btn-add-store").addEventListener("click", async () => {
     const name = document.getElementById("new-store-name").value.trim();
     if (!name) return showToast("Please enter a store name", true);
 
-    const res  = await fetch(`${API_BASE}/store`, {
+    await fetchJSON("/store", {
         method: "POST",
         headers: authHeader(),
         body: JSON.stringify({ retailName: name })
     });
-    const data = await res.json();
-    if (data.error) return showToast(data.error, true);
+
     showToast("Store added successfully");
-    loadStores();
+    document.getElementById("new-store-name").value = "";
+    await loadStores();
 });
 
-// =============================================================
-// INIT
-// =============================================================
-loadDashboard();
+async function openStoreRename(retailID, retailName) {
+    const nextName = prompt("Update store name:", retailName);
+    if (!nextName || !nextName.trim()) return;
+    await fetchJSON("/store/name", {
+        method: "PUT",
+        headers: authHeader(),
+        body: JSON.stringify({ retailID, retailName: nextName.trim() })
+    });
+    showToast("Store name updated");
+    await loadStores();
+}
+
+window.openStoreRename = openStoreRename;
+
+document.getElementById("btn-logout").addEventListener("click", () => {
+    localStorage.removeItem("token");
+    sessionStorage.removeItem("areaID");
+    sessionStorage.removeItem("areaId");
+    sessionStorage.removeItem("areaName");
+    sessionStorage.removeItem("managerName");
+    window.location.replace(HOME_URL);
+});
+
+const tabPanelAliases = {
+    items: "inventory",
+    "transaction-history": "transactions",
+    "restock-orders": "restock",
+    report: "reports",
+    store: "stores"
+};
+
+const tabLoaders = {
+    dashboard: async () => loadDashboard(),
+    inventory: async () => Promise.all([loadStores(), loadItems()]),
+    items: async () => Promise.all([loadStores(), loadItems()]),
+    transactions: async () => Promise.all([loadStores(), loadTransactions()]),
+    "transaction-history": async () => Promise.all([loadStores(), loadTransactions()]),
+    restock: async () => Promise.all([loadStores(), loadRestock()]),
+    "restock-orders": async () => Promise.all([loadStores(), loadRestock()]),
+    report: async () => {
+        await loadStores();
+        ensureReportDateRangeDefaults();
+        await loadReports();
+    },
+    reports: async () => {
+        await loadStores();
+        ensureReportDateRangeDefaults();
+        await loadReports();
+    },
+    store: async () => loadStores(),
+    stores: async () => loadStores()
+};
+
+function resolvePanelForTab(requestedKey, panelKey) {
+    const candidates = [
+        `tab-${panelKey}`,
+        `tab-${requestedKey}`,
+        `tab-${panelKey.replace(/s$/, "")}`,
+        `tab-${panelKey}s`,
+        `tab-${requestedKey.replace(/s$/, "")}`,
+        `tab-${requestedKey}s`
+    ];
+
+    for (const id of candidates) {
+        const panel = document.getElementById(id);
+        if (panel) return panel;
+    }
+
+    return null;
+}
+
+document.querySelectorAll(".tab").forEach(tab => {
+    tab.addEventListener("click", async () => {
+        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+        document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+        tab.classList.add("active");
+        const requestedKey = tab.dataset.tab;
+        const panelKey = tabPanelAliases[requestedKey] || requestedKey;
+        const panel = resolvePanelForTab(requestedKey, panelKey);
+        if (panel) {
+            panel.classList.add("active");
+        }
+
+        try {
+            const loader = tabLoaders[requestedKey] || tabLoaders[panelKey];
+            if (loader) {
+                await loader();
+            }
+        } catch (error) {
+            console.error(error);
+            showToast(error.message || "Failed to load data", true);
+        }
+    });
+});
+
+(async function init() {
+    try {
+        await loadStores();
+        await loadDashboard();
+        ensureReportDateRangeDefaults();
+    } catch (error) {
+        console.error(error);
+        showToast(error.message || "Failed to initialize portal", true);
+    }
+})();

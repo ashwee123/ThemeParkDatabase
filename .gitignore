@@ -1,2 +1,12 @@
-backend/visitorbackend/node_modules/
-backend/visitorbackend/.env
+# Dependencies - never commit these
+node_modules/
+**/node_modules/
+
+# Environment files - never commit these
+.env
+**/.env
+!**/.env.example
+
+# OS files
+.DS_Store
+Thumbs.db

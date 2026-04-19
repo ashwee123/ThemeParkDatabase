@@ -189,6 +189,7 @@ input:focus, select:focus, textarea:focus {
   font-size: 0.66rem;
   letter-spacing: 0.15em;
   text-transform: uppercase;
+  cursor: pointer;
 }
 
 .btn-primary {
@@ -246,6 +247,22 @@ input:focus, select:focus, textarea:focus {
   0% { text-shadow: 0 0 20px rgba(139, 0, 0, 0.4); }
   50% { text-shadow: 0 0 80px rgba(139, 0, 0, 0.7); }
   100% { text-shadow: 0 0 40px rgba(139, 0, 0, 0.5); }
+}
+
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
 }
 
 @media (max-width: 700px) {

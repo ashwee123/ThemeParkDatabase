@@ -656,6 +656,43 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   pointer-events: none;
 }
 
+.guest-portal-cta {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.btn-guest-portal {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 14px 16px;
+  background: transparent;
+  color: var(--bone);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border: 1px solid rgba(139, 0, 0, 0.45);
+  border-radius: var(--radius);
+  transition: background var(--transition), border-color var(--transition), color var(--transition),
+    transform var(--transition), box-shadow var(--transition);
+}
+.btn-guest-portal:hover {
+  border-color: var(--blood-light);
+  background: rgba(139, 0, 0, 0.14);
+  color: var(--bone);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(139, 0, 0, 0.25);
+}
+.guest-portal-hint {
+  margin: 12px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ash);
+  text-align: center;
+}
+
 .modal-footer-links {
   display: flex;
   justify-content: space-between;
@@ -694,6 +731,19 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-radius: 2px;
   padding: 4px 10px;
   text-transform: uppercase;
+}
+.staff-demo-hint {
+  margin-top: 16px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+  text-align: left;
+  max-width: 100%;
+}
+.staff-demo-hint code {
+  font-size: 0.72rem;
+  color: var(--gold);
+  word-break: break-all;
 }
 
 /* ═══════════════════════════════════════════════════════════════
