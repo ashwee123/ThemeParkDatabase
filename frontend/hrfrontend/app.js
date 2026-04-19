@@ -1,4 +1,4 @@
-// 🔥 FIXED: NO trailing slash
+// 🔥 API URL (Ensure Render instance is active, it might take 50s to spin up)
 const API = "https://hrmanager-39yw.onrender.com";
 
 /* ================= TAB SWITCHING ================= */
@@ -8,7 +8,8 @@ document.querySelectorAll(".tab").forEach(btn => {
     document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
 
     btn.classList.add("active");
-    document.getElementById(btn.dataset.tab).classList.add("active");
+    const targetPanel = document.getElementById(btn.dataset.tab);
+    if (targetPanel) targetPanel.classList.add("active");
   };
 });
 
@@ -16,6 +17,8 @@ document.querySelectorAll(".tab").forEach(btn => {
 async function login() {
   const email = document.getElementById("email")?.value;
   const password = document.getElementById("password")?.value;
+
+  if (!email || !password) return alert("Please enter credentials");
 
   try {
     const res = await fetch(`${API}/login`, {
@@ -34,41 +37,60 @@ async function login() {
     }
   } catch (err) {
     console.error(err);
-    alert("Server error");
+    alert("Server error - check if the Render backend is awake.");
   }
 }
 
 /* ================= EMPLOYEES ================= */
 async function addEmployee() {
-  const body = {
-    name: document.getElementById("empName").value,
-    position: document.getElementById("empRole").value,
-    salary: document.getElementById("empSalary").value,
-    managerId: document.getElementById("empManager").value,
-    areaId: document.getElementById("empArea").value
+  const inputs = {
+    name: document.getElementById("empName"),
+    pos: document.getElementById("empRole"),
+    sal: document.getElementById("empSalary"),
+    mgr: document.getElementById("empManager"),
+    area: document.getElementById("empArea")
   };
 
-  await fetch(`${API}/employees`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
+  const body = {
+    name: inputs.name.value,
+    position: inputs.pos.value,
+    salary: inputs.sal.value,
+    managerId: inputs.mgr.value,
+    areaId: inputs.area.value
+  };
 
-  loadEmployees();
+  try {
+    const res = await fetch(`${API}/employees`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    if (res.ok) {
+      // Clear inputs
+      Object.values(inputs).forEach(i => i.value = "");
+      loadEmployees();
+    }
+  } catch (err) {
+    console.error("Add employee failed", err);
+  }
 }
 
 async function loadEmployees() {
   try {
     const res = await fetch(`${API}/employees`);
     const data = await res.json();
-
-    document.getElementById("empTable").innerHTML = data.map(e => `
-      <tr>
-        <td>${e.Name}</td>
-        <td>${e.Position}</td>
-        <td>${e.Salary}</td>
-      </tr>
-    `).join("");
+    const table = document.getElementById("empTable");
+    
+    if (table) {
+      table.innerHTML = data.map(e => `
+        <tr>
+          <td>${e.Name || 'N/A'}</td>
+          <td>${e.Position || 'N/A'}</td>
+          <td>${e.Salary ? '$' + Number(e.Salary).toLocaleString() : '0'}</td>
+        </tr>
+      `).join("");
+    }
   } catch (err) {
     console.error("Employee load failed", err);
   }
@@ -76,58 +98,42 @@ async function loadEmployees() {
 
 /* ================= MANAGERS ================= */
 async function addManager() {
-  const body = {
-    id: document.getElementById("mgrId").value,
-    name: document.getElementById("mgrName").value
-  };
+  const idInput = document.getElementById("mgrId");
+  const nameInput = document.getElementById("mgrName");
 
-  await fetch(`${API}/managers`, {
+  const body = { id: idInput.value, name: nameInput.value };
+
+  const res = await fetch(`${API}/managers`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
 
-  loadManagers();
+  if (res.ok) {
+    idInput.value = "";
+    nameInput.value = "";
+    loadManagers();
+  }
 }
 
 async function loadManagers() {
   try {
     const res = await fetch(`${API}/managers`);
     const data = await res.json();
-
     document.getElementById("mgrTable").innerHTML = data.map(m => `
       <tr>
         <td>${m.ManagerID}</td>
         <td>${m.ManagerName}</td>
       </tr>
     `).join("");
-  } catch (err) {
-    console.error("Manager load failed", err);
-  }
+  } catch (err) { console.error(err); }
 }
 
-/* ================= ACTIVITY ================= */
-async function addActivity() {
-  const body = {
-    employeeId: document.getElementById("actEmpId").value,
-    score: document.getElementById("actScore").value,
-    notes: document.getElementById("actNotes").value
-  };
-
-  await fetch(`${API}/activity`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-
-  loadActivity();
-}
-
+/* ================= ACTIVITY & SALARY (Simplified Load) ================= */
 async function loadActivity() {
   try {
     const res = await fetch(`${API}/activity`);
     const data = await res.json();
-
     document.getElementById("actTable").innerHTML = data.map(a => `
       <tr>
         <td>${a.Name}</td>
@@ -135,40 +141,34 @@ async function loadActivity() {
         <td>${a.WorkloadNotes}</td>
       </tr>
     `).join("");
-  } catch (err) {
-    console.error("Activity load failed", err);
-  }
+  } catch (err) { console.error(err); }
 }
 
-/* ================= SALARY ================= */
 async function loadSalary() {
   try {
     const res = await fetch(`${API}/salary`);
     const data = await res.json();
-
     document.getElementById("salTable").innerHTML = data.map(s => `
       <tr>
         <td>${s.Name}</td>
-        <td>${s.Salary}</td>
+        <td>${s.Salary ? '$' + Number(s.Salary).toLocaleString() : '0'}</td>
       </tr>
     `).join("");
-  } catch (err) {
-    console.error("Salary load failed", err);
-  }
-}
-
-/* ================= AUTH CHECK ================= */
-function checkAuth() {
-  if (!localStorage.getItem("loggedIn")) {
-    window.location.href = "login.html";
-  }
+  } catch (err) { console.error(err); }
 }
 
 /* ================= INIT ================= */
 window.onload = () => {
-  if (window.location.pathname.includes("index.html")) {
-    checkAuth();
+  // Check if we are on the main dashboard page
+  const isDashboard = window.location.pathname.endsWith("index.html") || window.location.pathname === "/";
+  
+  if (isDashboard) {
+    if (!localStorage.getItem("loggedIn")) {
+      window.location.href = "login.html";
+      return;
+    }
 
+    // Load all data
     loadEmployees();
     loadManagers();
     loadActivity();
