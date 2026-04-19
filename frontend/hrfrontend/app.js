@@ -15,10 +15,8 @@ async function login() {
         const data = await res.json();
 
         if (res.ok) {
-            // Save login state
             localStorage.setItem("loggedIn", "true");
             localStorage.setItem("userEmail", email);
-            // Move to the dashboard
             window.location.href = "index.html";
         } else {
             alert(data.error || "Invalid Credentials");
@@ -30,8 +28,7 @@ async function login() {
 }
 
 /* ================= DATA LOADING ================= */
-async function loadDashboardData() {
-    // Load Employees
+async function loadEmployees() {
     try {
         const res = await fetch(`${API}/employees`);
         const data = await res.json();
@@ -39,13 +36,54 @@ async function loadDashboardData() {
         if (table) {
             table.innerHTML = data.map(e => `
                 <tr>
-                    <td>${e.Name}</td>
-                    <td>${e.Position}</td>
-                    <td>$${Number(e.Salary).toLocaleString()}</td>
+                    <td>${e.Name || "Unknown"}</td>
+                    <td>${e.Position || '<span style="color:gray">N/A</span>'}</td>
+                    <td>${e.Salary ? '$' + Number(e.Salary).toLocaleString() : '—'}</td>
                 </tr>
             `).join("");
         }
-    } catch (err) { console.error("Data Load Error:", err); }
+    } catch (err) { console.error("Employee Load Error:", err); }
+}
+
+async function loadManagers() {
+    try {
+        const res = await fetch(`${API}/managers`);
+        const data = await res.json();
+        const table = document.getElementById("mgrTable");
+        if (table) {
+            table.innerHTML = data.map(m => `
+                <tr>
+                    <td>${m.ManagerID}</td>
+                    <td>${m.ManagerName}</td>
+                </tr>
+            `).join("");
+        }
+    } catch (err) { console.error(err); }
+}
+
+// Add similar loaders for Activity and Salary if needed...
+
+/* ================= DATA SUBMISSION ================= */
+async function addEmployee() {
+    const body = {
+        name: document.getElementById("empName").value,
+        position: document.getElementById("empRole").value,
+        salary: document.getElementById("empSalary").value,
+        managerId: document.getElementById("empManager").value,
+        areaId: document.getElementById("empArea").value
+    };
+
+    try {
+        const res = await fetch(`${API}/employees`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        });
+        if (res.ok) {
+            alert("Employee added to the Nexus!");
+            loadEmployees(); // Refresh the list
+        }
+    } catch (err) { console.error(err); }
 }
 
 /* ================= TAB NAVIGATION ================= */
@@ -62,13 +100,18 @@ document.querySelectorAll(".tab").forEach(btn => {
 
 /* ================= INITIALIZATION ================= */
 window.onload = () => {
-    // Only check auth and load data if we are on the dashboard (index.html)
-    if (window.location.pathname.includes("index.html") || window.location.pathname === "/") {
+    const path = window.location.pathname;
+    const isDashboard = path.includes("index.html") || path.endsWith("/");
+
+    if (isDashboard) {
         if (!localStorage.getItem("loggedIn")) {
             window.location.href = "login.html";
         } else {
-            loadDashboardData();
-            // Call other loaders (Managers, Activity, etc.) here
+            // Load everything
+            loadEmployees();
+            loadManagers();
+            // loadActivity(); 
+            // loadSalary();
         }
     }
 };
