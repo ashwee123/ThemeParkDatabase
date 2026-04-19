@@ -75,7 +75,78 @@ async function loadManagers() {
     } catch (err) { console.error(err); }
 }
 
-// Add similar loaders for Activity and Salary if needed...
+function formatMoney(n) {
+    if (n == null || n === "") return "—";
+    const num = Number(n);
+    if (Number.isNaN(num)) return "—";
+    return "$" + num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function formatActivityWhen(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString();
+}
+
+async function loadActivity() {
+    const table = document.getElementById("activityTable");
+    if (!table) return;
+    try {
+        const res = await fetch(`${API}/activity`);
+        const data = await res.json();
+        if (!Array.isArray(data)) {
+            table.innerHTML = "";
+            return;
+        }
+        table.innerHTML = data.length
+            ? data.map((row) => `
+                <tr>
+                    <td>${formatActivityWhen(row.created_at)}</td>
+                    <td>${escapeHtml(row.action)}</td>
+                    <td>${escapeHtml(row.detail || "—")}</td>
+                </tr>
+            `).join("")
+            : `<tr><td colspan="3">No activity yet. Add an employee or manager, or log in again.</td></tr>`;
+    } catch (err) {
+        console.error(err);
+        table.innerHTML = `<tr><td colspan="3">Could not load activity.</td></tr>`;
+    }
+}
+
+function escapeHtml(s) {
+    if (s == null) return "";
+    return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+async function loadSalary() {
+    const table = document.getElementById("salaryTable");
+    if (!table) return;
+    try {
+        const res = await fetch(`${API}/salary`);
+        const data = await res.json();
+        if (!Array.isArray(data)) {
+            table.innerHTML = "";
+            return;
+        }
+        table.innerHTML = data.length
+            ? data.map((row) => `
+                <tr>
+                    <td>${escapeHtml(row.person_name || "—")}</td>
+                    <td>${escapeHtml(row.role_type || "—")}</td>
+                    <td>${escapeHtml(row.job_title || "—")}</td>
+                    <td>${formatMoney(row.salary_amount)}</td>
+                </tr>
+            `).join("")
+            : `<tr><td colspan="4">No rows yet.</td></tr>`;
+    } catch (err) {
+        console.error(err);
+        table.innerHTML = `<tr><td colspan="4">Could not load salary data.</td></tr>`;
+    }
+}
 
 /* ================= DATA SUBMISSION ================= */
 async function addEmployee() {
@@ -97,6 +168,8 @@ async function addEmployee() {
         if (res.ok) {
             alert("Employee added to the Nexus!");
             loadEmployees();
+            loadActivity();
+            loadSalary();
         } else {
             alert(data.error || "Could not add employee.");
         }
@@ -130,6 +203,8 @@ async function addManager() {
             document.getElementById("mgrUsername").value = "";
             document.getElementById("mgrPassword").value = "";
             loadManagers();
+            loadActivity();
+            loadSalary();
         } else {
             alert(data.error || "Could not add manager.");
         }
@@ -147,7 +222,8 @@ document.querySelectorAll(".tab").forEach(btn => {
 
         btn.classList.add("active");
         const panelId = btn.getAttribute("data-target");
-        document.getElementById(panelId).classList.add("active");
+        const panel = document.getElementById(panelId);
+        if (panel) panel.classList.add("active");
     };
 });
 
@@ -167,7 +243,10 @@ window.onload = () => {
         } else {
             loadEmployees();
             loadManagers();
+            loadActivity();
+            loadSalary();
         }
     }
 };
+
 
