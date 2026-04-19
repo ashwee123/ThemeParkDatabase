@@ -450,10 +450,8 @@ async function loadRestock() {
             <td>${r.ItemName}</td>
             <td>${r.Quantity}</td>
             <td>${formatCurrency(r.Cost)}</td>
-            <td>${formatDate(r.Date || r.CreatedAt)}</td>
-            <td>${r.Time || r.CreatedTime || "-"}</td>
         </tr>
-    `).join("") : `<tr><td colspan="5" style="color:var(--text-dim)">No restock history</td></tr>`;
+    `).join("") : `<tr><td colspan="3" style="color:var(--text-dim)">No restock history</td></tr>`;
 }
 
 document.getElementById("restock-store-filter").addEventListener("change", renderRestockItemOptions);
