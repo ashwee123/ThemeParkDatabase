@@ -241,6 +241,11 @@ async function loadDashboard() {
     s = await apiGet("/summary");
   } catch (e) {
     const msg = String(e && e.message ? e.message : e);
+    setBackendStatus("Dashboard request failed: " + msg, {
+      visible: true,
+      error: true,
+      showRetry: true,
+    });
     grid.innerHTML =
       '<p class="api-error" role="alert"><strong>Could not load dashboard.</strong><br />' +
       escapeHtml(msg) +
