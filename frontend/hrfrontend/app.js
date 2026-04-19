@@ -1,5 +1,5 @@
-// 🔥 IMPORTANT: replace with your actual Render backend URL
-const API = "https://hrmanager-39yw.onrender.com/";
+// 🔥 FIXED: NO trailing slash
+const API = "https://hrmanager-39yw.onrender.com";
 
 /* ================= TAB SWITCHING ================= */
 document.querySelectorAll(".tab").forEach(btn => {
@@ -14,8 +14,8 @@ document.querySelectorAll(".tab").forEach(btn => {
 
 /* ================= LOGIN ================= */
 async function login() {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
+  const email = document.getElementById("email")?.value;
+  const password = document.getElementById("password")?.value;
 
   try {
     const res = await fetch(`${API}/login`, {
@@ -27,10 +27,7 @@ async function login() {
     const data = await res.json();
 
     if (res.ok) {
-      alert("Login successful");
       localStorage.setItem("loggedIn", "true");
-
-      // redirect to dashboard
       window.location.href = "index.html";
     } else {
       alert(data.error || "Login failed");
@@ -61,16 +58,20 @@ async function addEmployee() {
 }
 
 async function loadEmployees() {
-  const res = await fetch(`${API}/employees`);
-  const data = await res.json();
+  try {
+    const res = await fetch(`${API}/employees`);
+    const data = await res.json();
 
-  document.getElementById("empTable").innerHTML = data.map(e => `
-    <tr>
-      <td>${e.Name}</td>
-      <td>${e.Position}</td>
-      <td>${e.Salary}</td>
-    </tr>
-  `).join("");
+    document.getElementById("empTable").innerHTML = data.map(e => `
+      <tr>
+        <td>${e.Name}</td>
+        <td>${e.Position}</td>
+        <td>${e.Salary}</td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    console.error("Employee load failed", err);
+  }
 }
 
 /* ================= MANAGERS ================= */
@@ -90,15 +91,19 @@ async function addManager() {
 }
 
 async function loadManagers() {
-  const res = await fetch(`${API}/managers`);
-  const data = await res.json();
+  try {
+    const res = await fetch(`${API}/managers`);
+    const data = await res.json();
 
-  document.getElementById("mgrTable").innerHTML = data.map(m => `
-    <tr>
-      <td>${m.ManagerID}</td>
-      <td>${m.ManagerName}</td>
-    </tr>
-  `).join("");
+    document.getElementById("mgrTable").innerHTML = data.map(m => `
+      <tr>
+        <td>${m.ManagerID}</td>
+        <td>${m.ManagerName}</td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    console.error("Manager load failed", err);
+  }
 }
 
 /* ================= ACTIVITY ================= */
@@ -119,29 +124,37 @@ async function addActivity() {
 }
 
 async function loadActivity() {
-  const res = await fetch(`${API}/activity`);
-  const data = await res.json();
+  try {
+    const res = await fetch(`${API}/activity`);
+    const data = await res.json();
 
-  document.getElementById("actTable").innerHTML = data.map(a => `
-    <tr>
-      <td>${a.Name}</td>
-      <td>${a.PerformanceScore}</td>
-      <td>${a.WorkloadNotes}</td>
-    </tr>
-  `).join("");
+    document.getElementById("actTable").innerHTML = data.map(a => `
+      <tr>
+        <td>${a.Name}</td>
+        <td>${a.PerformanceScore}</td>
+        <td>${a.WorkloadNotes}</td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    console.error("Activity load failed", err);
+  }
 }
 
 /* ================= SALARY ================= */
 async function loadSalary() {
-  const res = await fetch(`${API}/salary`);
-  const data = await res.json();
+  try {
+    const res = await fetch(`${API}/salary`);
+    const data = await res.json();
 
-  document.getElementById("salTable").innerHTML = data.map(s => `
-    <tr>
-      <td>${s.Name}</td>
-      <td>${s.Salary}</td>
-    </tr>
-  `).join("");
+    document.getElementById("salTable").innerHTML = data.map(s => `
+      <tr>
+        <td>${s.Name}</td>
+        <td>${s.Salary}</td>
+      </tr>
+    `).join("");
+  } catch (err) {
+    console.error("Salary load failed", err);
+  }
 }
 
 /* ================= AUTH CHECK ================= */
@@ -152,11 +165,13 @@ function checkAuth() {
 }
 
 /* ================= INIT ================= */
-if (window.location.pathname.includes("index.html")) {
-  checkAuth();
+window.onload = () => {
+  if (window.location.pathname.includes("index.html")) {
+    checkAuth();
 
-  loadEmployees();
-  loadManagers();
-  loadActivity();
-  loadSalary();
-}
+    loadEmployees();
+    loadManagers();
+    loadActivity();
+    loadSalary();
+  }
+};
