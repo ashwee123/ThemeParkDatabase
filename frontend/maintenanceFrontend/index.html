@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="/frontend/maintenanceFrontend/styles.css" />
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
 </head>
-
 <body>
 
 <header class="site-header">
@@ -23,8 +22,7 @@
   <button class="tab" data-tab="reports">Reports</button>
   <button class="tab" data-tab="assign">Assign Tasks</button>
   <button class="tab" data-tab="notifications">
-    Alerts
-    <span class="notif-tab-badge" id="notif-badge"></span>
+    Alerts <span class="notif-tab-badge" id="notif-badge"></span>
   </button>
 </nav>
 
@@ -32,23 +30,20 @@
 
   <!-- ===================== SCHEDULE ===================== -->
   <section id="panel-schedule" class="panel active">
-    <div class="toolbar">
-      <h2>Active Schedule</h2>
-    </div>
-    <p style="color:var(--text-dim);margin-bottom:25px;">Maintenance tasks that are currently pending or in progress.</p>
+    <div class="toolbar"><h2>Active Schedule</h2></div>
+    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Tasks currently pending or in progress.</p>
     <div id="calendar" style="margin-bottom:2rem;"></div>
     <div class="table-wrap">
       <table class="data-table">
-        <thead>
-          <tr>
-            <th onclick="toggleSort('MaintenanceAssignmentID')">ID</th>
-            <th onclick="toggleSort('EmployeeName')">Employee</th>
-            <th onclick="toggleSort('AreaName')">Area</th>
-            <th onclick="toggleSort('TaskDescription')">Description</th>
-            <th onclick="toggleSort('Status')">Status</th>
-            <th onclick="toggleSort('DueDate')">Due Date</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th onclick="toggleSort('MaintenanceAssignmentID')">ID</th>
+          <th onclick="toggleSort('EmployeeName')">Employee</th>
+          <th onclick="toggleSort('AreaName')">Area</th>
+          <th onclick="toggleSort('TaskDescription')">Description</th>
+          <th onclick="toggleSort('Status')">Status</th>
+          <th onclick="toggleSort('DueDate')">Due Date</th>
+        </tr></thead>
+        <tbody id="tbody-active-schedule"></tbody>
       </table>
     </div>
   </section>
@@ -61,32 +56,48 @@
         <button class="btn-reset" onclick="resetTable()">Reset Filters</button>
       </div>
     </div>
-    <p style="color:var(--text-dim);margin-bottom:25px;">Past and present maintenance tasks.</p>
+    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Past and present maintenance tasks.</p>
     <div class="table-wrap">
       <table class="data-table">
-        <thead>
-          <tr>
-            <th onclick="toggleSort('MaintenanceAssignmentID')">ID</th>
-            <th onclick="toggleSort('EmployeeName')">Employee</th>
-            <th onclick="toggleSort('AreaName')">Area</th>
-            <th onclick="toggleSort('TaskDescription')">Description</th>
-            <th onclick="toggleSort('Status')">Status</th>
-            <th onclick="toggleSort('DueDate')">Due Date</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th onclick="toggleSort('MaintenanceAssignmentID')">ID</th>
+          <th onclick="toggleSort('EmployeeName')">Employee</th>
+          <th onclick="toggleSort('AreaName')">Area</th>
+          <th onclick="toggleSort('TaskDescription')">Description</th>
+          <th onclick="toggleSort('Status')">Status</th>
+          <th onclick="toggleSort('DueDate')">Due Date</th>
+          <th>Actions</th>
+        </tr></thead>
         <tbody id="tbody-tasks"></tbody>
       </table>
     </div>
   </section>
 
-  <!-- ===================== PERFORMANCE ===================== -->
+  <!-- ===================== PERFORMANCE (employee) ===================== -->
   <section id="panel-performance" class="panel">
-    <div class="toolbar">
-      <h2>Zone Performance</h2>
+    <div class="toolbar"><h2>Employee Performance</h2></div>
+    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Maintenance staff workload, completion rates, and overdue tasks.</p>
+
+    <!-- Stat cards -->
+    <div id="perf-stat-cards" class="stats-grid" style="margin-bottom:2rem;"></div>
+
+    <!-- Employee table -->
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr>
+          <th>Employee</th>
+          <th>Position</th>
+          <th>Area</th>
+          <th>Total Tasks</th>
+          <th>Completed</th>
+          <th>In Progress</th>
+          <th>Pending</th>
+          <th>Overdue</th>
+          <th>Completion %</th>
+        </tr></thead>
+        <tbody id="tbody-performance"></tbody>
+      </table>
     </div>
-    <p style="color:var(--text-dim);margin-bottom:25px;">Live overview of horror zone readiness.</p>
-    <div id="performance-reports" class="stats-grid">Loading system diagnostics...</div>
   </section>
 
   <!-- ===================== REPORTS ===================== -->
@@ -94,131 +105,138 @@
     <div class="toolbar">
       <h2>Reports</h2>
       <div class="toolbar-actions">
-        <button class="btn-reset" onclick="loadReports(); loadMaintenanceReport(); loadWeatherReport();">Refresh</button>
+        <button class="btn-reset" id="refresh-reports-btn">Refresh</button>
       </div>
     </div>
-    <p style="color:var(--text-dim);margin-bottom:25px;">Operational overview — tasks, maintenance history, weather events, and area workload.</p>
+    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Select a report to view its summary and data.</p>
 
-    <!-- Stat Cards Row -->
-    <div id="reports-container" class="stats-grid" style="margin-bottom:2rem;"></div>
+    <!-- Report sub-tabs -->
+    <nav class="report-subtabs">
+      <button class="report-subtab active" data-report="task-summary">Task Summary</button>
+      <button class="report-subtab" data-report="maintenance-history">Maintenance History</button>
+      <button class="report-subtab" data-report="area-workload">Area Workload</button>
+    </nav>
 
-    <!-- Filter Bar -->
-    <div class="report-filters">
-      <label>Severity
-        <select id="filter-severity">
-          <option value="">All</option>
-          <option value="Low">Low</option>
-          <option value="Medium">Medium</option>
-          <option value="High">High</option>
-        </select>
-      </label>
-      <label>Date From
-        <input type="date" id="filter-date-from">
-      </label>
-      <label>Date To
-        <input type="date" id="filter-date-to">
-      </label>
-      <button class="btn-reset" onclick="loadMaintenanceReport()">Apply</button>
+    <!-- ── TASK SUMMARY ── -->
+    <div id="report-task-summary" class="report-panel active">
+      <div id="task-summary-cards" class="stats-grid" style="margin:1.5rem 0;"></div>
+      <div class="charts-row">
+        <div class="chart-card">
+          <h3 class="chart-title">Status Breakdown</h3>
+          <canvas id="chart-status-pie"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">Tasks by Area</h3>
+          <canvas id="chart-area-bar"></canvas>
+        </div>
+      </div>
+      <!-- Filters -->
+      <div class="report-filters">
+        <label>Status
+          <select id="ts-filter-status">
+            <option value="">All</option>
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+          </select>
+        </label>
+        <label>Area
+          <select id="ts-filter-area"><option value="">All Areas</option></select>
+        </label>
+        <label>Employee
+          <select id="ts-filter-employee"><option value="">All Employees</option></select>
+        </label>
+        <label>Due From <input type="date" id="ts-filter-from"></label>
+        <label>Due To   <input type="date" id="ts-filter-to"></label>
+        <button class="btn-reset" onclick="loadTaskSummaryTable()">Apply</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th>ID</th><th>Employee</th><th>Area</th>
+            <th>Description</th><th>Status</th><th>Due Date</th>
+          </tr></thead>
+          <tbody id="tbody-task-summary"></tbody>
+        </table>
+      </div>
     </div>
 
-    <!-- Maintenance History Table -->
-    <h3 class="report-section-title">Maintenance History</h3>
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Employee</th>
-            <th>Area</th>
-            <th>Attraction</th>
-            <th>Severity</th>
-            <th>Status</th>
-            <th>Date Start</th>
-            <th>Date End</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-report"></tbody>
-      </table>
+    <!-- ── MAINTENANCE HISTORY ── -->
+    <div id="report-maintenance-history" class="report-panel">
+      <div id="mh-summary-cards" class="stats-grid" style="margin:1.5rem 0;"></div>
+      <div class="report-filters">
+        <label>Severity
+          <select id="mh-filter-severity">
+            <option value="">All</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+          </select>
+        </label>
+        <label>Status
+          <select id="mh-filter-status">
+            <option value="">All</option>
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+          </select>
+        </label>
+        <label>Attraction
+          <select id="mh-filter-attraction"><option value="">All Attractions</option></select>
+        </label>
+        <label>Date From <input type="date" id="mh-filter-from"></label>
+        <label>Date To   <input type="date" id="mh-filter-to"></label>
+        <button class="btn-reset" onclick="loadMaintenanceHistory()">Apply</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th>ID</th><th>Employee</th><th>Area</th><th>Attraction</th>
+            <th>Severity</th><th>Status</th><th>Date Start</th><th>Date End</th>
+          </tr></thead>
+          <tbody id="tbody-mh"></tbody>
+        </table>
+      </div>
     </div>
 
-    <!-- Trigger Alerts Table -->
-    <h3 class="report-section-title">DB Trigger Alerts <span class="report-section-sub">(from trg_ride_maintenance)</span></h3>
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Alert ID</th>
-            <th>Attraction</th>
-            <th>Severity</th>
-            <th>Message</th>
-            <th>Triggered At</th>
-            <th>Handled</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-alerts"></tbody>
-      </table>
+    <!-- ── AREA WORKLOAD ── -->
+    <div id="report-area-workload" class="report-panel">
+      <div id="aw-summary-cards" class="stats-grid" style="margin:1.5rem 0;"></div>
+      <div class="charts-row" style="margin-bottom:1.5rem;">
+        <div class="chart-card" style="grid-column:1/-1;">
+          <h3 class="chart-title">Workload by Area</h3>
+          <canvas id="chart-area-workload-bar"></canvas>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th>Area</th><th>Total</th><th>Pending</th><th>In Progress</th><th>Completed</th><th>Overdue</th>
+          </tr></thead>
+          <tbody id="tbody-area-workload"></tbody>
+        </table>
+      </div>
     </div>
-
-    <!-- Weather Events Table -->
-    <h3 class="report-section-title">Weather Events <span class="report-section-sub">(trg_weather_shutdown source)</span></h3>
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Severity</th>
-            <th>High Temp</th>
-            <th>Low Temp</th>
-            <th>Operation Status</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-weather"></tbody>
-      </table>
-    </div>
-
-    <!-- Area Workload Table -->
-    <h3 class="report-section-title">Area Workload</h3>
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Area</th>
-            <th>Total Tasks</th>
-            <th>Pending</th>
-            <th>In Progress</th>
-            <th>Completed</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-area-workload"></tbody>
-      </table>
-    </div>
-  </section>
 
   <!-- ===================== ASSIGN TASK ===================== -->
   <section id="panel-assign" class="panel">
     <h2>Assign Task</h2>
-    <p style="color:var(--text-dim);margin-bottom:25px;">Data Entry Page</p>
-
+    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Data Entry — all fields with * are required.</p>
     <form id="form-add-task" class="grid-form">
       <div class="form-row">
-        <label>Employee Name
-          <input type="text" name="EmployeeName">
-        </label>
-        <label>Employee ID
-          <input type="number" name="EmployeeID" required>
+        <label>Employee *
+          <select id="select-employee" name="EmployeeID" required>
+            <option value="">Loading…</option>
+          </select>
         </label>
         <label>Area
-          <select name="AreaID">
-                <option value="Uncanny Valley">Uncanny Valley</option>
-                <option value="Bloodmoon Village">Bloodmoon Village</option>
-                <option value="Space Station X">Space Station X</option>
-                <option value="Camp Blackwood">Camp Blackwood</option>
-                <option value="Dead End District">Dead End District</option>
-                <option value="Isolation Ward">Isolation Ward</option>
+          <select id="select-area" name="AreaID">
+            <option value="">None</option>
+          </select>
         </label>
         <label>Attraction
-          <select name="Attraction">
-            <option value="Uncanny Valley">Uncanny Valley</option>
+          <select id="select-attraction" name="AttractionID">
+            <option value="">None</option>
           </select>
         </label>
         <label>Status
@@ -228,20 +246,13 @@
             <option value="Completed">Completed</option>
           </select>
         </label>
-        <label>Weather
-          <select name="Weather">
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
-          </select>
-        </label>
-        <label>Due Date
-          <input type="date" name="DueDate">
+        <label>Due Date * <span id="due-date-hint" style="color:var(--text-dim);font-size:0.75rem;">(must be today or later)</span>
+          <input type="date" name="DueDate" id="due-date-input" required>
         </label>
       </div>
       <div class="form-description">
-        <label>Task Description
-          <textarea name="TaskDescription" required></textarea>
+        <label>Task Description *
+          <textarea name="TaskDescription" required placeholder="Describe the maintenance task in detail…"></textarea>
         </label>
       </div>
       <div class="form-actions">
@@ -258,20 +269,18 @@
         <button class="btn-reset" onclick="loadNotifications()">Refresh</button>
       </div>
     </div>
-    <p style="color:var(--text-dim);margin-bottom:25px;">
-      Live triggers — ride maintenance alerts, weather shutdowns, and overdue tasks.
-    </p>
+    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Live triggers — ride maintenance alerts, weather shutdowns, overdue tasks.</p>
     <div id="notifications-list"></div>
   </section>
 
 </main>
 
-<!-- Task Detail Modal -->
-<div id="task-modal" class="modal-overlay" style="display:none;" onclick="closeModal()">
+<!-- ── TASK DETAIL MODAL ── -->
+<div id="task-modal" class="modal-overlay" style="display:none;" onclick="closeModal('task-modal')">
   <div class="modal-content" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h2 id="modal-employee">PERSONNEL FILE</h2>
-      <span class="close-modal" onclick="closeModal()">×</span>
+      <span class="close-modal" onclick="closeModal('task-modal')">×</span>
     </div>
     <div class="modal-body">
       <p class="status-label">ASSIGNED TASK:</p>
@@ -280,10 +289,70 @@
   </div>
 </div>
 
+<!-- ── EDIT MODAL ── -->
+<div id="edit-modal" class="modal-overlay" style="display:none;" onclick="closeModal('edit-modal')">
+  <div class="modal-content modal-form" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Edit Task</h2>
+      <span class="close-modal" onclick="closeModal('edit-modal')">×</span>
+    </div>
+    <div class="modal-body">
+      <form id="form-edit-task" class="grid-form" style="margin-top:0;">
+        <input type="hidden" id="edit-task-id">
+        <div class="form-row">
+          <label>Employee
+            <select id="edit-employee"></select>
+          </label>
+          <label>Area
+            <select id="edit-area"><option value="">No area</option></select>
+          </label>
+          <label>Status
+            <select id="edit-status">
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </label>
+          <label>Due Date
+            <input type="date" id="edit-due-date">
+          </label>
+        </div>
+        <div class="form-description">
+          <label>Task Description
+            <textarea id="edit-description" required style="min-height:80px;"></textarea>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('edit-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── DELETE CONFIRM MODAL ── -->
+<div id="delete-modal" class="modal-overlay" style="display:none;" onclick="closeModal('delete-modal')">
+  <div class="modal-content modal-confirm" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Confirm Removal</h2>
+      <span class="close-modal" onclick="closeModal('delete-modal')">×</span>
+    </div>
+    <div class="modal-body">
+      <p class="delete-warning-text">This task will be hidden from view. The database record is preserved.</p>
+      <p id="delete-task-preview" class="typewriter-text" style="margin-top:1rem;font-size:0.9rem;"></p>
+      <div class="form-actions" style="margin-top:1.5rem;">
+        <button class="btn btn-ghost" onclick="closeModal('delete-modal')">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmDelete()">Remove from View</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast-container"></div>
 
-<script src="/frontend/maintenanceFrontend/portal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
-
+<script src="/frontend/maintenanceFrontend/portal.js"></script>
 </body>
 </html>
