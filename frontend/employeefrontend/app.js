@@ -8,6 +8,7 @@
  * - With the Node server, API routes live under /api (see server.js). Set API_BASE to "" to use mock data only (static demo).
  */
 export const API_BASE = "/api";
+const HR_EMPLOYEE_FALLBACK_API = "https://hrmanager-39yw.onrender.com";
 
 const STORAGE_EMPLOYEE = "tp_employee_portal_id";
 
@@ -31,6 +32,9 @@ const MOCK_EMPLOYEES = [
   { EmployeeID: 3, Name: "tom", Position: "staff", Salary: 28000, HireDate: "2023-03-10", ManagerID: 5, AreaID: 102, AreaName: "food court" },
   { EmployeeID: 4, Name: "lisa", Position: "manager assistant", Salary: 35000, HireDate: "2022-11-20", ManagerID: 1, AreaID: 103, AreaName: "kids area" },
 ];
+
+/** Cache the most recent employee option source for profile/header lookups. */
+let employeeOptionsCache = [];
 
 /** Same ordering as: ORDER BY AreaID IS NULL, AreaID, Name */
 function compareEmployeeQueryOrder(a, b) {
@@ -134,6 +138,36 @@ function setOpenClock(employeeId, payload) {
   else sessionStorage.setItem(clockStorageKey(employeeId), JSON.stringify(payload));
 }
 
+function timelogStorageKey(employeeId) {
+  return `tp_timelog_local_${employeeId}`;
+}
+
+function getLocalTimelog(employeeId) {
+  try {
+    const raw = sessionStorage.getItem(timelogStorageKey(employeeId));
+    const rows = raw ? JSON.parse(raw) : [];
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+function setLocalTimelog(employeeId, rows) {
+  sessionStorage.setItem(timelogStorageKey(employeeId), JSON.stringify(rows));
+}
+
+function appendLocalTimelog(employeeId, row) {
+  const existing = getLocalTimelog(employeeId);
+  existing.push(row);
+  setLocalTimelog(employeeId, existing);
+}
+
+function parseSqlDateTime(value) {
+  if (!value) return null;
+  const dt = new Date(String(value).replace(" ", "T"));
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
 /**
  * @param {string} path
  * @returns {Promise<unknown>}
@@ -189,7 +223,7 @@ async function fetchEmployeeDetail(employeeId) {
 }
 
 function employeeById(id) {
-  return MOCK_EMPLOYEES.find((e) => e.EmployeeID === id) ?? null;
+  return employeeOptionsCache.find((e) => e.EmployeeID === id) ?? MOCK_EMPLOYEES.find((e) => e.EmployeeID === id) ?? null;
 }
 
 function formatMoney(n) {
@@ -252,6 +286,8 @@ async function renderShifts(employeeId) {
 async function renderTimelog(employeeId) {
   const tbody = $("#tbody-timelog");
   let rows = await fetchTimelog(employeeId);
+  const localRows = getLocalTimelog(employeeId);
+  if (localRows.length) rows = [...rows, ...localRows];
   const open = getOpenClock(employeeId);
   if (open && open.ClockIn) {
     rows = [
@@ -392,17 +428,50 @@ function updateHeader() {
 }
 
 async function fetchEmployeeOptionsFromApi() {
-  if (!API_BASE) return null;
-  try {
+  const sources = [];
+  if (API_BASE) {
     const base = API_BASE.replace(/\/$/, "");
-    const res = await fetch(`${base}/employees`, { credentials: "same-origin" });
-    if (res.status === 404) return null;
-    if (!res.ok) return null;
-    const data = await res.json();
-    return Array.isArray(data) ? data : null;
+    sources.push(`${base}/employees`);
+  }
+  // Fallback source when running static-only local routes with no /api proxy.
+  sources.push(`${HR_EMPLOYEE_FALLBACK_API}/employees`);
+
+  for (const url of sources) {
+    try {
+      const res = await fetch(url, { credentials: "same-origin" });
+      if (res.status === 404) continue;
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (!Array.isArray(data)) continue;
+      const normalized = data
+        .map((row) => {
+          if (!row || row.EmployeeID == null) return null;
+          const areaId = row.AreaID != null ? Number(row.AreaID) : null;
+          const areaName = row.AreaName ?? (areaId != null ? AREA_NAMES[areaId] ?? null : null);
+          return {
+            EmployeeID: Number(row.EmployeeID),
+            Name: row.Name ?? "Unknown",
+            Position: row.Position ?? "",
+            Salary: row.Salary ?? null,
+            HireDate: row.HireDate ?? null,
+            ManagerID: row.ManagerID ?? null,
+            AreaID: areaId,
+            AreaName: areaName,
+          };
+        })
+        .filter(Boolean);
+      if (normalized.length) return normalized;
+    } catch {
+      // try next source
+    }
+  }
+
+  try {
+    // no-op fallback below
   } catch {
     return null;
   }
+  return null;
 }
 
 async function populateEmployeeSelect() {
@@ -411,6 +480,7 @@ async function populateEmployeeSelect() {
   let list = await fetchEmployeeOptionsFromApi();
   if (!list || !list.length) list = employeesSortedForPortal();
   else list = [...list].sort(compareEmployeeQueryOrder);
+  employeeOptionsCache = [...list];
   for (const e of list) {
     const opt = document.createElement("option");
     opt.value = String(e.EmployeeID);
@@ -452,6 +522,7 @@ function wireSession() {
     if (id != null) setOpenClock(id, null);
     setCurrentEmployeeId(null);
     cachedEmployeeDetail = null;
+    $("#select-employee-id").value = "";
     setTabsSignedIn(false);
     updateHeader();
     activateTab("session");
@@ -502,10 +573,21 @@ function wireClock() {
     if (id == null) return;
     const open = getOpenClock(id);
     if (!open) return;
+    const out = new Date();
+    const clockOut = out.toISOString().slice(0, 19).replace("T", " ");
+    const clockInDate = parseSqlDateTime(open.ClockIn);
+    const hoursWorked =
+      clockInDate != null ? Math.max(0, (out.getTime() - clockInDate.getTime()) / 3_600_000) : null;
+    appendLocalTimelog(id, {
+      LogID: `L-${Date.now()}`,
+      ClockIn: open.ClockIn,
+      ClockOut: clockOut,
+      HoursWorked: hoursWorked != null ? Number(hoursWorked.toFixed(2)) : null,
+    });
     setOpenClock(id, null);
     updateClockUI(id);
     renderTimelog(id);
-    showToast("Clocked out (demo — persist with API when ready).");
+    showToast("Clocked out successfully.");
   });
 }
 
