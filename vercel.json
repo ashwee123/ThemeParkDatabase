@@ -1,20 +1,18 @@
 {
-  "redirects": [
-    { "source": "/retail", "destination": "https://retail-portal-backend-pg0i.onrender.com/retail", "permanent": false },
-    { "source": "/retail/:path*", "destination": "https://retail-portal-backend-pg0i.onrender.com/retail/:path*", "permanent": false }
-  ],
   "rewrites": [
     { "source": "/", "destination": "/frontend/homepageFrontend/index.html" },
     { "source": "/maintenance", "destination": "/frontend/maintenanceFrontend/index.html" },
     { "source": "/admin", "destination": "/frontend/adminFrontend/index.html" },
     { "source": "/employee", "destination": "/frontend/employeefrontend/index.html" },
-    { "source": "/hr", "destination": "/backend/hrmanagerbackend/public/frontend/index.html" },
+    { "source": "/hr", "destination": "/frontend/hrfrontend/index.html" },
     { "source": "/visitor", "destination": "/frontend/visitorfrontend/index.html" },
+
     { "source": "/maintenance/:file*", "destination": "/frontend/maintenanceFrontend/:file*" },
     { "source": "/admin/:file*", "destination": "/frontend/adminFrontend/:file*" },
     { "source": "/employee/:file*", "destination": "/frontend/employeefrontend/:file*" },
-    { "source": "/hr/:file*", "destination": "/backend/hrmanagerbackend/public/frontend/:file*" },
+    { "source": "/hr/:file*", "destination": "/frontend/hrfrontend/:file*" },
     { "source": "/visitor/:file*", "destination": "/frontend/visitorfrontend/:file*" },
+
     { "source": "/:file*", "destination": "/frontend/homepageFrontend/:file*" }
   ]
 }
