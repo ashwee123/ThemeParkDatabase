@@ -146,8 +146,8 @@ document.addEventListener("DOMContentLoaded", function () {
         });
         showToast("Task updated.");
         closeModal("edit-modal");
-        // If task was marked Completed and default filter hides completed, table auto-refreshes correctly
         loadTaskSummaryTable();
+        loadMaintenanceHistory();
       } catch (err) { showToast(err.message || "Failed to update task.", "error"); }
     });
   }

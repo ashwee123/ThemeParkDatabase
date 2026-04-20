@@ -371,11 +371,15 @@ const server = http.createServer(async (req, res) => {
         maintMap[m.AttractionID].push(m);
       });
 
-      const result = attractions.map((att) => ({
-        ...att,
-        alerts:            alertMap[att.AttractionID] || [],
-        activeMaintenance: maintMap[att.AttractionID] || [],
-      }));
+      const result = attractions.map((att) => {
+        const attAlerts = alertMap[att.AttractionID] || [];
+        const attMaint  = maintMap[att.AttractionID] || [];
+        // If unhandled trigger alerts exist but attraction still shows Open, reflect NeedsMaintenance
+        const effectiveStatus = (attAlerts.length > 0 && att.Status === 'Open')
+          ? 'NeedsMaintenance'
+          : att.Status;
+        return { ...att, Status: effectiveStatus, alerts: attAlerts, activeMaintenance: attMaint };
+      });
 
       return sendJson(res, 200, result);
     }
@@ -403,7 +407,7 @@ const server = http.createServer(async (req, res) => {
         FROM maintenance m
         LEFT JOIN employee   e   ON m.EmployeeID   = e.EmployeeID
         LEFT JOIN attraction att ON m.AttractionID = att.AttractionID
-        LEFT JOIN area       a   ON att.AreaID     = a.AreaID
+        LEFT JOIN area       a   ON COALESCE(att.AreaID, e.AreaID) = a.AreaID
         WHERE ${conditions.join(" AND ")}
         ORDER BY m.DateStart DESC
       `, params);
@@ -416,23 +420,32 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/area-frequency" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
 
+      // Build severity selects for maintenanceassignment conditionally (column may not exist)
+      const tHigh   = hasSeverityCol ? "COALESCE(SUM(t.Severity='High'),   0)" : "0";
+      const tMedium = hasSeverityCol ? "COALESCE(SUM(t.Severity='Medium'), 0)" : "0";
+      const tLow    = hasSeverityCol ? "COALESCE(SUM(t.Severity='Low'),    0)" : "0";
+
       const [rows] = await db.query(`
         SELECT
           a.AreaID,
           a.AreaName,
-          COUNT(DISTINCT m.MaintenanceID)                  AS historyTotal,
-          COUNT(DISTINCT t.MaintenanceAssignmentID)         AS taskTotal,
-          COALESCE(SUM(m.Severity='High'),   0)            AS highSeverity,
-          COALESCE(SUM(m.Severity='Medium'), 0)            AS mediumSeverity,
-          COALESCE(SUM(m.Severity='Low'),    0)            AS lowSeverity,
-          (
-            SELECT att2.AttractionName
-            FROM maintenance m2
-            JOIN attraction att2 ON m2.AttractionID = att2.AttractionID
-            WHERE att2.AreaID = a.AreaID
-            GROUP BY att2.AttractionID
-            ORDER BY COUNT(*) DESC
-            LIMIT 1
+          COUNT(DISTINCT m.MaintenanceID)              AS historyTotal,
+          COUNT(DISTINCT t.MaintenanceAssignmentID)    AS taskTotal,
+          COALESCE(SUM(m.Severity='High'),   0)        AS histHigh,
+          COALESCE(SUM(m.Severity='Medium'), 0)        AS histMedium,
+          COALESCE(SUM(m.Severity='Low'),    0)        AS histLow,
+          ${tHigh}                                     AS taskHigh,
+          ${tMedium}                                   AS taskMedium,
+          ${tLow}                                      AS taskLow,
+          COALESCE(
+            (SELECT att2.AttractionName
+             FROM maintenance m2
+             JOIN attraction att2 ON m2.AttractionID = att2.AttractionID
+             WHERE att2.AreaID = a.AreaID
+             GROUP BY att2.AttractionID
+             ORDER BY COUNT(*) DESC
+             LIMIT 1),
+            (SELECT AttractionName FROM attraction WHERE AreaID = a.AreaID LIMIT 1)
           ) AS mostAffectedAttraction
         FROM area a
         LEFT JOIN attraction att ON att.AreaID     = a.AreaID
@@ -442,25 +455,25 @@ const server = http.createServer(async (req, res) => {
         ORDER BY (COUNT(DISTINCT m.MaintenanceID) + COUNT(DISTINCT t.MaintenanceAssignmentID)) DESC
       `);
 
-      // Merge rows with the same area name (duplicate area name entries in DB)
       const areaMap = new Map();
       rows.forEach((row) => {
-        const key = (row.AreaName || "").trim().toLowerCase();
+        const key    = (row.AreaName || "").trim().toLowerCase();
+        const total  = Number(row.historyTotal) + Number(row.taskTotal);
+        const high   = Number(row.histHigh)   + Number(row.taskHigh);
+        const medium = Number(row.histMedium) + Number(row.taskMedium);
+        const low    = Number(row.histLow)    + Number(row.taskLow);
         if (areaMap.has(key)) {
           const e = areaMap.get(key);
-          e.total          += Number(row.historyTotal);  // history only — matches severity counts
-          e.highSeverity   += Number(row.highSeverity);
-          e.mediumSeverity += Number(row.mediumSeverity);
-          e.lowSeverity    += Number(row.lowSeverity);
+          e.total          += total;
+          e.highSeverity   += high;
+          e.mediumSeverity += medium;
+          e.lowSeverity    += low;
           if (!e.mostAffectedAttraction && row.mostAffectedAttraction)
             e.mostAffectedAttraction = row.mostAffectedAttraction;
         } else {
           areaMap.set(key, {
             AreaID: row.AreaID, AreaName: row.AreaName,
-            total:          Number(row.historyTotal),  // history only — matches severity counts
-            highSeverity:   Number(row.highSeverity),
-            mediumSeverity: Number(row.mediumSeverity),
-            lowSeverity:    Number(row.lowSeverity),
+            total, highSeverity: high, mediumSeverity: medium, lowSeverity: low,
             mostAffectedAttraction: row.mostAffectedAttraction,
           });
         }
