@@ -87,6 +87,15 @@
       </div>
 
       <div class="card" style="margin-bottom:1.25rem;">
+        <h3 class="subheading" style="margin-top:0;">Accounts</h3>
+        <p class="hint">Create / edit / deactivate users per portal; assign roles; reset passwords (integrate with each backend’s auth module).</p>
+        <h3 class="subheading">Session &amp; risk</h3>
+        <p class="hint">View login activity; revoke tokens; flag suspicious IPs (requires gateway or IdP integration).</p>
+        <h3 class="subheading">Audit</h3>
+        <p class="hint">Full audit trails below are a starting point — extend to capture admin overrides across all portals.</p>
+      </div>
+
+      <div class="card" style="margin-bottom:1.25rem;">
         <h3 class="subheading" style="margin-top:0;">Organization access policy</h3>
         <p class="hint">Policy JSON lives in <code>admin_system_settings</code>. <strong>Database enforcement:</strong> set env <code>ADMIN_ENFORCE_SESSION=1</code> so every <code>/api/*</code> call must send <code>X-Admin-Session-Id</code> matching <code>admin_session_log.SessionLogID</code>, with <code>MfaVerifiedAt</code> within the session TTL when MFA is required (<code>ADMIN_ENFORCE_MFA=1</code> or policy checkbox). Optional: <code>ADMIN_SESSION_TTL_SEC</code> overrides TTL. Record MFA with <code>PATCH /api/access/sessions/:id/mfa</code> (method: totp, sms, webauthn, email_otp).</p>
         <form id="form-access-policy">
@@ -418,9 +427,6 @@
           <button type="button" id="btn-park-search" class="btn btn-ghost">Search</button>
           <button type="button" id="btn-refresh-park" class="btn btn-ghost">Refresh</button>
         </div>
-      </div>
-      <div class="callout">
-        <strong>Zones:</strong> <span id="park-areas-list" class="area-chip-row"></span>
       </div>
       <div class="table-wrap">
         <table class="data-table">
