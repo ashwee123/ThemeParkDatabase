@@ -225,6 +225,25 @@ input:focus, select:focus, textarea:focus {
 
 .hidden { display: none !important; }
 
+.backend-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(201, 168, 76, 0.35);
+  background: rgba(201, 168, 76, 0.08);
+  color: var(--bone);
+}
+
+.backend-status.error {
+  border-color: rgba(255, 100, 100, 0.45);
+  background: rgba(40, 0, 0, 0.35);
+  color: #ffb8b8;
+}
+
 .toast {
   position: fixed;
   bottom: 1rem;
