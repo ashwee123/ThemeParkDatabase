@@ -1,32 +1,27 @@
 // frontend/maintenanceFrontend/portal.js
 // NOTE: This file must be loaded as a plain script tag — no "type=module".
-// Do NOT use import/export syntax anywhere in this file.
 
 var API_BASE = "https://maintenance-4i7r.onrender.com";
 var token    = localStorage.getItem("token");
 if (!token) window.location.href = "/";
 
 // ─── GLOBAL STATE ─────────────────────────────────────────────────────────
-var allTasksData        = [];
-var allMhData           = [];
-var currentSortCol      = "";
-var isAscending         = true;
-var seenAlertIds        = {};
-var pendingDeleteId     = null;
-var pendingDeleteType   = null; // "task" or "maintenance"
+var allTasksData       = [];
+var allMhData          = [];
+var allOpsData         = [];          // ride operations raw data
+var seenAlertIds       = {};
+var pendingDeleteId    = null;
+var pendingDeleteType  = null;
 var _dropdownsPopulated = false;
 
-var pieChartInstance     = null;
-var barChartInstance     = null;
-var freqBarInstance      = null;
-var severityPieInstance  = null;
-var calendarInstance     = null;
+var pieChartInstance    = null;
+var barChartInstance    = null;
+var freqBarInstance     = null;
+var severityPieInstance = null;
+var calendarInstance    = null;
 
-// ─── SAFE HELPERS ─────────────────────────────────────────────────────────
-function toArray(val) {
-  if (Array.isArray(val)) return val;
-  return [];
-}
+// ─── HELPERS ──────────────────────────────────────────────────────────────
+function toArray(val) { return Array.isArray(val) ? val : []; }
 
 function unwrap(body) {
   if (body === null || body === undefined) return null;
@@ -43,12 +38,10 @@ async function authFetch(path, opts) {
   );
   var res = await fetch(API_BASE + path, Object.assign({}, opts, { headers: headers }));
   var body;
-  try { body = await res.json(); }
-  catch (e) { throw new Error("Non-JSON response from " + path); }
+  try { body = await res.json(); } catch (e) { throw new Error("Non-JSON response from " + path); }
   if (res.status === 401) { logout(); throw new Error("Unauthorized"); }
   if (!res.ok) {
     var errMsg = (body && (body.error || body.message)) || ("Request failed: " + res.status);
-    console.error("API error on " + path + ":", body);
     throw new Error(errMsg);
   }
   return unwrap(body);
@@ -60,6 +53,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var dueDateInput = document.getElementById("due-date-input");
   if (dueDateInput) dueDateInput.min = new Date().toISOString().split("T")[0];
 
+  // ── Main tabs ──
   document.querySelectorAll(".tab").forEach(function (tab) {
     tab.addEventListener("click", function () {
       document.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("active"); });
@@ -69,12 +63,14 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!panel) return;
       panel.classList.add("active");
       var t = tab.dataset.tab;
-      if      (t === "reports")       initReports();
-      else if (t === "schedule")      loadScheduleCalendar();
-      else if (t === "notifications") loadNotifications();
+      if      (t === "operations")   loadRideOperations();
+      else if (t === "reports")      initReports();
+      else if (t === "schedule")     loadScheduleCalendar();
+      else if (t === "notifications")loadNotifications();
     });
   });
 
+  // ── Report sub-tabs ──
   document.querySelectorAll(".report-subtab").forEach(function (btn) {
     btn.addEventListener("click", function () {
       document.querySelectorAll(".report-subtab").forEach(function (b) { b.classList.remove("active"); });
@@ -87,16 +83,14 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   var refreshBtn = document.getElementById("refresh-reports-btn");
-  if (refreshBtn) {
-    refreshBtn.addEventListener("click", function () {
-      var activeBtn = document.querySelector(".report-subtab.active");
-      if (activeBtn) loadReportByKey(activeBtn.dataset.report);
-    });
-  }
+  if (refreshBtn) refreshBtn.addEventListener("click", function () {
+    var activeBtn = document.querySelector(".report-subtab.active");
+    if (activeBtn) loadReportByKey(activeBtn.dataset.report);
+  });
 
   populateDropdowns();
 
-  // ── Assign Task form ──
+  // ── Assign Task ──
   var form = document.getElementById("form-add-task");
   if (form) {
     form.addEventListener("submit", async function (e) {
@@ -121,12 +115,11 @@ document.addEventListener("DOMContentLoaded", function () {
         showToast("Task assigned successfully.");
         e.target.reset();
         if (dueDateInput) dueDateInput.min = new Date().toISOString().split("T")[0];
-        loadTasks();
       } catch (err) { showToast(err.message || "Failed to assign task.", "error"); }
     });
   }
 
-  // ── Edit Task form ──
+  // ── Edit Task ──
   var editForm = document.getElementById("form-edit-task");
   if (editForm) {
     editForm.addEventListener("submit", async function (e) {
@@ -150,7 +143,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // ── Edit Maintenance History form ──
+  // ── Edit Maintenance History ──
   var editMhForm = document.getElementById("form-edit-mh");
   if (editMhForm) {
     editMhForm.addEventListener("submit", async function (e) {
@@ -179,7 +172,7 @@ document.addEventListener("DOMContentLoaded", function () {
   loadNotifications(); loadAlerts();
   setInterval(loadAlerts, 15000);
 
-  // Start on schedule tab
+  // Start on schedule
   var scheduleTab = document.querySelector('[data-tab="schedule"]');
   if (scheduleTab) scheduleTab.click();
 });
@@ -199,26 +192,26 @@ async function populateDropdowns() {
     var areas       = toArray(results[1]);
     var attractions = toArray(results[2]);
 
-    // Deduplicate areas by name
-    var seenAreaNames = {};
+    // Deduplicate areas by AreaID (primary key — safest key)
+    var seenAreaIds = new Set();
     areas = areas.filter(function (a) {
-      var key = (a.AreaName || "").trim().toLowerCase();
-      if (seenAreaNames[key]) return false;
-      seenAreaNames[key] = true;
+      if (seenAreaIds.has(a.AreaID)) return false;
+      seenAreaIds.add(a.AreaID);
       return true;
     });
 
-    fillSelect("select-employee",        employees,   "EmployeeID",   function (e) { return e.Name + " (" + (e.Position || "Staff") + ")"; });
-    fillSelect("select-area",            areas,       "AreaID",       function (a) { return a.AreaName; }, true);
-    fillSelect("select-attraction",      attractions, "AttractionID", function (a) { return a.AttractionName; }, true);
-    fillSelect("edit-employee",          employees,   "EmployeeID",   function (e) { return e.Name + " (" + (e.Position || "Staff") + ")"; });
-    fillSelect("edit-area",              areas,       "AreaID",       function (a) { return a.AreaName; }, true);
-    fillSelect("edit-mh-employee",       employees,   "EmployeeID",   function (e) { return e.Name + " (" + (e.Position || "Staff") + ")"; }, true);
-    fillSelect("ts-filter-area",         areas,       "AreaID",       function (a) { return a.AreaName; }, true);
-    fillSelect("ts-filter-employee",     employees,   "EmployeeID",   function (e) { return e.Name; }, true);
-    fillSelect("mh-filter-attraction",   attractions, "AttractionID", function (a) { return a.AttractionName; }, true);
-    fillSelect("mh-filter-area",         areas,       "AreaID",       function (a) { return a.AreaName; }, true);
-    fillSelect("mh-filter-employee-mh",  employees,   "EmployeeID",   function (e) { return e.Name; }, true);
+    fillSelect("select-employee",       employees,   "EmployeeID",   function (e) { return e.Name + " (" + (e.Position || "Staff") + ")"; });
+    fillSelect("select-area",           areas,       "AreaID",       function (a) { return a.AreaName; }, true);
+    fillSelect("select-attraction",     attractions, "AttractionID", function (a) { return a.AttractionName; }, true);
+    fillSelect("edit-employee",         employees,   "EmployeeID",   function (e) { return e.Name + " (" + (e.Position || "Staff") + ")"; });
+    fillSelect("edit-area",             areas,       "AreaID",       function (a) { return a.AreaName; }, true);
+    fillSelect("edit-mh-employee",      employees,   "EmployeeID",   function (e) { return e.Name + " (" + (e.Position || "Staff") + ")"; }, true);
+    fillSelect("ts-filter-area",        areas,       "AreaID",       function (a) { return a.AreaName; }, true);
+    fillSelect("ts-filter-employee",    employees,   "EmployeeID",   function (e) { return e.Name; }, true);
+    fillSelect("mh-filter-attraction",  attractions, "AttractionID", function (a) { return a.AttractionName; }, true);
+    fillSelect("mh-filter-area",        areas,       "AreaID",       function (a) { return a.AreaName; }, true);
+    fillSelect("mh-filter-employee-mh", employees,   "EmployeeID",   function (e) { return e.Name; }, true);
+    fillSelect("ops-filter-area",       areas,       "AreaID",       function (a) { return a.AreaName; }, true);
   } catch (err) { console.error("populateDropdowns:", err); }
 }
 
@@ -230,14 +223,6 @@ function fillSelect(id, data, valueKey, labelFn, addBlank) {
     var opt = document.createElement("option");
     opt.value = item[valueKey]; opt.textContent = labelFn(item); el.appendChild(opt);
   });
-}
-
-// ─── TASKS ────────────────────────────────────────────────────────────────
-async function loadTasks() {
-  try {
-    var data = await authFetch("/tasks");
-    allTasksData = toArray(data);
-  } catch (err) { console.error("loadTasks:", err); }
 }
 
 // ─── MODALS ───────────────────────────────────────────────────────────────
@@ -262,19 +247,15 @@ function openEditMhModal(id) {
   document.getElementById("edit-mh-id").value    = id;
   document.getElementById("edit-mh-start").value = row.DateStart || "";
   document.getElementById("edit-mh-end").value   = row.DateEnd   || "";
-
   var sevSel = document.getElementById("edit-mh-severity");
   Array.from(sevSel.options).forEach(function (o) { o.selected = o.value === row.Severity; });
-
   var staSel = document.getElementById("edit-mh-status");
   Array.from(staSel.options).forEach(function (o) { o.selected = o.value === row.Status; });
-
-  // Match employee by name since MH doesn't carry EmployeeID directly
   var empSel = document.getElementById("edit-mh-employee");
   Array.from(empSel.options).forEach(function (o) {
-    o.selected = (row.EmployeeID && o.value == row.EmployeeID) || o.textContent.startsWith(row.EmployeeName || "___NONE___");
+    o.selected = (row.EmployeeID && o.value == row.EmployeeID) ||
+                 o.textContent.startsWith(row.EmployeeName || "___NONE___");
   });
-
   openModal("edit-mh-modal");
 }
 
@@ -292,18 +273,13 @@ async function confirmDelete() {
     var body     = pendingDeleteType === "maintenance"
       ? { MaintenanceID: pendingDeleteId }
       : { MaintenanceAssignmentID: pendingDeleteId };
-
     await authFetch(endpoint, { method: "POST", body: JSON.stringify(body) });
     showToast("Record deleted.", "error");
     closeModal("delete-modal");
-
     if (pendingDeleteType === "maintenance") loadMaintenanceHistory();
     else loadTaskSummaryTable();
-  } catch (err) {
-    showToast(err.message || "Failed to delete.", "error");
-  }
-  pendingDeleteId   = null;
-  pendingDeleteType = null;
+  } catch (err) { showToast(err.message || "Failed to delete.", "error"); }
+  pendingDeleteId = null; pendingDeleteType = null;
 }
 
 function openModal(id) {
@@ -322,6 +298,112 @@ function showTaskDetails(employee, description) {
   document.getElementById("modal-employee").textContent    = "DATA FILE: " + employee.toUpperCase();
   document.getElementById("modal-description").textContent = description;
   openModal("task-modal");
+}
+
+// ─── RIDE OPERATIONS ──────────────────────────────────────────────────────
+var STATUS_META = {
+  "Open":               { label: "Open",              color: "#27ae60", dot: "🟢" },
+  "Closed":             { label: "Closed",             color: "#c0392b", dot: "🔴" },
+  "NeedsMaintenance":   { label: "Needs Maintenance",  color: "#e67e22", dot: "🟠" },
+  "UnderMaintenance":   { label: "Under Maintenance",  color: "#f1c40f", dot: "🟡" },
+  "ClosedDueToWeather": { label: "Closed — Weather",   color: "#3498db", dot: "🔵" },
+  "Restricted":         { label: "Restricted",         color: "#8e44ad", dot: "🟣" },
+};
+
+async function loadRideOperations() {
+  var tbody = document.getElementById("tbody-ops");
+  var cards = document.getElementById("ops-stat-cards");
+  if (!tbody) return;
+  tbody.innerHTML = "<tr><td colspan='8' style='text-align:center;color:var(--text-dim);padding:20px;'>Loading…</td></tr>";
+  try {
+    allOpsData = toArray(await authFetch("/ride-operations"));
+    // Build stat summary
+    if (cards) {
+      var total     = allOpsData.length;
+      var open      = allOpsData.filter(function (r) { return r.Status === "Open"; }).length;
+      var needsMaint= allOpsData.filter(function (r) { return r.Status === "NeedsMaintenance" || r.Status === "UnderMaintenance"; }).length;
+      var weather   = allOpsData.filter(function (r) { return r.Status === "ClosedDueToWeather"; }).length;
+      var hasAlerts = allOpsData.filter(function (r) { return r.alerts && r.alerts.length > 0; }).length;
+      cards.innerHTML =
+        '<div class="perf-card"><h3>Total Attractions</h3><p class="stat-number">' + total + "</p></div>"
+        + '<div class="perf-card"><h3>Operational</h3><p class="stat-number" style="color:#27ae60">' + open + "</p></div>"
+        + '<div class="perf-card"><h3>Under/Needs Maintenance</h3><p class="stat-number" style="color:var(--ember)">' + needsMaint + "</p></div>"
+        + '<div class="perf-card"><h3>Weather Closures</h3><p class="stat-number" style="color:#3498db">' + weather + "</p></div>"
+        + '<div class="perf-card"><h3>Active Trigger Alerts</h3><p class="stat-number" style="color:var(--blood-light)">' + hasAlerts + "</p></div>";
+    }
+    renderOpsTable();
+  } catch (err) {
+    console.error("loadRideOperations:", err);
+    if (tbody) tbody.innerHTML = "<tr><td colspan='8' style='text-align:center;color:var(--blood-light);padding:20px;'>Failed to load ride operations.</td></tr>";
+  }
+}
+
+function renderOpsTable() {
+  var tbody = document.getElementById("tbody-ops");
+  if (!tbody) return;
+
+  var filterArea    = (document.getElementById("ops-filter-area")    || {}).value || "";
+  var filterType    = (document.getElementById("ops-filter-type")    || {}).value || "";
+  var filterStatus  = (document.getElementById("ops-filter-status")  || {}).value || "";
+  var filterAlerts  = (document.getElementById("ops-filter-alerts")  || {}).value || "";
+
+  var rows = allOpsData.filter(function (r) {
+    if (filterArea   && String(r.AreaID) !== String(filterArea))   return false;
+    if (filterType   && r.AttractionType !== filterType)           return false;
+    if (filterStatus && r.Status         !== filterStatus)         return false;
+    if (filterAlerts === "1" && (!r.alerts || r.alerts.length === 0)) return false;
+    return true;
+  });
+
+  tbody.innerHTML = "";
+  if (!rows.length) {
+    tbody.innerHTML = "<tr><td colspan='8' style='text-align:center;color:var(--text-dim);padding:20px;'>No attractions match filters.</td></tr>";
+    return;
+  }
+
+  rows.forEach(function (att) {
+    var meta     = STATUS_META[att.Status] || { label: att.Status, color: "var(--ash)", dot: "⚪" };
+    var hasAlert = att.alerts && att.alerts.length > 0;
+    var hasMaint = att.activeMaintenance && att.activeMaintenance.length > 0;
+
+    // Severity colour
+    var sevColor = att.SeverityLevel === "Severe" ? "color:var(--blood-light)"
+                 : att.SeverityLevel === "Low"    ? "color:var(--gold)"
+                 : "color:var(--text-dim)";
+
+    // Active maintenance summary
+    var maintCell = "—";
+    if (hasMaint) {
+      maintCell = att.activeMaintenance.map(function (m) {
+        return '<span style="color:var(--ember);font-size:0.85rem;">🔧 ' + (m.AssignedEmployee || "Unassigned") + ' · ' + (m.Severity || "—") + ' · since ' + (m.DateStart || "?") + "</span>";
+      }).join("<br>");
+    }
+
+    // Trigger alert summary
+    var alertCell = "—";
+    if (hasAlert) {
+      alertCell = att.alerts.map(function (a) {
+        var ac = a.SeverityLevel === "Severe" ? "var(--blood-light)" : "var(--gold)";
+        return '<span style="color:' + ac + ';font-size:0.85rem;">⚠ ' + a.AlertMessage + '</span>';
+      }).join("<br>");
+    }
+
+    // Row highlight classes
+    var rowStyle = "";
+    if (hasAlert || att.Status === "NeedsMaintenance")  rowStyle = 'style="background:rgba(139,0,0,0.07);"';
+    else if (att.Status === "ClosedDueToWeather")        rowStyle = 'style="background:rgba(52,152,219,0.06);"';
+
+    tbody.innerHTML += "<tr " + rowStyle + ">"
+      + "<td><strong>" + att.AttractionName + "</strong></td>"
+      + "<td>" + att.AttractionType + "</td>"
+      + "<td>" + (att.AreaName || "—") + "</td>"
+      + '<td><span style="color:' + meta.color + ';font-weight:600;">' + meta.dot + " " + meta.label + "</span></td>"
+      + '<td style="' + sevColor + '">' + (att.SeverityLevel || "None") + "</td>"
+      + "<td>" + (att.QueueCount || 0) + "</td>"
+      + '<td style="white-space:normal;min-width:180px;">' + maintCell + "</td>"
+      + '<td style="white-space:normal;min-width:200px;">' + alertCell + "</td>"
+      + "</tr>";
+  });
 }
 
 // ─── REPORTS ROUTER ───────────────────────────────────────────────────────
@@ -368,7 +450,7 @@ async function loadTaskSummary() {
 async function loadTaskSummaryTable() {
   var tbody = document.getElementById("tbody-task-summary");
   if (!tbody) return;
-  var params = new URLSearchParams();
+  var params   = new URLSearchParams();
   var status   = (document.getElementById("ts-filter-status")   || {}).value || "";
   var area     = (document.getElementById("ts-filter-area")     || {}).value || "";
   var employee = (document.getElementById("ts-filter-employee") || {}).value || "";
@@ -385,7 +467,7 @@ async function loadTaskSummaryTable() {
   if (keyword)  params.set("keyword",    keyword);
   try {
     var rows = toArray(await authFetch("/tasks-filtered?" + params.toString()));
-    allTasksData = rows; // keep in sync for edit modal lookup
+    allTasksData = rows;
     tbody.innerHTML = "";
     if (!rows.length) {
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:20px;">No tasks match filters.</td></tr>';
@@ -402,10 +484,9 @@ async function loadTaskSummaryTable() {
         + '<td><span class="status ' + sc + '">' + t.Status + "</span></td>"
         + "<td>" + (t.DueDate || "—") + overdueFlag + "</td>"
         + '<td class="action-cell">'
-        + '<button class="btn-edit-sm" onclick="openEditModal(' + t.MaintenanceAssignmentID + ')">✏ Edit</button> '
-        + '<button class="btn-del-sm" onclick="openDeleteModal(' + t.MaintenanceAssignmentID + ', \'task\', \'Task #' + t.MaintenanceAssignmentID + ' · ' + (t.EmployeeName || "Unknown").replace(/'/g, "\\'") + '\')">🗑 Delete</button>'
-        + "</td>"
-        + "</tr>";
+        + '<button class="btn-edit-sm" onclick="openEditModal(' + t.MaintenanceAssignmentID + ')">✏ Edit</button>'
+        + '<button class="btn-del-sm"  onclick="openDeleteModal(' + t.MaintenanceAssignmentID + ',\'task\',\'Task #' + t.MaintenanceAssignmentID + ' · ' + (t.EmployeeName || "Unknown").replace(/'/g, "\\'") + '\')">🗑 Delete</button>'
+        + "</td></tr>";
     });
   } catch (err) { console.error("loadTaskSummaryTable:", err); }
 }
@@ -415,7 +496,7 @@ async function loadMaintenanceHistory() {
   var tbody = document.getElementById("tbody-mh");
   var cards = document.getElementById("mh-summary-cards");
   if (!tbody) return;
-  var params = new URLSearchParams();
+  var params  = new URLSearchParams();
   var sev     = (document.getElementById("mh-filter-severity")    || {}).value || "";
   var stat    = (document.getElementById("mh-filter-status")      || {}).value || "";
   var att     = (document.getElementById("mh-filter-attraction")  || {}).value || "";
@@ -434,7 +515,7 @@ async function loadMaintenanceHistory() {
   if (keyword)params.set("keyword",      keyword);
   try {
     var rows = toArray(await authFetch("/maintenance-report?" + params.toString()));
-    allMhData = rows; // keep in sync for edit modal
+    allMhData = rows;
     if (cards) {
       var total        = rows.length;
       var high         = rows.filter(function (r) { return r.Severity === "High"; }).length;
@@ -463,27 +544,34 @@ async function loadMaintenanceHistory() {
         + "<td>" + (row.DateStart      || "—") + "</td>"
         + "<td>" + (row.DateEnd        || "Ongoing") + "</td>"
         + '<td class="action-cell">'
-        + '<button class="btn-edit-sm" onclick="openEditMhModal(' + row.MaintenanceID + ')">✏ Edit</button> '
-        + '<button class="btn-del-sm" onclick="openDeleteModal(' + row.MaintenanceID + ', \'maintenance\', \'Maintenance #' + row.MaintenanceID + ' · ' + (row.AttractionName || "Unknown").replace(/'/g, "\\'") + '\')">🗑 Delete</button>'
-        + "</td>"
-        + "</tr>";
+        + '<button class="btn-edit-sm" onclick="openEditMhModal(' + row.MaintenanceID + ')">✏ Edit</button>'
+        + '<button class="btn-del-sm"  onclick="openDeleteModal(' + row.MaintenanceID + ',\'maintenance\',\'Maintenance #' + row.MaintenanceID + ' · ' + (row.AttractionName || "Unknown").replace(/'/g, "\\'") + '\')">🗑 Delete</button>'
+        + "</td></tr>";
     });
   } catch (err) { console.error("loadMaintenanceHistory:", err); }
 }
 
-// ─── REPORT: AREA FREQUENCY BREAKDOWN ────────────────────────────────────
+// ─── REPORT: AREA FREQUENCY ───────────────────────────────────────────────
 async function loadAreaFrequency() {
   var tbody = document.getElementById("tbody-freq");
   var cards = document.getElementById("freq-summary-cards");
   if (!tbody) return;
   try {
     var data = toArray(await authFetch("/area-frequency"));
+
+    // Client-side dedup by AreaID as extra safety net
+    var seen = new Set();
+    data = data.filter(function (r) {
+      if (seen.has(r.AreaID)) return false;
+      seen.add(r.AreaID);
+      return true;
+    });
+
     var grandTotal = data.reduce(function (s, r) { return s + Number(r.total || 0); }, 0);
 
     if (cards) {
       var mostAffected = data.length ? data[0] : null;
       var totalHigh    = data.reduce(function (s, r) { return s + Number(r.highSeverity || 0); }, 0);
-      var avgPct       = data.length ? Math.round(grandTotal / data.length) : 0;
       cards.innerHTML =
         '<div class="perf-card"><h3>Total Maintenance Events</h3><p class="stat-number">' + grandTotal + "</p></div>"
         + '<div class="perf-card"><h3>Most Affected Area</h3><p class="stat-number" style="font-size:1.1rem;color:var(--blood-light)">' + (mostAffected ? mostAffected.AreaName : "—") + "</p></div>"
@@ -502,8 +590,8 @@ async function loadAreaFrequency() {
     data.forEach(function (row) {
       var pct = grandTotal > 0 ? ((Number(row.total || 0) / grandTotal) * 100).toFixed(1) : "0.0";
       var pctColor = Number(pct) >= 25 ? "color:var(--blood-light);font-weight:700"
-                  : Number(pct) >= 15 ? "color:var(--ember);font-weight:600"
-                  : "color:var(--gold)";
+                   : Number(pct) >= 15 ? "color:var(--ember);font-weight:600"
+                   : "color:var(--gold)";
       tbody.innerHTML += "<tr>"
         + "<td><strong>" + (row.AreaName || "—") + "</strong></td>"
         + "<td>" + (row.total || 0) + "</td>"
@@ -517,49 +605,35 @@ async function loadAreaFrequency() {
   } catch (err) { console.error("loadAreaFrequency:", err); }
 }
 
+// ─── CHARTS ───────────────────────────────────────────────────────────────
 function renderFreqBarChart(data, grandTotal) {
   var ctx = document.getElementById("chart-freq-bar");
   if (!ctx) return;
   if (freqBarInstance) { freqBarInstance.destroy(); freqBarInstance = null; }
   if (!data || !data.length) return;
-
   ctx.style.maxHeight = "300px";
-
   var pcts = data.map(function (d) {
     return grandTotal > 0 ? parseFloat(((Number(d.total || 0) / grandTotal) * 100).toFixed(1)) : 0;
   });
-
   freqBarInstance = new Chart(ctx, {
     type: "bar",
     data: {
       labels: data.map(function (d) { return d.AreaName; }),
-      datasets: [{
-        label: "% of All Maintenance Events",
-        data: pcts,
+      datasets: [{ label: "% of All Maintenance Events", data: pcts,
         backgroundColor: data.map(function (d, i) {
-          var colors = ["rgba(139,0,0,0.8)","rgba(212,88,10,0.8)","rgba(201,168,76,0.8)","rgba(46,204,113,0.8)","rgba(41,128,185,0.8)","rgba(142,68,211,0.8)"];
-          return colors[i % colors.length];
-        }),
-        borderRadius: 4,
-      }],
+          return ["rgba(139,0,0,0.8)","rgba(212,88,10,0.8)","rgba(201,168,76,0.8)","rgba(46,204,113,0.8)","rgba(41,128,185,0.8)","rgba(142,68,211,0.8)"][i % 6];
+        }), borderRadius: 4 }],
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: {
-          backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8",
-          callbacks: { label: function (ctx) { return ctx.parsed.y + "% of maintenance events"; } }
-        },
+        tooltip: { backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8",
+          callbacks: { label: function (ctx) { return ctx.parsed.y + "% of maintenance events"; } } },
       },
       scales: {
         x: { ticks: { color: "#b0a898", maxRotation: 35, minRotation: 20, font: { size: 11 } }, grid: { color: "rgba(139,0,0,0.1)" } },
-        y: {
-          beginAtZero: true, max: 100,
-          ticks: { color: "#b0a898", callback: function (v) { return v + "%"; } },
-          grid: { color: "rgba(139,0,0,0.1)" }
-        },
+        y: { beginAtZero: true, max: 100, ticks: { color: "#b0a898", callback: function (v) { return v + "%"; } }, grid: { color: "rgba(139,0,0,0.1)" } },
       },
     },
   });
@@ -569,24 +643,17 @@ function renderSeverityPieChart(data) {
   var ctx = document.getElementById("chart-severity-pie");
   if (!ctx) return;
   if (severityPieInstance) { severityPieInstance.destroy(); severityPieInstance = null; }
-
   var totalHigh   = data.reduce(function (s, r) { return s + Number(r.highSeverity   || 0); }, 0);
   var totalMedium = data.reduce(function (s, r) { return s + Number(r.mediumSeverity || 0); }, 0);
   var totalLow    = data.reduce(function (s, r) { return s + Number(r.lowSeverity    || 0); }, 0);
-
   severityPieInstance = new Chart(ctx, {
     type: "doughnut",
-    data: {
-      labels: ["High", "Medium", "Low"],
-      datasets: [{
-        data: [totalHigh, totalMedium, totalLow],
-        backgroundColor: ["rgba(139,0,0,0.85)", "rgba(212,88,10,0.85)", "rgba(201,168,76,0.85)"],
-        borderColor: "#120e0a",
-        borderWidth: 3,
-      }],
-    },
-    options: {
-      responsive: true, cutout: "60%",
+    data: { labels: ["High","Medium","Low"], datasets: [{
+      data: [totalHigh, totalMedium, totalLow],
+      backgroundColor: ["rgba(139,0,0,0.85)","rgba(212,88,10,0.85)","rgba(201,168,76,0.85)"],
+      borderColor: "#120e0a", borderWidth: 3,
+    }] },
+    options: { responsive: true, cutout: "60%",
       plugins: {
         legend: { position: "bottom", labels: { color: "#b0a898", font: { size: 13 }, padding: 16 } },
         tooltip: { backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8" },
@@ -595,29 +662,22 @@ function renderSeverityPieChart(data) {
   });
 }
 
-// ─── PIE / BAR CHARTS (Task Summary) ──────────────────────────────────────
 function renderPieChart(taskStats) {
   var ctx = document.getElementById("chart-status-pie");
   if (!ctx) return;
   if (pieChartInstance) { pieChartInstance.destroy(); pieChartInstance = null; }
-
-  var colorMap    = { "Pending": "#d4580a", "In Progress": "#c9a84c", "Completed": "#2ecc71" };
-  var allStatuses = ["Pending", "In Progress", "Completed"];
-  var statLookup  = {};
+  var colorMap = { "Pending": "#d4580a", "In Progress": "#c9a84c", "Completed": "#2ecc71" };
+  var allStatuses = ["Pending","In Progress","Completed"];
+  var statLookup = {};
   toArray(taskStats).forEach(function (s) { statLookup[s.Status] = Number(s.count || 0); });
-
   pieChartInstance = new Chart(ctx, {
     type: "doughnut",
-    data: {
-      labels: allStatuses,
-      datasets: [{
-        data: allStatuses.map(function (s) { return statLookup[s] || 0; }),
-        backgroundColor: allStatuses.map(function (s) { return colorMap[s]; }),
-        borderColor: "#120e0a", borderWidth: 3,
-      }],
-    },
-    options: {
-      responsive: true, cutout: "65%",
+    data: { labels: allStatuses, datasets: [{
+      data: allStatuses.map(function (s) { return statLookup[s] || 0; }),
+      backgroundColor: allStatuses.map(function (s) { return colorMap[s]; }),
+      borderColor: "#120e0a", borderWidth: 3,
+    }] },
+    options: { responsive: true, cutout: "65%",
       plugins: {
         legend: { position: "bottom", labels: { color: "#b0a898", font: { family: "'Crimson Text', serif", size: 13 }, padding: 16 } },
         tooltip: { backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8", borderColor: "rgba(139,0,0,0.4)", borderWidth: 1 },
@@ -632,7 +692,6 @@ function renderBarChart(byArea) {
   if (barChartInstance) { barChartInstance.destroy(); barChartInstance = null; }
   if (!byArea || !byArea.length) return;
   ctx.style.maxHeight = "340px";
-
   barChartInstance = new Chart(ctx, {
     type: "bar",
     data: {
@@ -644,8 +703,7 @@ function renderBarChart(byArea) {
         { label: "Overdue",     data: byArea.map(function (d) { return Number(d.overdue    || 0); }), backgroundColor: "rgba(139,0,0,0.75)",    borderRadius: 3 },
       ],
     },
-    options: {
-      responsive: true, maintainAspectRatio: false,
+    options: { responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { labels: { color: "#b0a898", font: { family: "'Crimson Text', serif", size: 13 }, padding: 14 } },
         tooltip: { backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8", borderColor: "rgba(139,0,0,0.4)", borderWidth: 1 },
@@ -665,16 +723,13 @@ function exportTableCSV(tbodyId, filename) {
   var thead = tbody.closest("table") && tbody.closest("table").querySelector("thead");
   var headers = [];
   if (thead) thead.querySelectorAll("th").forEach(function (th) {
-    var text = th.textContent.trim();
-    if (text !== "Actions") headers.push(text); // skip Actions column
+    if (th.textContent.trim() !== "Actions") headers.push(th.textContent.trim());
   });
   var rows = [headers];
   tbody.querySelectorAll("tr").forEach(function (tr) {
     var cells = [];
-    var tds = tr.querySelectorAll("td");
-    // Skip last cell (Actions) if it contains buttons
-    tds.forEach(function (td, i) {
-      if (td.querySelector("button")) return; // skip action cells
+    tr.querySelectorAll("td").forEach(function (td) {
+      if (td.querySelector("button")) return;
       cells.push('"' + td.textContent.trim().replace(/"/g, '""') + '"');
     });
     if (cells.length) rows.push(cells);
@@ -709,7 +764,6 @@ async function loadNotifications() {
         + '<span class="notif-severity">' + n.severity.toUpperCase() + "</span></div>";
     }).join("");
   } catch (err) {
-    console.error("loadNotifications:", err);
     if (container) container.innerHTML = "<p style='color:var(--blood-light)'>Failed to load alerts.</p>";
   }
 }
@@ -746,40 +800,28 @@ async function loadScheduleCalendar() {
     var tasks = toArray(await authFetch("/tasks"));
     if (calendarInstance) { calendarInstance.destroy(); calendarInstance = null; }
     var areaColorPalette = ["#8b0000","#c0392b","#d4580a","#c9a84c","#2980b9","#27ae60","#8e44ad","#16a085","#e67e22","#2c3e50"];
-    var areaColorMap = {}; var areaColorIdx = 0;
+    var areaColorMap = {}, areaColorIdx = 0;
     var today = new Date().toISOString().split("T")[0];
-
     var events = tasks
       .filter(function (t) { return t.DueDate; })
       .map(function (t) {
         var areaKey = t.AreaName || "Unknown";
         if (!areaColorMap[areaKey]) { areaColorMap[areaKey] = areaColorPalette[areaColorIdx % areaColorPalette.length]; areaColorIdx++; }
-        return {
-          id: t.MaintenanceAssignmentID,
+        return { id: t.MaintenanceAssignmentID,
           title: (t.TaskDescription || "Task").substring(0, 28) + " · " + (t.EmployeeName || ""),
-          start: t.DueDate,
-          color: areaColorMap[areaKey],
-          extendedProps: { task: t }
-        };
+          start: t.DueDate, color: areaColorMap[areaKey], extendedProps: { task: t } };
       });
-
-    var allDates    = events.map(function (e) { return e.start; }).filter(Boolean).sort();
+    var allDates = events.map(function (e) { return e.start; }).filter(Boolean).sort();
     var initialDate = allDates.length ? allDates[0] : today;
-
     calendarInstance = new FullCalendar.Calendar(calendarEl, {
-      initialView: "dayGridMonth",
-      initialDate: initialDate,
-      events: events,
-      height: "auto",
+      initialView: "dayGridMonth", initialDate: initialDate, events: events, height: "auto",
       headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listWeek" },
       buttonText: { today: "Today", month: "Month", list: "List" },
       eventClick: function (info) {
         var t = info.event.extendedProps.task;
         showTaskDetails(t.EmployeeName || "Unknown", t.TaskDescription || "");
       },
-      eventDidMount: function (info) {
-        if (info.event.startStr === today) info.el.classList.add("fc-event-today");
-      },
+      eventDidMount: function (info) { if (info.event.startStr === today) info.el.classList.add("fc-event-today"); },
       dayMaxEvents: 3,
     });
     calendarInstance.render();

@@ -17,6 +17,7 @@
 
 <nav class="tabs">
   <button class="tab active" data-tab="schedule">Schedule</button>
+  <button class="tab" data-tab="operations">Ride Operations</button>
   <button class="tab" data-tab="reports">Reports</button>
   <button class="tab" data-tab="assign">Assign Task</button>
   <button class="tab" data-tab="notifications">
@@ -31,6 +32,70 @@
     <div class="toolbar"><h2>Active Schedule</h2></div>
     <p style="color:var(--text-dim);margin-bottom:1.5rem;">Tasks currently pending or in progress, color-coded by area.</p>
     <div id="calendar" style="margin-bottom:2rem;"></div>
+  </section>
+
+  <!-- ===================== RIDE OPERATIONS ===================== -->
+  <section id="panel-operations" class="panel">
+    <div class="toolbar">
+      <h2>Ride Operations</h2>
+      <div class="toolbar-actions">
+        <button class="btn-reset" onclick="loadRideOperations()">↻ Refresh</button>
+      </div>
+    </div>
+    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Live status of all attractions. Trigger alerts and active maintenance are highlighted automatically.</p>
+
+    <!-- Summary stat cards -->
+    <div id="ops-stat-cards" class="stats-grid" style="margin-bottom:1.5rem;"></div>
+
+    <!-- Filter bar -->
+    <div class="report-filters" style="margin-bottom:1.5rem;">
+      <label>Area
+        <select id="ops-filter-area" onchange="renderOpsTable()">
+          <option value="">All Areas</option>
+        </select>
+      </label>
+      <label>Type
+        <select id="ops-filter-type" onchange="renderOpsTable()">
+          <option value="">All Types</option>
+          <option value="Ride">Ride</option>
+          <option value="Show">Show</option>
+          <option value="Game">Game</option>
+        </select>
+      </label>
+      <label>Status
+        <select id="ops-filter-status" onchange="renderOpsTable()">
+          <option value="">All Statuses</option>
+          <option value="Open">Open</option>
+          <option value="Closed">Closed</option>
+          <option value="NeedsMaintenance">Needs Maintenance</option>
+          <option value="UnderMaintenance">Under Maintenance</option>
+          <option value="ClosedDueToWeather">Closed — Weather</option>
+          <option value="Restricted">Restricted</option>
+        </select>
+      </label>
+      <label>Alerts Only
+        <select id="ops-filter-alerts" onchange="renderOpsTable()">
+          <option value="">All</option>
+          <option value="1">Has Alerts</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data-table" id="table-ops">
+        <thead><tr>
+          <th>Attraction</th>
+          <th>Type</th>
+          <th>Area</th>
+          <th>Status</th>
+          <th>Severity</th>
+          <th>Queue</th>
+          <th>Active Maintenance</th>
+          <th>Trigger Alerts</th>
+        </tr></thead>
+        <tbody id="tbody-ops"></tbody>
+      </table>
+    </div>
   </section>
 
   <!-- ===================== REPORTS ===================== -->
@@ -62,7 +127,6 @@
           <canvas id="chart-area-bar"></canvas>
         </div>
       </div>
-
       <div class="report-filters">
         <label>Status
           <select id="ts-filter-status">
@@ -72,12 +136,8 @@
             <option value="Completed">Completed</option>
           </select>
         </label>
-        <label>Area
-          <select id="ts-filter-area"><option value="">All Areas</option></select>
-        </label>
-        <label>Employee
-          <select id="ts-filter-employee"><option value="">All Employees</option></select>
-        </label>
+        <label>Area <select id="ts-filter-area"><option value="">All Areas</option></select></label>
+        <label>Employee <select id="ts-filter-employee"><option value="">All Employees</option></select></label>
         <label>Due From <input type="date" id="ts-filter-from"></label>
         <label>Due To   <input type="date" id="ts-filter-to"></label>
         <label>Overdue Only
@@ -92,7 +152,6 @@
         <button class="btn-reset" onclick="loadTaskSummaryTable()">Apply</button>
         <button class="btn-reset" onclick="exportTableCSV('tbody-task-summary','task-summary')">⬇ Export CSV</button>
       </div>
-
       <div class="table-wrap">
         <table class="data-table">
           <thead><tr>
@@ -107,7 +166,6 @@
     <!-- ── MAINTENANCE HISTORY ── -->
     <div id="report-maintenance-history" class="report-panel">
       <div id="mh-summary-cards" class="stats-grid" style="margin:1.5rem 0;"></div>
-
       <div class="report-filters">
         <label>Severity
           <select id="mh-filter-severity">
@@ -125,24 +183,17 @@
             <option value="Completed">Completed</option>
           </select>
         </label>
-        <label>Attraction
-          <select id="mh-filter-attraction"><option value="">All Attractions</option></select>
-        </label>
-        <label>Area
-          <select id="mh-filter-area"><option value="">All Areas</option></select>
-        </label>
-        <label>Employee
-          <select id="mh-filter-employee-mh"><option value="">All Employees</option></select>
-        </label>
-        <label>Date From <input type="date" id="mh-filter-from"></label>
-        <label>Date To   <input type="date" id="mh-filter-to"></label>
+        <label>Attraction <select id="mh-filter-attraction"><option value="">All Attractions</option></select></label>
+        <label>Area       <select id="mh-filter-area"><option value="">All Areas</option></select></label>
+        <label>Employee   <select id="mh-filter-employee-mh"><option value="">All Employees</option></select></label>
+        <label>Date From  <input type="date" id="mh-filter-from"></label>
+        <label>Date To    <input type="date" id="mh-filter-to"></label>
         <label>Search
           <input type="text" id="mh-filter-keyword" placeholder="attraction or status…" style="width:150px;">
         </label>
         <button class="btn-reset" onclick="loadMaintenanceHistory()">Apply</button>
         <button class="btn-reset" onclick="exportTableCSV('tbody-mh','maintenance-history')">⬇ Export CSV</button>
       </div>
-
       <div class="table-wrap">
         <table class="data-table">
           <thead><tr>
@@ -182,7 +233,6 @@
         </table>
       </div>
     </div>
-
   </section>
 
   <!-- ===================== ASSIGN TASK ===================== -->
@@ -197,14 +247,10 @@
           </select>
         </label>
         <label>Area
-          <select id="select-area" name="AreaID">
-            <option value="">None</option>
-          </select>
+          <select id="select-area" name="AreaID"><option value="">None</option></select>
         </label>
         <label>Attraction
-          <select id="select-attraction" name="AttractionID">
-            <option value="">None</option>
-          </select>
+          <select id="select-attraction" name="AttractionID"><option value="">None</option></select>
         </label>
         <label>Status
           <select name="Status">
@@ -301,9 +347,7 @@
       <form id="form-edit-mh" class="grid-form" style="margin-top:0;">
         <input type="hidden" id="edit-mh-id">
         <div class="form-row">
-          <label>Employee
-            <select id="edit-mh-employee"><option value="">None</option></select>
-          </label>
+          <label>Employee <select id="edit-mh-employee"><option value="">None</option></select></label>
           <label>Severity
             <select id="edit-mh-severity">
               <option value="Low">Low</option>
@@ -349,7 +393,6 @@
 </div>
 
 <div id="toast-container"></div>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
 <script src="/frontend/maintenanceFrontend/portal.js"></script>

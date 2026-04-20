@@ -9,20 +9,10 @@ try { bcrypt = require("bcryptjs"); } catch { bcrypt = null; }
 
 const SECRET = process.env.JWT_SECRET || "dev_secret";
 
-// =============================================================================
-// HELPERS
-// =============================================================================
-
 function sendJson(res, statusCode, payload) {
-  res.writeHead(statusCode, {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-  });
-  if (statusCode < 400) {
-    res.end(JSON.stringify({ success: true, data: payload }));
-  } else {
-    res.end(JSON.stringify({ success: false, error: payload }));
-  }
+  res.writeHead(statusCode, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+  if (statusCode < 400) res.end(JSON.stringify({ success: true, data: payload }));
+  else                  res.end(JSON.stringify({ success: false, error: payload }));
 }
 
 function verifyToken(req) {
@@ -30,13 +20,12 @@ function verifyToken(req) {
   if (!authHeader) return null;
   const token = authHeader.split(" ")[1];
   if (!token) return null;
-  try { return jwt.verify(token, SECRET); }
-  catch { return null; }
+  try { return jwt.verify(token, SECRET); } catch { return null; }
 }
 
 function requireAuth(req, res, allowedRoles = ["admin", "maintenance_manager", "maintenance"]) {
   const user = verifyToken(req);
-  if (!user) { sendJson(res, 401, "Missing or invalid token"); return null; }
+  if (!user)                              { sendJson(res, 401, "Missing or invalid token"); return null; }
   if (!allowedRoles.includes(user.role)) { sendJson(res, 403, "Forbidden: insufficient role"); return null; }
   return user;
 }
@@ -49,13 +38,8 @@ function getBody(req) {
   });
 }
 
-// =============================================================================
-// SERVER
-// =============================================================================
-
 const server = http.createServer(async (req, res) => {
   console.log("REQUEST:", req.method, req.url);
-
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -66,51 +50,26 @@ const server = http.createServer(async (req, res) => {
 
   try {
 
-    // ── ROOT ────────────────────────────────────────────────────────────────
-    if (pathname === "/" && req.method === "GET") {
+    // ── ROOT ─────────────────────────────────────────────────────────────
+    if (pathname === "/" && req.method === "GET")
       return sendJson(res, 200, { service: "maintenanceBackend", status: "OK" });
-    }
 
-    // ── LOGIN ────────────────────────────────────────────────────────────────
+    // ── LOGIN ─────────────────────────────────────────────────────────────
     if (pathname === "/login" && req.method === "POST") {
       const { email, password } = await getBody(req);
-
-      if (!email || !password) {
-        return sendJson(res, 400, "Email and password are required.");
-      }
-
+      if (!email || !password) return sendJson(res, 400, "Email and password are required.");
       const [rows] = await db.query(
-        `SELECT ManagerID, ManagerEmail, ManagerPassword, Role
-         FROM manager
-         WHERE ManagerEmail = ?`,
-        [email]
+        `SELECT ManagerID, ManagerEmail, ManagerPassword, Role FROM manager WHERE ManagerEmail = ?`, [email]
       );
-
-      if (!rows.length) {
-        return sendJson(res, 401, "Invalid email or password.");
-      }
-
+      if (!rows.length) return sendJson(res, 401, "Invalid email or password.");
       const manager = rows[0];
       const storedPassword = manager.ManagerPassword || "";
-
       let match = false;
-      if (bcrypt && storedPassword.startsWith("$2b$")) {
-        match = await bcrypt.compare(password, storedPassword);
-      } else {
-        match = password === storedPassword;
-      }
-
-      if (!match) {
-        return sendJson(res, 401, "Invalid email or password.");
-      }
-
+      if (bcrypt && storedPassword.startsWith("$2b$")) match = await bcrypt.compare(password, storedPassword);
+      else match = password === storedPassword;
+      if (!match) return sendJson(res, 401, "Invalid email or password.");
       const role = (manager.Role || "maintenance_manager").trim().toLowerCase();
-      const token = jwt.sign(
-        { managerId: manager.ManagerID, email: manager.ManagerEmail, role },
-        SECRET,
-        { expiresIn: "1h" }
-      );
-
+      const token = jwt.sign({ managerId: manager.ManagerID, email: manager.ManagerEmail, role }, SECRET, { expiresIn: "1h" });
       return sendJson(res, 200, { token, role });
     }
 
@@ -119,11 +78,8 @@ const server = http.createServer(async (req, res) => {
       if (!requireAuth(req, res)) return;
       const [rows] = await db.query(`
         SELECT m.MaintenanceAssignmentID, m.EmployeeID, m.AreaID,
-               e.Name  AS EmployeeName,
-               e.Position,
-               a.AreaName,
-               m.TaskDescription,
-               m.Status,
+               e.Name AS EmployeeName, e.Position, a.AreaName,
+               m.TaskDescription, m.Status,
                DATE_FORMAT(m.DueDate, '%Y-%m-%d') AS DueDate,
                CASE WHEN m.DueDate < CURDATE() AND m.Status != 'Completed' THEN 1 ELSE 0 END AS IsOverdue
         FROM maintenanceassignment m
@@ -138,30 +94,18 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/tasks-filtered" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
       const { status, areaId, employeeId, from, to, overdue, keyword } = query;
-
-      const conditions = ["1=1"];
-      const params = [];
-
-      if (status)    { conditions.push("m.Status = ?");      params.push(status); }
-      if (areaId)    { conditions.push("m.AreaID = ?");      params.push(areaId); }
-      if (employeeId){ conditions.push("m.EmployeeID = ?");  params.push(employeeId); }
-      if (from)      { conditions.push("m.DueDate >= ?");    params.push(from); }
-      if (to)        { conditions.push("m.DueDate <= ?");    params.push(to); }
-      if (overdue === "1") {
-        conditions.push("m.DueDate < CURDATE() AND m.Status != 'Completed'");
-      }
-      if (keyword) {
-        conditions.push("m.TaskDescription LIKE ?");
-        params.push("%" + keyword + "%");
-      }
-
+      const conditions = ["1=1"], params = [];
+      if (status)          { conditions.push("m.Status = ?");     params.push(status); }
+      if (areaId)          { conditions.push("m.AreaID = ?");     params.push(areaId); }
+      if (employeeId)      { conditions.push("m.EmployeeID = ?"); params.push(employeeId); }
+      if (from)            { conditions.push("m.DueDate >= ?");   params.push(from); }
+      if (to)              { conditions.push("m.DueDate <= ?");   params.push(to); }
+      if (overdue === "1") { conditions.push("m.DueDate < CURDATE() AND m.Status != 'Completed'"); }
+      if (keyword)         { conditions.push("m.TaskDescription LIKE ?"); params.push("%" + keyword + "%"); }
       const [rows] = await db.query(`
         SELECT m.MaintenanceAssignmentID, m.EmployeeID, m.AreaID,
-               e.Name     AS EmployeeName,
-               e.Position,
-               a.AreaName,
-               m.TaskDescription,
-               m.Status,
+               e.Name AS EmployeeName, e.Position, a.AreaName,
+               m.TaskDescription, m.Status,
                DATE_FORMAT(m.DueDate, '%Y-%m-%d') AS DueDate,
                CASE WHEN m.DueDate < CURDATE() AND m.Status != 'Completed' THEN 1 ELSE 0 END AS IsOverdue
         FROM maintenanceassignment m
@@ -170,23 +114,14 @@ const server = http.createServer(async (req, res) => {
         WHERE ${conditions.join(" AND ")}
         ORDER BY m.DueDate ASC, m.CreatedAt DESC
       `, params);
-
       return sendJson(res, 200, rows);
     }
 
     // ── TASK SUMMARY ──────────────────────────────────────────────────────
     if (pathname === "/task-summary" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
-
-      const [stats] = await db.query(
-        `SELECT Status, COUNT(*) AS count FROM maintenanceassignment GROUP BY Status`
-      );
-
-      const [[overdueRow]] = await db.query(
-        `SELECT COUNT(*) AS overdue FROM maintenanceassignment
-         WHERE DueDate < CURDATE() AND Status != 'Completed'`
-      );
-
+      const [stats] = await db.query(`SELECT Status, COUNT(*) AS count FROM maintenanceassignment GROUP BY Status`);
+      const [[overdueRow]] = await db.query(`SELECT COUNT(*) AS overdue FROM maintenanceassignment WHERE DueDate < CURDATE() AND Status != 'Completed'`);
       const [byArea] = await db.query(`
         SELECT a.AreaName,
                COALESCE(SUM(m.Status = 'Pending'),     0) AS pending,
@@ -196,29 +131,19 @@ const server = http.createServer(async (req, res) => {
         FROM area a
         LEFT JOIN maintenanceassignment m ON m.AreaID = a.AreaID
         GROUP BY a.AreaID, a.AreaName
-        ORDER BY (COALESCE(SUM(m.Status = 'Pending'), 0) + COALESCE(SUM(m.Status = 'In Progress'), 0) + COALESCE(SUM(m.Status = 'Completed'), 0)) DESC
+        ORDER BY (COALESCE(SUM(m.Status='Pending'),0)+COALESCE(SUM(m.Status='In Progress'),0)+COALESCE(SUM(m.Status='Completed'),0)) DESC
       `);
-
-      return sendJson(res, 200, {
-        stats,
-        overdue: Number(overdueRow.overdue),
-        byArea,
-      });
+      return sendJson(res, 200, { stats, overdue: Number(overdueRow.overdue), byArea });
     }
 
     // ── ADD TASK ──────────────────────────────────────────────────────────
     if (pathname === "/addTask" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
       const body = await getBody(req);
-
       const today = new Date().toISOString().split("T")[0];
-      if (body.DueDate && body.DueDate < today) {
-        return sendJson(res, 400, "Due date cannot be in the past.");
-      }
-
+      if (body.DueDate && body.DueDate < today) return sendJson(res, 400, "Due date cannot be in the past.");
       await db.query(
-        `INSERT INTO maintenanceassignment (EmployeeID, AreaID, TaskDescription, Status, DueDate)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO maintenanceassignment (EmployeeID, AreaID, TaskDescription, Status, DueDate) VALUES (?,?,?,?,?)`,
         [body.EmployeeID, body.AreaID || null, body.TaskDescription, body.Status || "Pending", body.DueDate || null]
       );
       return sendJson(res, 200, { message: "Task added" });
@@ -229,9 +154,7 @@ const server = http.createServer(async (req, res) => {
       if (!requireAuth(req, res)) return;
       const body = await getBody(req);
       await db.query(
-        `UPDATE maintenanceassignment
-         SET EmployeeID = ?, AreaID = ?, TaskDescription = ?, Status = ?, DueDate = ?
-         WHERE MaintenanceAssignmentID = ?`,
+        `UPDATE maintenanceassignment SET EmployeeID=?, AreaID=?, TaskDescription=?, Status=?, DueDate=? WHERE MaintenanceAssignmentID=?`,
         [body.EmployeeID, body.AreaID || null, body.TaskDescription, body.Status, body.DueDate || null, body.MaintenanceAssignmentID]
       );
       return sendJson(res, 200, { message: "Task updated" });
@@ -241,10 +164,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/deleteTask" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
       const body = await getBody(req);
-      await db.query(
-        `DELETE FROM maintenanceassignment WHERE MaintenanceAssignmentID = ?`,
-        [body.MaintenanceAssignmentID]
-      );
+      await db.query(`DELETE FROM maintenanceassignment WHERE MaintenanceAssignmentID=?`, [body.MaintenanceAssignmentID]);
       return sendJson(res, 200, { message: "Task deleted" });
     }
 
@@ -253,17 +173,8 @@ const server = http.createServer(async (req, res) => {
       if (!requireAuth(req, res)) return;
       const body = await getBody(req);
       await db.query(
-        `UPDATE maintenance
-         SET EmployeeID = ?, Severity = ?, Status = ?, DateStart = ?, DateEnd = ?
-         WHERE MaintenanceID = ?`,
-        [
-          body.EmployeeID || null,
-          body.Severity   || "Low",
-          body.Status     || "Pending",
-          body.DateStart  || null,
-          body.DateEnd    || null,
-          body.MaintenanceID,
-        ]
+        `UPDATE maintenance SET EmployeeID=?, Severity=?, Status=?, DateStart=?, DateEnd=? WHERE MaintenanceID=?`,
+        [body.EmployeeID || null, body.Severity || "Low", body.Status || "Pending", body.DateStart || null, body.DateEnd || null, body.MaintenanceID]
       );
       return sendJson(res, 200, { message: "Maintenance record updated" });
     }
@@ -272,42 +183,30 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/deleteMaintenance" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
       const body = await getBody(req);
-      await db.query(
-        `DELETE FROM maintenance WHERE MaintenanceID = ?`,
-        [body.MaintenanceID]
-      );
+      await db.query(`DELETE FROM maintenance WHERE MaintenanceID=?`, [body.MaintenanceID]);
       return sendJson(res, 200, { message: "Maintenance record deleted" });
     }
 
-    // ── EMPLOYEES (all employees — no position filter) ────────────────────
-    // Returns every employee so task summary and maintenance history
-    // both reference the same consistent set of staff.
+    // ── EMPLOYEES ─────────────────────────────────────────────────────────
     if (pathname === "/employees" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
       const [rows] = await db.query(`
         SELECT e.EmployeeID, e.Name, e.Position, a.AreaName, e.AreaID
-        FROM employee e
-        LEFT JOIN area a ON e.AreaID = a.AreaID
-        ORDER BY e.Name ASC
+        FROM employee e LEFT JOIN area a ON e.AreaID = a.AreaID ORDER BY e.Name ASC
       `);
       return sendJson(res, 200, rows);
     }
 
-    // ── EMPLOYEE PERFORMANCE (all employees) ──────────────────────────────
+    // ── EMPLOYEE PERFORMANCE (all) ────────────────────────────────────────
     if (pathname === "/employee-performance-all" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
       const [rows] = await db.query(`
-        SELECT
-          e.EmployeeID,
-          e.Name,
-          e.Position,
-          a.AreaName,
-          e.AreaID,
-          COUNT(m.MaintenanceAssignmentID)                                              AS totalTasks,
-          COALESCE(SUM(m.Status = 'Completed'),    0)                                  AS completed,
-          COALESCE(SUM(m.Status = 'In Progress'),  0)                                  AS inProgress,
-          COALESCE(SUM(m.Status = 'Pending'),      0)                                  AS pending,
-          COALESCE(SUM(m.DueDate < CURDATE() AND m.Status != 'Completed'), 0)          AS overdue
+        SELECT e.EmployeeID, e.Name, e.Position, a.AreaName, e.AreaID,
+               COUNT(m.MaintenanceAssignmentID)                                    AS totalTasks,
+               COALESCE(SUM(m.Status='Completed'),   0)                            AS completed,
+               COALESCE(SUM(m.Status='In Progress'), 0)                            AS inProgress,
+               COALESCE(SUM(m.Status='Pending'),     0)                            AS pending,
+               COALESCE(SUM(m.DueDate < CURDATE() AND m.Status!='Completed'), 0)   AS overdue
         FROM employee e
         LEFT JOIN maintenanceassignment m ON e.EmployeeID = m.EmployeeID
         LEFT JOIN area a ON e.AreaID = a.AreaID
@@ -317,22 +216,19 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, rows);
     }
 
-    // ── EMPLOYEE PERFORMANCE (legacy endpoint, kept for compatibility) ─────
+    // ── EMPLOYEE PERFORMANCE (legacy) ─────────────────────────────────────
     if (pathname === "/employee-performance" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
       const { areaId } = query;
-      const conditions = ["1=1"];
-      const params = [];
+      const conditions = ["1=1"], params = [];
       if (areaId) { conditions.push("e.AreaID = ?"); params.push(areaId); }
-
       const [rows] = await db.query(`
-        SELECT
-          e.EmployeeID, e.Name, e.Position, a.AreaName, e.AreaID,
-          COUNT(m.MaintenanceAssignmentID)                                    AS totalTasks,
-          COALESCE(SUM(m.Status = 'Completed'),    0)                         AS completed,
-          COALESCE(SUM(m.Status = 'In Progress'),  0)                         AS inProgress,
-          COALESCE(SUM(m.Status = 'Pending'),      0)                         AS pending,
-          COALESCE(SUM(m.DueDate < CURDATE() AND m.Status != 'Completed'), 0) AS overdue
+        SELECT e.EmployeeID, e.Name, e.Position, a.AreaName, e.AreaID,
+               COUNT(m.MaintenanceAssignmentID)                                    AS totalTasks,
+               COALESCE(SUM(m.Status='Completed'),   0)                            AS completed,
+               COALESCE(SUM(m.Status='In Progress'), 0)                            AS inProgress,
+               COALESCE(SUM(m.Status='Pending'),     0)                            AS pending,
+               COALESCE(SUM(m.DueDate < CURDATE() AND m.Status!='Completed'), 0)   AS overdue
         FROM employee e
         LEFT JOIN maintenanceassignment m ON e.EmployeeID = m.EmployeeID
         LEFT JOIN area a ON e.AreaID = a.AreaID
@@ -340,16 +236,13 @@ const server = http.createServer(async (req, res) => {
         GROUP BY e.EmployeeID, e.Name, e.Position, a.AreaName, e.AreaID
         ORDER BY totalTasks DESC
       `, params);
-
       return sendJson(res, 200, rows);
     }
 
     // ── AREAS ─────────────────────────────────────────────────────────────
     if (pathname === "/areas" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
-      const [rows] = await db.query(
-        `SELECT AreaID, AreaName FROM area ORDER BY AreaName`
-      );
+      const [rows] = await db.query(`SELECT AreaID, AreaName FROM area ORDER BY AreaName`);
       return sendJson(res, 200, rows);
     }
 
@@ -359,21 +252,68 @@ const server = http.createServer(async (req, res) => {
       const [rows] = await db.query(`
         SELECT att.AttractionID, att.AttractionName, att.AttractionType,
                att.Status, att.SeverityLevel, att.QueueCount, a.AreaName, a.AreaID
-        FROM attraction att
-        LEFT JOIN area a ON att.AreaID = a.AreaID
+        FROM attraction att LEFT JOIN area a ON att.AreaID = a.AreaID
         ORDER BY att.AttractionName ASC
       `);
       return sendJson(res, 200, rows);
+    }
+
+    // ── RIDE OPERATIONS ───────────────────────────────────────────────────
+    // Returns all attractions grouped by area with live status,
+    // open maintenance alerts, and active maintenance records.
+    if (pathname === "/ride-operations" && req.method === "GET") {
+      if (!requireAuth(req, res)) return;
+
+      const [attractions] = await db.query(`
+        SELECT att.AttractionID, att.AttractionName, att.AttractionType,
+               att.Status, att.SeverityLevel, att.QueueCount,
+               a.AreaName, a.AreaID
+        FROM attraction att
+        LEFT JOIN area a ON att.AreaID = a.AreaID
+        ORDER BY a.AreaName ASC, att.AttractionName ASC
+      `);
+
+      // Unhandled trigger alerts per attraction
+      const [alerts] = await db.query(`
+        SELECT ma.AttractionID, ma.AlertMessage, ma.SeverityLevel,
+               DATE_FORMAT(ma.CreatedAt, '%Y-%m-%d %H:%i') AS CreatedAt
+        FROM maintenancealert ma WHERE ma.Handled = 'No'
+      `);
+
+      // Active / ongoing maintenance records
+      const [activeMaintenance] = await db.query(`
+        SELECT m.AttractionID, m.Severity, m.Status,
+               e.Name AS AssignedEmployee,
+               DATE_FORMAT(m.DateStart, '%Y-%m-%d') AS DateStart
+        FROM maintenance m
+        LEFT JOIN employee e ON m.EmployeeID = e.EmployeeID
+        WHERE m.DateEnd IS NULL OR m.DateEnd >= CURDATE()
+      `);
+
+      const alertMap = {}, maintMap = {};
+      alerts.forEach((a) => {
+        if (!alertMap[a.AttractionID]) alertMap[a.AttractionID] = [];
+        alertMap[a.AttractionID].push(a);
+      });
+      activeMaintenance.forEach((m) => {
+        if (!maintMap[m.AttractionID]) maintMap[m.AttractionID] = [];
+        maintMap[m.AttractionID].push(m);
+      });
+
+      const result = attractions.map((att) => ({
+        ...att,
+        alerts:            alertMap[att.AttractionID] || [],
+        activeMaintenance: maintMap[att.AttractionID] || [],
+      }));
+
+      return sendJson(res, 200, result);
     }
 
     // ── MAINTENANCE HISTORY REPORT ────────────────────────────────────────
     if (pathname === "/maintenance-report" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
       const { startDate, endDate, severity, status, attractionId, employeeId, areaId, keyword } = query;
-
-      const conditions = ["1=1"];
-      const params = [];
-
+      const conditions = ["1=1"], params = [];
       if (startDate)    { conditions.push("m.DateStart >= ?");     params.push(startDate); }
       if (endDate)      { conditions.push("m.DateEnd <= ?");       params.push(endDate); }
       if (severity)     { conditions.push("m.Severity = ?");       params.push(severity); }
@@ -381,24 +321,14 @@ const server = http.createServer(async (req, res) => {
       if (attractionId) { conditions.push("att.AttractionID = ?"); params.push(attractionId); }
       if (employeeId)   { conditions.push("e.EmployeeID = ?");     params.push(employeeId); }
       if (areaId)       { conditions.push("a.AreaID = ?");         params.push(areaId); }
-      if (keyword)      {
-        conditions.push("(att.AttractionName LIKE ? OR m.Status LIKE ?)");
-        params.push("%" + keyword + "%", "%" + keyword + "%");
-      }
-
+      if (keyword)      { conditions.push("(att.AttractionName LIKE ? OR m.Status LIKE ?)"); params.push("%" + keyword + "%", "%" + keyword + "%"); }
       const [rows] = await db.query(`
-        SELECT
-          m.MaintenanceID,
-          m.EmployeeID,
-          DATE_FORMAT(m.DateStart, '%Y-%m-%d') AS DateStart,
-          DATE_FORMAT(m.DateEnd,   '%Y-%m-%d') AS DateEnd,
-          m.Severity,
-          m.Status,
-          e.Name            AS EmployeeName,
-          att.AttractionName,
-          att.AttractionType,
-          a.AreaName,
-          a.AreaID
+        SELECT m.MaintenanceID, m.EmployeeID,
+               DATE_FORMAT(m.DateStart, '%Y-%m-%d') AS DateStart,
+               DATE_FORMAT(m.DateEnd,   '%Y-%m-%d') AS DateEnd,
+               m.Severity, m.Status,
+               e.Name AS EmployeeName, att.AttractionName, att.AttractionType,
+               a.AreaName, a.AreaID
         FROM maintenance m
         LEFT JOIN employee   e   ON m.EmployeeID   = e.EmployeeID
         LEFT JOIN attraction att ON m.AttractionID = att.AttractionID
@@ -406,23 +336,24 @@ const server = http.createServer(async (req, res) => {
         WHERE ${conditions.join(" AND ")}
         ORDER BY m.DateStart DESC
       `, params);
-
       return sendJson(res, 200, rows);
     }
 
     // ── AREA FREQUENCY BREAKDOWN ──────────────────────────────────────────
-    // Returns maintenance event counts and percentages per area,
-    // including severity split and most affected attraction per area.
+    // FIX: groups strictly by area.AreaID so each area appears exactly once.
+    // The previous triple-join (area→attraction→maintenance) produced
+    // duplicate rows when an area had multiple attractions.
     if (pathname === "/area-frequency" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
 
       const [rows] = await db.query(`
         SELECT
+          a.AreaID,
           a.AreaName,
-          COUNT(m.MaintenanceID)                                      AS total,
-          COALESCE(SUM(m.Severity = 'High'),   0)                     AS highSeverity,
-          COALESCE(SUM(m.Severity = 'Medium'), 0)                     AS mediumSeverity,
-          COALESCE(SUM(m.Severity = 'Low'),    0)                     AS lowSeverity,
+          COUNT(m.MaintenanceID)                  AS total,
+          COALESCE(SUM(m.Severity='High'),   0)   AS highSeverity,
+          COALESCE(SUM(m.Severity='Medium'), 0)   AS mediumSeverity,
+          COALESCE(SUM(m.Severity='Low'),    0)   AS lowSeverity,
           (
             SELECT att2.AttractionName
             FROM maintenance m2
@@ -433,26 +364,33 @@ const server = http.createServer(async (req, res) => {
             LIMIT 1
           ) AS mostAffectedAttraction
         FROM area a
-        LEFT JOIN attraction att ON att.AreaID = a.AreaID
+        LEFT JOIN attraction att ON att.AreaID     = a.AreaID
         LEFT JOIN maintenance m  ON m.AttractionID = att.AttractionID
         GROUP BY a.AreaID, a.AreaName
         ORDER BY total DESC
       `);
 
-      return sendJson(res, 200, rows);
+      // Safety-net dedup by AreaID in case DB has duplicate area names
+      const seen = new Set();
+      const deduped = rows.filter((r) => {
+        if (seen.has(r.AreaID)) return false;
+        seen.add(r.AreaID);
+        return true;
+      });
+
+      return sendJson(res, 200, deduped);
     }
 
     // ── AREA WORKLOAD ─────────────────────────────────────────────────────
     if (pathname === "/area-workload" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
       const [rows] = await db.query(`
-        SELECT
-          a.AreaName,
-          COALESCE(COUNT(m.MaintenanceAssignmentID), 0)                       AS total,
-          COALESCE(SUM(m.Status = 'Pending'),        0)                       AS pending,
-          COALESCE(SUM(m.Status = 'In Progress'),    0)                       AS inProgress,
-          COALESCE(SUM(m.Status = 'Completed'),      0)                       AS completed,
-          COALESCE(SUM(m.DueDate < CURDATE() AND m.Status != 'Completed'), 0) AS overdue
+        SELECT a.AreaName,
+               COALESCE(COUNT(m.MaintenanceAssignmentID), 0)                       AS total,
+               COALESCE(SUM(m.Status='Pending'),          0)                       AS pending,
+               COALESCE(SUM(m.Status='In Progress'),      0)                       AS inProgress,
+               COALESCE(SUM(m.Status='Completed'),        0)                       AS completed,
+               COALESCE(SUM(m.DueDate < CURDATE() AND m.Status!='Completed'), 0)   AS overdue
         FROM area a
         LEFT JOIN maintenanceassignment m ON m.AreaID = a.AreaID
         GROUP BY a.AreaID, a.AreaName
@@ -467,9 +405,7 @@ const server = http.createServer(async (req, res) => {
       const [rows] = await db.query(`
         SELECT AlertID, AttractionName, SeverityLevel, AlertMessage,
                DATE_FORMAT(CreatedAt, '%Y-%m-%d %H:%i') AS CreatedAt
-        FROM activemaintenancealerts
-        ORDER BY CreatedAt DESC
-        LIMIT 10
+        FROM activemaintenancealerts ORDER BY CreatedAt DESC LIMIT 10
       `);
       return sendJson(res, 200, rows);
     }
@@ -479,60 +415,46 @@ const server = http.createServer(async (req, res) => {
       if (!requireAuth(req, res)) return;
       const notifications = [];
 
-      // 1. DB trigger alerts
       const [alertRows] = await db.query(`
         SELECT AlertID, AttractionName, SeverityLevel, AlertMessage,
                DATE_FORMAT(CreatedAt, '%Y-%m-%d %H:%i') AS CreatedAt
         FROM activemaintenancealerts ORDER BY CreatedAt DESC LIMIT 20
       `);
       alertRows.forEach((r) => notifications.push({
-        type:     "inspection",
-        severity: r.SeverityLevel === "Severe" ? "critical" : "high",
-        title:    `Maintenance Alert: ${r.AttractionName}`,
-        detail:   `${r.AlertMessage} — flagged at ${r.CreatedAt}`,
+        type: "inspection", severity: r.SeverityLevel === "Severe" ? "critical" : "high",
+        title: `Maintenance Alert: ${r.AttractionName}`,
+        detail: `${r.AlertMessage} — flagged at ${r.CreatedAt}`,
       }));
 
-      // 2. Weather closures
       const [weatherClosures] = await db.query(`
         SELECT att.AttractionName, att.AttractionType, a.AreaName
-        FROM attraction att
-        LEFT JOIN area a ON att.AreaID = a.AreaID
+        FROM attraction att LEFT JOIN area a ON att.AreaID = a.AreaID
         WHERE att.Status = 'ClosedDueToWeather'
       `);
       weatherClosures.forEach((r) => notifications.push({
-        type:     "weather",
-        severity: "critical",
-        title:    `Weather Closure: ${r.AttractionName}`,
-        detail:   `${r.AttractionType} in ${r.AreaName || "unknown"} shut down by weather trigger. Inspect before reopening.`,
+        type: "weather", severity: "critical",
+        title: `Weather Closure: ${r.AttractionName}`,
+        detail: `${r.AttractionType} in ${r.AreaName || "unknown"} shut down by weather trigger.`,
       }));
 
-      // 3. NeedsMaintenance / UnderMaintenance / Closed
       const [shutdownRides] = await db.query(`
         SELECT att.AttractionName, att.AttractionType, att.Status, att.SeverityLevel, a.AreaName
-        FROM attraction att
-        LEFT JOIN area a ON att.AreaID = a.AreaID
-        WHERE att.Status IN ('NeedsMaintenance', 'UnderMaintenance', 'Closed')
-        ORDER BY FIELD(att.SeverityLevel, 'Severe', 'Low', 'None'), att.AttractionName
+        FROM attraction att LEFT JOIN area a ON att.AreaID = a.AreaID
+        WHERE att.Status IN ('NeedsMaintenance','UnderMaintenance','Closed')
+        ORDER BY FIELD(att.SeverityLevel,'Severe','Low','None'), att.AttractionName
       `);
       shutdownRides.forEach((r) => {
-        const label = {
-          NeedsMaintenance: "requires immediate maintenance",
-          UnderMaintenance: "is under maintenance",
-          Closed:           "is closed",
-        }[r.Status] || r.Status;
+        const label = { NeedsMaintenance: "requires immediate maintenance", UnderMaintenance: "is under maintenance", Closed: "is closed" }[r.Status] || r.Status;
         notifications.push({
-          type:     "shutdown",
-          severity: r.SeverityLevel === "Severe" ? "critical" : "high",
-          title:    `Ride Status: ${r.AttractionName}`,
-          detail:   `${r.AttractionType} in ${r.AreaName || "unknown"} ${label}. Severity: ${r.SeverityLevel || "None"}.`,
+          type: "shutdown", severity: r.SeverityLevel === "Severe" ? "critical" : "high",
+          title: `Ride Status: ${r.AttractionName}`,
+          detail: `${r.AttractionType} in ${r.AreaName || "unknown"} ${label}. Severity: ${r.SeverityLevel || "None"}.`,
         });
       });
 
-      // 4. Overdue assignments
       const [overdueTasks] = await db.query(`
-        SELECT m.MaintenanceAssignmentID, e.Name AS EmployeeName,
-               a.AreaName, m.TaskDescription,
-               DATE_FORMAT(m.DueDate, '%Y-%m-%d') AS DueDate
+        SELECT m.MaintenanceAssignmentID, e.Name AS EmployeeName, a.AreaName,
+               m.TaskDescription, DATE_FORMAT(m.DueDate,'%Y-%m-%d') AS DueDate
         FROM maintenanceassignment m
         LEFT JOIN employee e ON m.EmployeeID = e.EmployeeID
         LEFT JOIN area     a ON m.AreaID     = a.AreaID
@@ -540,24 +462,19 @@ const server = http.createServer(async (req, res) => {
         ORDER BY m.DueDate ASC LIMIT 10
       `);
       overdueTasks.forEach((t) => {
-        const desc = t.TaskDescription.length > 70
-          ? t.TaskDescription.substring(0, 70) + "…"
-          : t.TaskDescription;
+        const desc = t.TaskDescription.length > 70 ? t.TaskDescription.substring(0, 70) + "…" : t.TaskDescription;
         notifications.push({
-          type:     "overdue",
-          severity: "high",
-          title:    `Overdue Task: ${t.AreaName || "Unknown Area"}`,
-          detail:   `Task #${t.MaintenanceAssignmentID} · ${t.EmployeeName} · due ${t.DueDate}. "${desc}"`,
+          type: "overdue", severity: "high",
+          title: `Overdue Task: ${t.AreaName || "Unknown Area"}`,
+          detail: `Task #${t.MaintenanceAssignmentID} · ${t.EmployeeName} · due ${t.DueDate}. "${desc}"`,
         });
       });
 
       const order = { critical: 0, high: 1, medium: 2 };
       notifications.sort((a, b) => order[a.severity] - order[b.severity]);
-
       return sendJson(res, 200, { notifications });
     }
 
-    // ── 404 ───────────────────────────────────────────────────────────────
     return sendJson(res, 404, "Route not found");
 
   } catch (err) {
