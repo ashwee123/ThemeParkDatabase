@@ -214,6 +214,16 @@ const server = http.createServer(async (req, res) => {
         hasSeverityCol = cols.length > 0;
       } catch { /* ignore */ }
 
+      // Fetch previous status so we only create a history record on the transition TO Completed
+      let prevStatus = null;
+      try {
+        const [[prev]] = await db.query(
+          `SELECT Status FROM maintenanceassignment WHERE MaintenanceAssignmentID = ?`,
+          [body.MaintenanceAssignmentID]
+        );
+        prevStatus = prev ? prev.Status : null;
+      } catch { /* ignore */ }
+
       if (hasSeverityCol) {
         await db.query(
           `UPDATE maintenanceassignment SET EmployeeID=?, AreaID=?, TaskDescription=?, Status=?, Severity=?, DueDate=? WHERE MaintenanceAssignmentID=?`,
@@ -225,6 +235,25 @@ const server = http.createServer(async (req, res) => {
           [body.EmployeeID, body.AreaID || null, body.TaskDescription, body.Status, body.DueDate || null, body.MaintenanceAssignmentID]
         );
       }
+
+      // On transition to Completed: insert a maintenance history record
+      if (body.Status === "Completed" && prevStatus !== "Completed") {
+        try {
+          const [[maxRow]] = await db.query(`SELECT COALESCE(MAX(MaintenanceID), 0) + 1 AS nextId FROM maintenance`);
+          const nextId   = maxRow.nextId;
+          const severity = (hasSeverityCol && body.Severity) ? body.Severity : "Low";
+          const today    = new Date().toISOString().split("T")[0];
+          const dateEnd  = body.DueDate || today;
+          await db.query(
+            `INSERT INTO maintenance (MaintenanceID, EmployeeID, AttractionID, DateStart, DateEnd, Severity, Status)
+             VALUES (?, ?, NULL, ?, ?, ?, 'Completed')`,
+            [nextId, body.EmployeeID || null, today, dateEnd, severity]
+          );
+        } catch (e) {
+          console.error("Failed to create maintenance history record:", e.message);
+        }
+      }
+
       return sendJson(res, 200, { message: "Task updated" });
     }
 
