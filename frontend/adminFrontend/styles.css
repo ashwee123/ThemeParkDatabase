@@ -349,6 +349,13 @@ input:focus, select:focus, textarea:focus {
   max-width: 320px;
   flex: 1;
 }
+.reports-filter-select {
+  min-width: 170px;
+}
+
+.hidden-by-filter {
+  display: none !important;
+}
 
 .area-chip-row { display: inline; }
 .area-chip {
