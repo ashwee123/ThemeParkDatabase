@@ -42,7 +42,7 @@ function requireRole(req, res) {
     return null;
   }
 
-  const allowed = [ROLES.ADMIN, ROLES.MAINTENANCE_MANAGER];
+  const allowed = ["admin", "maintenance_manager"];
 
   if (!allowed.includes(user.role)) {
     sendJson(res, 403, { error: "Forbidden: invalid role" });
@@ -104,9 +104,7 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 401, { error: "Invalid login" });
       }
 
-      const role = (manager.Role || "")
-        .toLowerCase()
-        .replace(/\s+/g, "_");
+      const role = (manager.Role || "employee").trim().toLowerCase();
 
       const token = jwt.sign(
         {
@@ -226,3 +224,15 @@ const PORT = process.env.PORT || 3008;
 server.listen(PORT, () =>
   console.log(`Server running on port ${PORT}`)
 );
+
+function sendJson(res, statusCode, data) {
+  res.writeHead(statusCode, {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*"
+  });
+
+  res.end(JSON.stringify({
+    success: statusCode < 400,
+    data
+  }));
+}
