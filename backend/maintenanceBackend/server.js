@@ -15,6 +15,11 @@ function sendJson(res, statusCode, payload) {
   else                  res.end(JSON.stringify({ success: false, error: payload }));
 }
 
+var hasSeverityCol = false;
+db.query(`SHOW COLUMNS FROM maintenanceassignment LIKE 'Severity'`)
+  .then(([cols]) => { hasSeverityCol = cols.length > 0; })
+  .catch(() => {});
+
 function verifyToken(req) {
   const authHeader = req.headers["authorization"];
   if (!authHeader) return null;
@@ -80,7 +85,7 @@ const server = http.createServer(async (req, res) => {
         SELECT m.MaintenanceAssignmentID, m.EmployeeID, m.AreaID,
                e.Name AS EmployeeName, e.Position, a.AreaName,
                m.TaskDescription, m.Status,
-               COALESCE(m.Severity, '') AS Severity,
+               '' AS Severity,
                DATE_FORMAT(m.DueDate, '%Y-%m-%d') AS DueDate,
                CASE WHEN m.DueDate < CURDATE() AND m.Status != 'Completed' THEN 1 ELSE 0 END AS IsOverdue
         FROM maintenanceassignment m
@@ -112,7 +117,7 @@ const server = http.createServer(async (req, res) => {
         SELECT m.MaintenanceAssignmentID, m.EmployeeID, m.AreaID,
                e.Name AS EmployeeName, e.Position, a.AreaName,
                m.TaskDescription, m.Status,
-               COALESCE(m.Severity, '') AS Severity,
+               '' AS Severity,
                DATE_FORMAT(m.DueDate, '%Y-%m-%d') AS DueDate,
                CASE WHEN m.DueDate < CURDATE() AND m.Status != 'Completed' THEN 1 ELSE 0 END AS IsOverdue
         FROM maintenanceassignment m
