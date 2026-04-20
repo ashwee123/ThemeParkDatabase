@@ -34,7 +34,10 @@
     <section id="panel-dash" class="panel active" role="tabpanel">
       <div class="toolbar">
         <h2>Dashboard</h2>
-        <button type="button" id="btn-refresh-dash" class="btn btn-ghost">Refresh</button>
+        <div class="toolbar-actions">
+          <input type="search" id="search-dash" class="input-search panel-search" data-panel-target="panel-dash" placeholder="Search dashboard…" autocomplete="off" />
+          <button type="button" id="btn-refresh-dash" class="btn btn-ghost">Refresh</button>
+        </div>
       </div>
       <p class="hint">Live counts from <code>employee</code>, <code>visitor</code>, <code>attraction</code>, <code>maintenancealert</code>, <code>maintenanceassignment</code>, <code>retailitem</code>, <code>incidentreport</code>.</p>
       <div id="stat-grid" class="stat-grid"></div>
@@ -43,10 +46,10 @@
     <section id="panel-users" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
         <h2>User &amp; access management</h2>
-        <button type="button" id="btn-refresh-users" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div class="callout callout-warn">
-        <strong>Production checklist:</strong> enforce MFA, least-privilege roles per portal (visitor, retail, employee, HR, maintenance), centralized password reset flows, and a durable <code>admin_audit_log</code> table for every mutating action. This build exposes <em>internal staff directory</em> plus retail <code>notificationlog</code> as a sample audit stream.
+        <div class="toolbar-actions">
+          <input type="search" id="search-users" class="input-search panel-search" data-panel-target="panel-users" placeholder="Search users panel…" autocomplete="off" />
+          <button type="button" id="btn-refresh-users" class="btn btn-ghost">Refresh</button>
+        </div>
       </div>
       <div class="capa-grid">
         <div class="capa-card">
@@ -93,9 +96,6 @@
           <button type="button" id="btn-refresh-visitors" class="btn btn-ghost">Refresh</button>
         </div>
       </div>
-      <div class="callout">
-        <strong>Scope:</strong> search visitors, review ticket purchases, deactivate accounts (ban) or reactivate. Refunds, reservation overrides, and incident links require extending <code>visitor_order</code> / <code>visitor_reservation</code> APIs from the visitor backend — hooks are documented here for parity.
-      </div>
       <h3 class="subheading">Visitors (<code>visitor</code>)</h3>
       <div class="table-wrap">
         <table class="data-table">
@@ -123,10 +123,10 @@
     <section id="panel-retail" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
         <h2>Retail management (oversight)</h2>
-        <button type="button" id="btn-refresh-retail" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div class="callout">
-        <strong>Inventory &amp; pricing:</strong> this grid is read-only from <code>retailitem</code>. Add PATCH/POST routes for price changes, promotions, thresholds, and vendor/POS config. Revenue rollups use <code>transactionlog</code> in <strong>Reports</strong>.
+        <div class="toolbar-actions">
+          <input type="search" id="search-retail" class="input-search panel-search" data-panel-target="panel-retail" placeholder="Search retail…" autocomplete="off" />
+          <button type="button" id="btn-refresh-retail" class="btn btn-ghost">Refresh</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -143,10 +143,10 @@
     <section id="panel-hr" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
         <h2>Employee &amp; HR (oversight)</h2>
-        <button type="button" id="btn-refresh-hr" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div class="callout">
-        <strong>Oversight:</strong> park-wide roster below. Visitor feedback from the guest portal is mirrored into <code>review</code> (1–10 scores and comments) so HR and ops can trend satisfaction alongside staffing.
+        <div class="toolbar-actions">
+          <input type="search" id="search-hr" class="input-search panel-search" data-panel-target="panel-hr" placeholder="Search HR…" autocomplete="off" />
+          <button type="button" id="btn-refresh-hr" class="btn btn-ghost">Refresh</button>
+        </div>
       </div>
       <h3 class="subheading">Employees</h3>
       <div class="table-wrap">
@@ -185,10 +185,10 @@
     <section id="panel-maint" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
         <h2>Maintenance management (oversight)</h2>
-        <button type="button" id="btn-refresh-maint" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div class="callout">
-        <strong>Work orders:</strong> prioritize or reassign in a full rollout by PATCHing <code>maintenanceassignment</code>. Inspection compliance and certifications need additional tables or integrations.
+        <div class="toolbar-actions">
+          <input type="search" id="search-maint" class="input-search panel-search" data-panel-target="panel-maint" placeholder="Search maintenance…" autocomplete="off" />
+          <button type="button" id="btn-refresh-maint" class="btn btn-ghost">Refresh</button>
+        </div>
       </div>
       <h3 class="subheading">Open alerts (<code>maintenancealert</code>)</h3>
       <div class="table-wrap">
@@ -217,10 +217,10 @@
     <section id="panel-park" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
         <h2>Park &amp; attractions</h2>
-        <button type="button" id="btn-refresh-park" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div class="callout">
-        <strong>Zones:</strong> <span id="park-areas-list" class="area-chip-row"></span> — hours, capacity, and map assets live in visitor seed tables (<code>visitor_park</code>, <code>visitor_attraction_detail</code>); expose CRUD here when those admin routes exist. Use the status dropdown for <em>emergency-style</em> ride closure at the <code>attraction</code> row level.
+        <div class="toolbar-actions">
+          <input type="search" id="search-park" class="input-search panel-search" data-panel-target="panel-park" placeholder="Search park…" autocomplete="off" />
+          <button type="button" id="btn-refresh-park" class="btn btn-ghost">Refresh</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -237,10 +237,18 @@
     <section id="panel-reports" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
         <h2>Reporting &amp; analytics</h2>
-        <button type="button" id="btn-refresh-reports" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div class="callout">
-        Cross-portal snapshot below. Set KPI alerts (capacity, revenue) in your monitoring stack or extend <code>/api/reports/snapshot</code>. PDF export can wrap these CSVs server-side.
+        <div class="toolbar-actions">
+          <input type="search" id="search-reports" class="input-search panel-search" data-panel-target="panel-reports" placeholder="Search reports…" autocomplete="off" />
+          <select id="reports-filter-type" class="reports-filter-select" aria-label="Report filter">
+            <option value="all">All metrics</option>
+            <option value="visitor">Visitor metrics</option>
+            <option value="ticket">Ticket metrics</option>
+            <option value="retail">Retail metrics</option>
+            <option value="incident">Incident metrics</option>
+            <option value="review">Review metrics</option>
+          </select>
+          <button type="button" id="btn-refresh-reports" class="btn btn-ghost">Refresh</button>
+        </div>
       </div>
       <div id="report-snapshot-grid" class="stat-grid"></div>
       <h3 class="subheading">Export (CSV)</h3>
@@ -255,6 +263,9 @@
     <section id="panel-system" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
         <h2>System configuration</h2>
+        <div class="toolbar-actions">
+          <input type="search" id="search-system" class="input-search panel-search" data-panel-target="panel-system" placeholder="Search system settings…" autocomplete="off" />
+        </div>
       </div>
       <ul class="checklist">
         <li><strong>Park hours &amp; seasons:</strong> <code>visitor_park</code> + special events tables — manage via SQL or future PATCH bundle.</li>
@@ -268,10 +279,10 @@
     <section id="panel-security" class="panel" role="tabpanel" hidden>
       <div class="toolbar">
         <h2>Security &amp; compliance</h2>
-        <button type="button" id="btn-refresh-security" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div class="callout callout-warn">
-        <strong>GDPR / CCPA:</strong> honor data export &amp; deletion for visitors through the visitor API (hash stripping, ticket anonymization). Retention policies belong in legal config + scheduled jobs.
+        <div class="toolbar-actions">
+          <input type="search" id="search-security" class="input-search panel-search" data-panel-target="panel-security" placeholder="Search security…" autocomplete="off" />
+          <button type="button" id="btn-refresh-security" class="btn btn-ghost">Refresh</button>
+        </div>
       </div>
       <h3 class="subheading">Incident reports</h3>
       <div class="table-wrap">
