@@ -11,7 +11,7 @@
 
   <header class="site-header">
     <h1>HR Portal</h1>
-    <p class="tagline">Employees, Managers, Activity & Salary</p>
+    <p class="tagline">Employees, Managers, Activity, Salary &amp; Data Reports</p>
   </header>
 
   <nav class="tabs">
@@ -19,6 +19,7 @@
     <button class="tab" data-target="managers">Managers</button>
     <button class="tab" data-target="activity">Activity</button>
     <button class="tab" data-target="salary">Salary</button>
+    <button class="tab" data-target="reports">Data reports</button>
   </nav>
 
   <main>
@@ -97,6 +98,50 @@
           </thead>
           <tbody id="salaryTable"></tbody>
         </table>
+      </div>
+    </section>
+
+    <section id="reports" class="panel">
+      <div class="toolbar">
+        <h2>Data reports</h2>
+        <button type="button" id="btn-refresh-reports" class="btn btn-ghost">Refresh</button>
+      </div>
+      <p class="hint">Park-wide sales by store and item for the selected date (all employees, all locations). Live data: <code>GET /reports?date=YYYY-MM-DD</code> on the HR API. If the API returns no rows yet, sample data is shown so you can preview the layout.</p>
+
+      <div class="reports-card">
+        <div class="reports-panel-header">
+          <div class="reports-period">
+            <span class="reports-date-long" id="reports-date-long">—</span>
+            <span class="reports-scope-hint">All stores · all staff · date only</span>
+          </div>
+          <div class="reports-date-filter">
+            <label class="reports-date-label">
+              Report date
+              <input type="date" id="reports-date" />
+            </label>
+            <button type="button" id="btn-reports-apply" class="btn btn-primary">Apply</button>
+          </div>
+        </div>
+
+        <div class="table-wrap reports-table-wrap">
+          <table class="data-table reports-table">
+            <thead>
+              <tr>
+                <th>Store</th>
+                <th>Item</th>
+                <th>Units sold</th>
+                <th>Revenue</th>
+                <th>COGS</th>
+                <th>Gross profit</th>
+                <th>Margin %</th>
+                <th>Discounts</th>
+                <th>Damaged</th>
+                <th>Stolen</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-reports"></tbody>
+          </table>
+        </div>
       </div>
     </section>
   </main>

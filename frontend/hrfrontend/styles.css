@@ -265,6 +265,81 @@ input:focus, select:focus, textarea:focus {
   max-width: 420px;
 }
 
+/* Data reports (park-wide sales table) */
+.reports-card {
+  background: var(--dark-card);
+  border: 1px solid rgba(139, 0, 0, 0.2);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+
+.reports-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid rgba(139, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.reports-period {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.reports-date-long {
+  font-family: "Cinzel Decorative", serif;
+  font-size: 0.95rem;
+  color: var(--bone);
+  letter-spacing: 0.03em;
+}
+
+.reports-scope-hint {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.reports-date-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+
+.reports-date-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--ash);
+  font-size: 0.78rem;
+}
+
+.reports-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.reports-table {
+  font-size: 0.82rem;
+  min-width: 920px;
+}
+
+.reports-table th,
+.reports-table td {
+  white-space: nowrap;
+  padding: 0.5rem 0.55rem;
+}
+
+.reports-table td:nth-child(2) {
+  white-space: normal;
+  max-width: 220px;
+}
+
 @media (max-width: 700px) {
   main { padding: 1rem; }
   .tabs { padding: 0 0.7rem; }
