@@ -104,7 +104,9 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 401, { error: "Invalid login" });
       }
 
-      const role = (manager.Role || "").toLowerCase(); // 🔥 FIX HERE
+      const role = (manager.Role || "")
+        .toLowerCase()
+        .replace(/\s+/g, "_");
 
       const token = jwt.sign(
         {
