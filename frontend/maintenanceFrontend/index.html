@@ -18,7 +18,7 @@
 <nav class="tabs">
   <button class="tab active" data-tab="schedule">Schedule</button>
   <button class="tab" data-tab="tasks">All Tasks</button>
-  <button class="tab" data-tab="performance">Performance</button>
+  <button class="tab" data-tab="performance">Employee Performance</button>
   <button class="tab" data-tab="reports">Reports</button>
   <button class="tab" data-tab="assign">Assign Tasks</button>
   <button class="tab" data-tab="notifications">
@@ -33,19 +33,7 @@
     <div class="toolbar"><h2>Active Schedule</h2></div>
     <p style="color:var(--text-dim);margin-bottom:1.5rem;">Tasks currently pending or in progress.</p>
     <div id="calendar" style="margin-bottom:2rem;"></div>
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead><tr>
-          <th onclick="toggleSort('MaintenanceAssignmentID')">ID</th>
-          <th onclick="toggleSort('EmployeeName')">Employee</th>
-          <th onclick="toggleSort('AreaName')">Area</th>
-          <th onclick="toggleSort('TaskDescription')">Description</th>
-          <th onclick="toggleSort('Status')">Status</th>
-          <th onclick="toggleSort('DueDate')">Due Date</th>
-        </tr></thead>
-        <tbody id="tbody-active-schedule"></tbody>
-      </table>
-    </div>
+    <!-- Table removed per feedback -->
   </section>
 
   <!-- ===================== ALL TASKS ===================== -->
@@ -73,7 +61,7 @@
     </div>
   </section>
 
-  <!-- ===================== PERFORMANCE (employee) ===================== -->
+  <!-- ===================== EMPLOYEE PERFORMANCE ===================== -->
   <section id="panel-performance" class="panel">
     <div class="toolbar"><h2>Employee Performance</h2></div>
     <p style="color:var(--text-dim);margin-bottom:1.5rem;">Maintenance staff workload, completion rates, and overdue tasks.</p>
@@ -81,9 +69,28 @@
     <!-- Stat cards -->
     <div id="perf-stat-cards" class="stats-grid" style="margin-bottom:2rem;"></div>
 
+    <!-- Filters -->
+    <div class="report-filters" style="margin-bottom:1.5rem;">
+      <label>Area
+        <select id="perf-filter-area" onchange="loadEmployeePerformance()">
+          <option value="">All Areas</option>
+        </select>
+      </label>
+      <label>Position
+        <select id="perf-filter-position" onchange="loadEmployeePerformance()">
+          <option value="">All Positions</option>
+        </select>
+      </label>
+      <label>Min Completion %
+        <input type="number" id="perf-filter-min-rate" min="0" max="100" placeholder="0" style="width:90px;">
+      </label>
+      <button class="btn-reset" onclick="loadEmployeePerformance()">Apply</button>
+      <button class="btn-reset" onclick="exportPerformanceCSV()">⬇ Export CSV</button>
+    </div>
+
     <!-- Employee table -->
     <div class="table-wrap">
-      <table class="data-table">
+      <table class="data-table" id="table-performance">
         <thead><tr>
           <th>Employee</th>
           <th>Position</th>
@@ -108,13 +115,12 @@
         <button class="btn-reset" id="refresh-reports-btn">Refresh</button>
       </div>
     </div>
-    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Select a report to view its summary and data.</p>
+    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Maintenance history and task data. Use filters to drill down, then export a snapshot.</p>
 
-    <!-- Report sub-tabs -->
+    <!-- Report sub-tabs — area workload is now a filter, weather removed -->
     <nav class="report-subtabs">
       <button class="report-subtab active" data-report="task-summary">Task Summary</button>
       <button class="report-subtab" data-report="maintenance-history">Maintenance History</button>
-      <button class="report-subtab" data-report="area-workload">Area Workload</button>
     </nav>
 
     <!-- ── TASK SUMMARY ── -->
@@ -130,7 +136,8 @@
           <canvas id="chart-area-bar"></canvas>
         </div>
       </div>
-      <!-- Filters -->
+
+      <!-- Expanded filters -->
       <div class="report-filters">
         <label>Status
           <select id="ts-filter-status">
@@ -148,10 +155,18 @@
         </label>
         <label>Due From <input type="date" id="ts-filter-from"></label>
         <label>Due To   <input type="date" id="ts-filter-to"></label>
+        <label>Overdue Only
+          <select id="ts-filter-overdue">
+            <option value="">No</option>
+            <option value="1">Yes</option>
+          </select>
+        </label>
         <button class="btn-reset" onclick="loadTaskSummaryTable()">Apply</button>
+        <button class="btn-reset" onclick="exportTableCSV('tbody-task-summary', 'task-summary')">⬇ Export CSV</button>
       </div>
+
       <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table" id="table-task-summary">
           <thead><tr>
             <th>ID</th><th>Employee</th><th>Area</th>
             <th>Description</th><th>Status</th><th>Due Date</th>
@@ -164,6 +179,8 @@
     <!-- ── MAINTENANCE HISTORY ── -->
     <div id="report-maintenance-history" class="report-panel">
       <div id="mh-summary-cards" class="stats-grid" style="margin:1.5rem 0;"></div>
+
+      <!-- Expanded filters including area workload as a filter -->
       <div class="report-filters">
         <label>Severity
           <select id="mh-filter-severity">
@@ -184,12 +201,26 @@
         <label>Attraction
           <select id="mh-filter-attraction"><option value="">All Attractions</option></select>
         </label>
+        <label>Area
+          <select id="mh-filter-area"><option value="">All Areas</option></select>
+        </label>
+        <label>Employee
+          <select id="mh-filter-employee-mh"><option value="">All Employees</option></select>
+        </label>
         <label>Date From <input type="date" id="mh-filter-from"></label>
         <label>Date To   <input type="date" id="mh-filter-to"></label>
+        <label>Ongoing Only
+          <select id="mh-filter-ongoing">
+            <option value="">All</option>
+            <option value="1">Ongoing</option>
+          </select>
+        </label>
         <button class="btn-reset" onclick="loadMaintenanceHistory()">Apply</button>
+        <button class="btn-reset" onclick="exportTableCSV('tbody-mh', 'maintenance-history')">⬇ Export CSV</button>
       </div>
+
       <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table" id="table-mh">
           <thead><tr>
             <th>ID</th><th>Employee</th><th>Area</th><th>Attraction</th>
             <th>Severity</th><th>Status</th><th>Date Start</th><th>Date End</th>
@@ -199,26 +230,8 @@
       </div>
     </div>
 
-    <!-- ── AREA WORKLOAD ── -->
-    <div id="report-area-workload" class="report-panel">
-      <div id="aw-summary-cards" class="stats-grid" style="margin:1.5rem 0;"></div>
-      <div class="charts-row" style="margin-bottom:1.5rem;">
-        <div class="chart-card" style="grid-column:1/-1;">
-          <h3 class="chart-title">Workload by Area</h3>
-          <canvas id="chart-area-workload-bar"></canvas>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr>
-            <th>Area</th><th>Total</th><th>Pending</th><th>In Progress</th><th>Completed</th><th>Overdue</th>
-          </tr></thead>
-          <tbody id="tbody-area-workload"></tbody>
-        </table>
-      </div>
-    </div>
   </section>
-  
+
   <!-- ===================== ASSIGN TASK ===================== -->
   <section id="panel-assign" class="panel">
     <h2>Assign Task</h2>
@@ -262,7 +275,7 @@
     </form>
   </section>
 
-  <!-- ===================== NOTIFICATIONS ===================== -->
+  <!-- ===================== NOTIFICATIONS / ALERTS ===================== -->
   <section id="panel-notifications" class="panel">
     <div class="toolbar">
       <h2>Active Alerts</h2>
@@ -270,7 +283,7 @@
         <button class="btn-reset" onclick="loadNotifications()">Refresh</button>
       </div>
     </div>
-    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Live triggers — ride maintenance alerts, weather shutdowns, overdue tasks.</p>
+    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Live triggers — ride maintenance alerts, weather shutdowns, overdue tasks, and DB alert triggers.</p>
     <div id="notifications-list"></div>
   </section>
 
