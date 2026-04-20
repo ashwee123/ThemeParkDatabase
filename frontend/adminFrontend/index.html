@@ -26,7 +26,6 @@
     <button class="tab" data-tab="maint">Maintenance</button>
     <button class="tab" data-tab="park">Park & Rides</button>
     <button class="tab" data-tab="reports">Reports</button>
-    <button class="tab" data-tab="system">System</button>
     <button class="tab" data-tab="security">Security</button>
   </nav>
  
@@ -76,6 +75,8 @@
               <th>Hire</th>
               <th>Mgr</th>
               <th>Area</th>
+              <th>Portal access</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody id="tbody-internal-users"></tbody>
@@ -409,25 +410,6 @@
           </div>
         </div>
       </div>
-    </section>
- 
-    <!-- SYSTEM -->
-    <section id="panel-system" class="panel" hidden>
-      <div class="toolbar" aria-label="System checklist">
-        <h2>System</h2>
-        <input
-          type="text"
-          id="search-system"
-          class="input-search panel-search"
-          data-panel-target="panel-system"
-          placeholder="Search system checklist..."
-        />
-      </div>
-      <ul class="checklist">
-        <li>Admin API health checks and startup monitoring.</li>
-        <li>Cross-portal notification stream is visible in Admin.</li>
-        <li>Audit retention and backup policies are documented.</li>
-      </ul>
     </section>
  
     <!-- SECURITY -->

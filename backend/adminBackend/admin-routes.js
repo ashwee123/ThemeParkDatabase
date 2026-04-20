@@ -77,16 +77,41 @@ export async function listAttractions() {
 
 export async function listEmployees() {
   const [rows] = await getPool().execute(
-    `SELECT e.EmployeeID, e.Name, e.Position, e.Salary, e.HireDate, e.ManagerID, e.AreaID, a.AreaName
+    `SELECT e.EmployeeID, e.Name, e.Position, e.Salary, e.HireDate, e.ManagerID, e.AreaID, a.AreaName,
+            e.AdminPortalAccessRevoked, e.AdminPortalAccessRevokedAt
      FROM employee e
      LEFT JOIN area a ON a.AreaID = e.AreaID
      ORDER BY e.AreaID IS NULL, e.AreaID, e.Name`
   );
-  return rows.map((r) => ({
-    ...r,
-    Salary: r.Salary != null ? Number(r.Salary) : null,
-    HireDate: rowDate(r.HireDate),
-  }));
+  return rows.map((r) => {
+    const {
+      AdminPortalAccessRevoked: _revRaw,
+      AdminPortalAccessRevokedAt: _revAtRaw,
+      ...rest
+    } = r;
+    return {
+      ...rest,
+      Salary: r.Salary != null ? Number(r.Salary) : null,
+      HireDate: rowDate(r.HireDate),
+      adminPortalAccessRevoked: Number(r.AdminPortalAccessRevoked) === 1,
+      adminPortalAccessRevokedAt:
+        r.AdminPortalAccessRevokedAt != null ? rowDateTime(r.AdminPortalAccessRevokedAt) : null,
+    };
+  });
+}
+
+export async function setEmployeeAdminPortalAccess(employeeId, revoked) {
+  const id = Number(employeeId);
+  if (!Number.isInteger(id) || id < 1) return false;
+  const rev = !!revoked;
+  const flag = rev ? 1 : 0;
+  const [result] = await getPool().execute(
+    `UPDATE employee SET AdminPortalAccessRevoked = ?,
+         AdminPortalAccessRevokedAt = IF(? = 1, CURRENT_TIMESTAMP, NULL)
+     WHERE EmployeeID = ?`,
+    [flag, flag, id]
+  );
+  return result.affectedRows > 0;
 }
 
 export async function listActiveAlerts() {

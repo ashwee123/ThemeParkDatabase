@@ -8,6 +8,7 @@ import {
   listAreas,
   listAttractions,
   listEmployees,
+  setEmployeeAdminPortalAccess,
   listIncidents,
   listMaintenanceAssignments,
   listRecentWeather,
@@ -108,6 +109,23 @@ export async function handleAdminApi(req, res, url) {
     }
     if (method === "GET" && pathname === "/api/employees") {
       sendJson(res, 200, await listEmployees(), h);
+      return;
+    }
+
+    const empAdminAccess = pathname.match(/^\/api\/employees\/(\d+)\/admin-access$/);
+    if (empAdminAccess && method === "PATCH") {
+      const id = parseInt(empAdminAccess[1], 10);
+      const body = await readJsonBody(req);
+      if (typeof body.revoked !== "boolean") {
+        sendJson(res, 400, { error: "Body must include revoked (boolean)" }, h);
+        return;
+      }
+      const ok = await setEmployeeAdminPortalAccess(id, body.revoked);
+      if (!ok) {
+        sendJson(res, 404, { error: "Employee not found" }, h);
+        return;
+      }
+      sendJson(res, 200, { ok: true, EmployeeID: id, adminPortalAccessRevoked: body.revoked }, h);
       return;
     }
     if (method === "GET" && pathname === "/api/alerts") {

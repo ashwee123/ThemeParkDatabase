@@ -508,7 +508,7 @@ function downloadCsv(filename, rows, columns) {
 
 // ── Panel switching ──────────────────────────────────────────────────────────
 const PANELS = [
-  "dash", "users", "visitors", "retail", "hr", "maint", "park", "reports", "system", "security",
+  "dash", "users", "visitors", "retail", "hr", "maint", "park", "reports", "security",
 ];
 
 function showPanel(name) {
@@ -540,7 +540,6 @@ document.querySelectorAll(".tab").forEach(function (btn) {
       maint: loadMaint,
       park: loadParkPanel,
       reports: loadReportsPanel,
-      system: function () { return Promise.resolve(); },
       security: loadSecurityPanel,
     };
     if (loaders[tab]) {
@@ -596,13 +595,31 @@ const ATTRACTION_STATUS_OPTIONS = [
   "Open", "Closed", "Restricted", "NeedsMaintenance", "UnderMaintenance", "ClosedDueToWeather",
 ];
 
-function fillEmployeeTable(sel, rows) {
+function fillEmployeeTable(sel, rows, opts) {
   const tb = $(sel);
   if (!tb) return;
+  const showPortalAccess = !!(opts && opts.includePortalAccess);
+  const colspan = showPortalAccess ? 9 : 7;
   tb.innerHTML = rows.map(function (r) {
     const area = r.AreaName != null ? r.AreaName : r.AreaID != null ? String(r.AreaID) : "—";
+    const revoked = r.adminPortalAccessRevoked === true || Number(r.adminPortalAccessRevoked) === 1;
+    const accessCell = showPortalAccess
+      ? "<td>" +
+        (revoked
+          ? '<span class="badge-warn" title="Staff record kept; portal login disabled">Revoked</span>' +
+            (r.adminPortalAccessRevokedAt
+              ? ' <span class="hint-inline">' + escapeHtml(r.adminPortalAccessRevokedAt) + "</span>"
+              : "")
+          : '<span class="badge-ok">Active</span>') +
+        "</td>" +
+        "<td>" +
+        (revoked
+          ? '<button type="button" class="btn btn-small btn-ghost btn-restore-portal-access">Restore access</button>'
+          : '<button type="button" class="btn btn-small btn-ghost btn-revoke-portal-access">Revoke access</button>') +
+        "</td>"
+      : "";
     return (
-      "<tr>" +
+      "<tr data-employee-id=\"" + escapeHtml(r.EmployeeID) + "\">" +
         '<td class="num">' + escapeHtml(r.EmployeeID) + "</td>" +
         "<td>" + escapeHtml(r.Name) + "</td>" +
         "<td>" + escapeHtml(r.Position) + "</td>" +
@@ -610,10 +627,13 @@ function fillEmployeeTable(sel, rows) {
         "<td>" + escapeHtml(r.HireDate || "—") + "</td>" +
         '<td class="num">' + escapeHtml(r.ManagerID ?? "—") + "</td>" +
         "<td>" + escapeHtml(area) + "</td>" +
+        accessCell +
       "</tr>"
     );
   }).join("");
-  if (!rows.length) tb.innerHTML = '<tr><td colspan="7" class="hint">No rows</td></tr>';
+  if (!rows.length) {
+    tb.innerHTML = '<tr><td colspan="' + colspan + '" class="hint">No rows</td></tr>';
+  }
 }
 
 async function loadUsersPanel() {
@@ -621,7 +641,7 @@ async function loadUsersPanel() {
     apiGet("/employees"),
     apiGet("/notifications?limit=80"),
   ]);
-  fillEmployeeTable("#tbody-internal-users", emps);
+  fillEmployeeTable("#tbody-internal-users", emps, { includePortalAccess: true });
   const tn = $("#tbody-admin-notifications");
   if (tn) {
     tn.innerHTML = notes.map(function (r) {
@@ -892,6 +912,31 @@ if (panelMaint) {
       showToast("Alert #" + id + " marked handled");
       await loadMaint();
       await loadDashboard();
+    } catch (e) {
+      showToast(e.message, true);
+    }
+  });
+}
+
+// Internal staff: revoke / restore admin portal access (row kept in DB)
+const panelUsers = document.getElementById("panel-users");
+if (panelUsers) {
+  panelUsers.addEventListener("click", async function (ev) {
+    const revokeBtn = ev.target.closest(".btn-revoke-portal-access");
+    const restoreBtn = ev.target.closest(".btn-restore-portal-access");
+    if (!revokeBtn && !restoreBtn) return;
+    const tr = ev.target.closest("tr[data-employee-id]");
+    const eid = tr && tr.dataset.employeeId;
+    if (!eid) return;
+    const revoked = !!revokeBtn;
+    try {
+      await apiPatch("/employees/" + eid + "/admin-access", { revoked: revoked });
+      showToast(
+        revoked
+          ? "Portal access revoked for employee #" + eid + " (record retained)"
+          : "Portal access restored for employee #" + eid
+      );
+      await loadUsersPanel();
     } catch (e) {
       showToast(e.message, true);
     }

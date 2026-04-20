@@ -2,6 +2,17 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const { parse: parseUrl, pathToFileURL } = require("url");
+
+async function runAdminSchemaUpgradesIfPresent() {
+  try {
+    const schemaPath = path.join(__dirname, "..", "adminBackend", "admin-schema-upgrades.js");
+    if (!fs.existsSync(schemaPath)) return;
+    const { runAdminSchemaUpgrades } = await import(pathToFileURL(schemaPath).href);
+    await runAdminSchemaUpgrades();
+  } catch (e) {
+    console.warn("[admin] schema upgrades:", e && e.message ? e.message : e);
+  }
+}
 const db = require("./db");
 const { generateToken } = require("./auth");
 
@@ -164,8 +175,9 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+  await runAdminSchemaUpgradesIfPresent();
   loadAdminApi()
     .then(() => console.log("[admin] API module preloaded OK"))
     .catch((e) => console.error("[admin] API module preload failed:", e && e.message, e && e.stack));

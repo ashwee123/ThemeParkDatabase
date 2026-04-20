@@ -79,6 +79,9 @@ export async function runAdminSchemaUpgrades() {
   await addColumnIfMissing("admin_audit_log", "ActionResult", "VARCHAR(24) NULL DEFAULT NULL");
   await addIndexIfMissing("admin_audit_log", "idx_audit_session", "SessionLogID");
 
+  await addColumnIfMissing("employee", "AdminPortalAccessRevoked", "TINYINT(1) NOT NULL DEFAULT 0");
+  await addColumnIfMissing("employee", "AdminPortalAccessRevokedAt", "TIMESTAMP NULL DEFAULT NULL");
+
   await addColumnIfMissing("admin_employee_access", "DeactivationReason", "VARCHAR(600) NULL DEFAULT NULL");
   await addColumnIfMissing("admin_employee_access", "ApprovedByEmployeeID", "INT NULL DEFAULT NULL");
   await addColumnIfMissing("admin_employee_access", "RoleExpiresAt", "DATE NULL DEFAULT NULL");

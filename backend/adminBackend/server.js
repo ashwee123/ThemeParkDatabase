@@ -4,6 +4,7 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { handleAdminApi } from "./admin-api.js";
+import { runAdminSchemaUpgrades } from "./admin-schema-upgrades.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -91,7 +92,14 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Admin portal: http://localhost:${PORT}/`);
-  console.log(`Start with:   npm start`);
-});
+(async function start() {
+  try {
+    await runAdminSchemaUpgrades();
+  } catch (e) {
+    console.warn("[admin] schema upgrades:", e && e.message ? e.message : e);
+  }
+  server.listen(PORT, () => {
+    console.log(`Admin portal: http://localhost:${PORT}/`);
+    console.log(`Start with:   npm start`);
+  });
+})();
