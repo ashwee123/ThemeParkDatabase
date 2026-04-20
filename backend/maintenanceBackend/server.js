@@ -12,6 +12,10 @@ const ROLES = {
   MAINTENANCE_MANAGER: "maintenance_manager"
 };
 
+if (parsedUrl.pathname === "/" && req.method === "GET") {
+  return sendJson(res, 200, { message: "API is running" });
+}
+
 function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
     "Content-Type": "application/json",
