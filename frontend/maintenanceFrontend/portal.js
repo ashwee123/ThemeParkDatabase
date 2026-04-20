@@ -465,6 +465,7 @@ async function loadTaskSummary() {
       var total  = stats.reduce(function (s, r) { return s + Number(r.count || 0); }, 0);
       var inProg = stats.find(function (r) { return r.Status === "In Progress"; });
       var pend   = stats.find(function (r) { return r.Status === "Pending"; });
+      var done   = stats.find(function (r) { return r.Status === "Completed"; });
       var rate   = total ? Math.round((Number((done && done.count) || 0) / total) * 100) : 0;
       cards.innerHTML =
         '<div class="perf-card"><h3>Total Tasks</h3><p class="stat-number">' + total + "</p></div>"
@@ -484,7 +485,7 @@ async function loadTaskSummaryTable() {
   if (!tbody) return;
   var params   = new URLSearchParams();
   // Default: show Pending only (the <select> in HTML has Pending pre-selected)
-  var status   = (document.getElementById("ts-filter-status")   || {}).value || "";
+  var status = (document.getElementById("ts-filter-status") || {}).value;
   var severity = (document.getElementById("ts-filter-severity") || {}).value || "";
   var area     = (document.getElementById("ts-filter-area")     || {}).value || "";
   var employee = (document.getElementById("ts-filter-employee") || {}).value || "";
@@ -492,7 +493,12 @@ async function loadTaskSummaryTable() {
   var to       = (document.getElementById("ts-filter-to")       || {}).value || "";
   var overdue  = (document.getElementById("ts-filter-overdue")  || {}).value || "";
   var keyword  = (document.getElementById("ts-filter-keyword")  || {}).value || "";
-  if (status)   params.set("status",     status);
+  if (status) {
+    params.set("status", status);
+  } else {
+    // No filter selected → exclude Completed from task summary
+    params.set("excludeStatus", "Completed");
+  }
   if (severity) params.set("severity",   severity);
   if (area)     params.set("areaId",     area);
   if (employee) params.set("employeeId", employee);

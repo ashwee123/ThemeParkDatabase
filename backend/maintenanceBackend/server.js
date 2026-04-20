@@ -104,6 +104,10 @@ const server = http.createServer(async (req, res) => {
       if (to)              { conditions.push("m.DueDate <= ?");   params.push(to); }
       if (overdue === "1") { conditions.push("m.DueDate < CURDATE() AND m.Status != 'Completed'"); }
       if (keyword)         { conditions.push("m.TaskDescription LIKE ?"); params.push("%" + keyword + "%"); }
+      if (query.excludeStatus) {
+        conditions.push("m.Status != ?");
+        params.push(query.excludeStatus);
+      }
       const [rows] = await db.query(`
         SELECT m.MaintenanceAssignmentID, m.EmployeeID, m.AreaID,
                e.Name AS EmployeeName, e.Position, a.AreaName,
@@ -335,9 +339,9 @@ const server = http.createServer(async (req, res) => {
 
       // Same unhandled alerts as the notifications/alerts tab
       const [alerts] = await db.query(`
-        SELECT ma.AttractionID, ma.AlertMessage, ma.SeverityLevel,
-               DATE_FORMAT(ma.CreatedAt, '%Y-%m-%d %H:%i') AS CreatedAt
-        FROM maintenancealert ma WHERE ma.Handled = 'No'
+        SELECT ma.AttractionID, ma.SeverityLevel, ma.AlertMessage,
+              DATE_FORMAT(ma.CreatedAt, '%Y-%m-%d %H:%i') AS CreatedAt
+        FROM activemaintenancealerts ma
       `);
 
       // Active maintenance (same source as notifications shutdown list)
