@@ -17,7 +17,6 @@
 
 <nav class="tabs">
   <button class="tab active" data-tab="schedule">Schedule</button>
-  <button class="tab" data-tab="tasks">All Tasks</button>
   <button class="tab" data-tab="performance">Employee Performance</button>
   <button class="tab" data-tab="reports">Reports</button>
   <button class="tab" data-tab="assign">Assign Tasks</button>
@@ -31,34 +30,8 @@
   <!-- ===================== SCHEDULE ===================== -->
   <section id="panel-schedule" class="panel active">
     <div class="toolbar"><h2>Active Schedule</h2></div>
-    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Tasks currently pending or in progress.</p>
+    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Tasks currently pending or in progress, color-coded by area.</p>
     <div id="calendar" style="margin-bottom:2rem;"></div>
-    <!-- Table removed per feedback -->
-  </section>
-
-  <!-- ===================== ALL TASKS ===================== -->
-  <section id="panel-tasks" class="panel">
-    <div class="toolbar">
-      <h2>All Tasks</h2>
-      <div class="toolbar-actions">
-        <button class="btn-reset" onclick="resetTable()">Reset Filters</button>
-      </div>
-    </div>
-    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Past and present maintenance tasks.</p>
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead><tr>
-          <th onclick="toggleSort('MaintenanceAssignmentID')">ID</th>
-          <th onclick="toggleSort('EmployeeName')">Employee</th>
-          <th onclick="toggleSort('AreaName')">Area</th>
-          <th onclick="toggleSort('TaskDescription')">Description</th>
-          <th onclick="toggleSort('Status')">Status</th>
-          <th onclick="toggleSort('DueDate')">Due Date</th>
-          <th>Actions</th>
-        </tr></thead>
-        <tbody id="tbody-tasks"></tbody>
-      </table>
-    </div>
   </section>
 
   <!-- ===================== EMPLOYEE PERFORMANCE ===================== -->
@@ -66,10 +39,9 @@
     <div class="toolbar"><h2>Employee Performance</h2></div>
     <p style="color:var(--text-dim);margin-bottom:1.5rem;">Maintenance staff workload, completion rates, and overdue tasks.</p>
 
-    <!-- Stat cards -->
     <div id="perf-stat-cards" class="stats-grid" style="margin-bottom:2rem;"></div>
 
-    <!-- Filters -->
+    <!-- Performance filters -->
     <div class="report-filters" style="margin-bottom:1.5rem;">
       <label>Area
         <select id="perf-filter-area" onchange="loadEmployeePerformance()">
@@ -81,14 +53,22 @@
           <option value="">All Positions</option>
         </select>
       </label>
+      <label>Has Overdue Tasks
+        <select id="perf-filter-overdue" onchange="loadEmployeePerformance()">
+          <option value="">All</option>
+          <option value="1">Yes</option>
+        </select>
+      </label>
+      <label>Min Tasks Assigned
+        <input type="number" id="perf-filter-min-tasks" min="0" placeholder="0" style="width:80px;">
+      </label>
       <label>Min Completion %
-        <input type="number" id="perf-filter-min-rate" min="0" max="100" placeholder="0" style="width:90px;">
+        <input type="number" id="perf-filter-min-rate" min="0" max="100" placeholder="0" style="width:80px;">
       </label>
       <button class="btn-reset" onclick="loadEmployeePerformance()">Apply</button>
       <button class="btn-reset" onclick="exportPerformanceCSV()">⬇ Export CSV</button>
     </div>
 
-    <!-- Employee table -->
     <div class="table-wrap">
       <table class="data-table" id="table-performance">
         <thead><tr>
@@ -117,7 +97,6 @@
     </div>
     <p style="color:var(--text-dim);margin-bottom:1.5rem;">Maintenance history and task data. Use filters to drill down, then export a snapshot.</p>
 
-    <!-- Report sub-tabs — area workload is now a filter, weather removed -->
     <nav class="report-subtabs">
       <button class="report-subtab active" data-report="task-summary">Task Summary</button>
       <button class="report-subtab" data-report="maintenance-history">Maintenance History</button>
@@ -132,12 +111,11 @@
           <canvas id="chart-status-pie"></canvas>
         </div>
         <div class="chart-card">
-          <h3 class="chart-title">Tasks by Area</h3>
+          <h3 class="chart-title">Tasks by Area (all 6 zones)</h3>
           <canvas id="chart-area-bar"></canvas>
         </div>
       </div>
 
-      <!-- Expanded filters -->
       <div class="report-filters">
         <label>Status
           <select id="ts-filter-status">
@@ -161,12 +139,15 @@
             <option value="1">Yes</option>
           </select>
         </label>
+        <label>Search Description
+          <input type="text" id="ts-filter-keyword" placeholder="keyword…" style="width:130px;">
+        </label>
         <button class="btn-reset" onclick="loadTaskSummaryTable()">Apply</button>
-        <button class="btn-reset" onclick="exportTableCSV('tbody-task-summary', 'task-summary')">⬇ Export CSV</button>
+        <button class="btn-reset" onclick="exportTableCSV('tbody-task-summary','task-summary')">⬇ Export CSV</button>
       </div>
 
       <div class="table-wrap">
-        <table class="data-table" id="table-task-summary">
+        <table class="data-table">
           <thead><tr>
             <th>ID</th><th>Employee</th><th>Area</th>
             <th>Description</th><th>Status</th><th>Due Date</th>
@@ -180,7 +161,6 @@
     <div id="report-maintenance-history" class="report-panel">
       <div id="mh-summary-cards" class="stats-grid" style="margin:1.5rem 0;"></div>
 
-      <!-- Expanded filters including area workload as a filter -->
       <div class="report-filters">
         <label>Severity
           <select id="mh-filter-severity">
@@ -215,12 +195,15 @@
             <option value="1">Ongoing</option>
           </select>
         </label>
+        <label>Search
+          <input type="text" id="mh-filter-keyword" placeholder="attraction or status…" style="width:150px;">
+        </label>
         <button class="btn-reset" onclick="loadMaintenanceHistory()">Apply</button>
-        <button class="btn-reset" onclick="exportTableCSV('tbody-mh', 'maintenance-history')">⬇ Export CSV</button>
+        <button class="btn-reset" onclick="exportTableCSV('tbody-mh','maintenance-history')">⬇ Export CSV</button>
       </div>
 
       <div class="table-wrap">
-        <table class="data-table" id="table-mh">
+        <table class="data-table">
           <thead><tr>
             <th>ID</th><th>Employee</th><th>Area</th><th>Attraction</th>
             <th>Severity</th><th>Status</th><th>Date Start</th><th>Date End</th>
@@ -229,7 +212,6 @@
         </table>
       </div>
     </div>
-
   </section>
 
   <!-- ===================== ASSIGN TASK ===================== -->
@@ -260,7 +242,7 @@
             <option value="Completed">Completed</option>
           </select>
         </label>
-        <label>Due Date * <span id="due-date-hint" style="color:var(--text-dim);font-size:0.75rem;">(must be today or later)</span>
+        <label>Due Date * <span id="due-date-hint" style="color:var(--text-dim);font-size:0.75rem;">(today or later)</span>
           <input type="date" name="DueDate" id="due-date-input" required>
         </label>
       </div>
@@ -275,7 +257,7 @@
     </form>
   </section>
 
-  <!-- ===================== NOTIFICATIONS / ALERTS ===================== -->
+  <!-- ===================== NOTIFICATIONS ===================== -->
   <section id="panel-notifications" class="panel">
     <div class="toolbar">
       <h2>Active Alerts</h2>
@@ -283,7 +265,7 @@
         <button class="btn-reset" onclick="loadNotifications()">Refresh</button>
       </div>
     </div>
-    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Live triggers — ride maintenance alerts, weather shutdowns, overdue tasks, and DB alert triggers.</p>
+    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Live triggers — ride maintenance alerts, weather shutdowns, overdue tasks, and DB trigger alerts.</p>
     <div id="notifications-list"></div>
   </section>
 
@@ -314,12 +296,8 @@
       <form id="form-edit-task" class="grid-form" style="margin-top:0;">
         <input type="hidden" id="edit-task-id">
         <div class="form-row">
-          <label>Employee
-            <select id="edit-employee"></select>
-          </label>
-          <label>Area
-            <select id="edit-area"><option value="">No area</option></select>
-          </label>
+          <label>Employee <select id="edit-employee"></select></label>
+          <label>Area     <select id="edit-area"><option value="">No area</option></select></label>
           <label>Status
             <select id="edit-status">
               <option value="Pending">Pending</option>
@@ -327,14 +305,10 @@
               <option value="Completed">Completed</option>
             </select>
           </label>
-          <label>Due Date
-            <input type="date" id="edit-due-date">
-          </label>
+          <label>Due Date <input type="date" id="edit-due-date"></label>
         </div>
         <div class="form-description">
-          <label>Task Description
-            <textarea id="edit-description" required style="min-height:80px;"></textarea>
-          </label>
+          <label>Task Description <textarea id="edit-description" required style="min-height:80px;"></textarea></label>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-ghost" onclick="closeModal('edit-modal')">Cancel</button>

@@ -4,7 +4,6 @@ const url  = require("url");
 const db   = require("./db");
 const jwt  = require("jsonwebtoken");
 
-// bcrypt is optional — if not installed, falls back to plain text compare
 let bcrypt;
 try { bcrypt = require("bcryptjs"); } catch { bcrypt = null; }
 
@@ -14,11 +13,6 @@ const SECRET = process.env.JWT_SECRET || "dev_secret";
 // HELPERS
 // =============================================================================
 
-/**
- * Single, consistent JSON sender.
- * ALL successful responses: { success: true,  data: <payload> }
- * ALL error responses:      { success: false, error: "<message>" }
- */
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
     "Content-Type": "application/json",
@@ -40,10 +34,6 @@ function verifyToken(req) {
   catch { return null; }
 }
 
-/**
- * Verifies the token and checks the role is allowed.
- * Returns the decoded user object, or sends 401/403 and returns null.
- */
 function requireAuth(req, res, allowedRoles = ["admin", "maintenance_manager", "maintenance"]) {
   const user = verifyToken(req);
   if (!user) { sendJson(res, 401, "Missing or invalid token"); return null; }
@@ -66,13 +56,11 @@ function getBody(req) {
 const server = http.createServer(async (req, res) => {
   console.log("REQUEST:", req.method, req.url);
 
-  // CORS headers on every response
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") { res.writeHead(200); return res.end(); }
 
-  // parsedUrl must be inside the handler
   const parsedUrl = url.parse(req.url, true);
   const { pathname, query } = parsedUrl;
 
@@ -84,8 +72,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ── LOGIN ────────────────────────────────────────────────────────────────
-    // Reads login credentials from the manager table in your DB.
-    // Supports both bcrypt-hashed passwords and plain-text passwords.
     if (pathname === "/login" && req.method === "POST") {
       const { email, password } = await getBody(req);
 
@@ -107,7 +93,6 @@ const server = http.createServer(async (req, res) => {
       const manager = rows[0];
       const storedPassword = manager.ManagerPassword || "";
 
-      // Support bcrypt hashes AND plain-text (for dev / legacy rows)
       let match = false;
       if (bcrypt && storedPassword.startsWith("$2b$")) {
         match = await bcrypt.compare(password, storedPassword);
@@ -120,7 +105,6 @@ const server = http.createServer(async (req, res) => {
       }
 
       const role = (manager.Role || "maintenance_manager").trim().toLowerCase();
-
       const token = jwt.sign(
         { managerId: manager.ManagerID, email: manager.ManagerEmail, role },
         SECRET,
@@ -130,16 +114,18 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { token, role });
     }
 
-    // ── TASKS (all — for schedule/tasks tab/calendar) ─────────────────────
+    // ── TASKS (all) ───────────────────────────────────────────────────────
     if (pathname === "/tasks" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
       const [rows] = await db.query(`
         SELECT m.MaintenanceAssignmentID, m.EmployeeID, m.AreaID,
                e.Name  AS EmployeeName,
+               e.Position,
                a.AreaName,
                m.TaskDescription,
                m.Status,
-               DATE_FORMAT(m.DueDate, '%Y-%m-%d') AS DueDate
+               DATE_FORMAT(m.DueDate, '%Y-%m-%d') AS DueDate,
+               CASE WHEN m.DueDate < CURDATE() AND m.Status != 'Completed' THEN 1 ELSE 0 END AS IsOverdue
         FROM maintenanceassignment m
         LEFT JOIN employee e ON m.EmployeeID = e.EmployeeID
         LEFT JOIN area     a ON m.AreaID     = a.AreaID
@@ -148,41 +134,49 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, rows);
     }
 
-    // ── TASKS FILTERED (task summary report table) ────────────────────────
-    // Query params: status, areaId, employeeId, from, to
+    // ── TASKS FILTERED ────────────────────────────────────────────────────
+    // Query params: status, areaId, employeeId, from, to, overdue, keyword
     if (pathname === "/tasks-filtered" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
-      const { status, areaId, employeeId, from, to } = query;
+      const { status, areaId, employeeId, from, to, overdue, keyword } = query;
+
+      // Build dynamic WHERE clauses
+      const conditions = ["1=1"];
+      const params = [];
+
+      if (status)   { conditions.push("m.Status = ?");     params.push(status); }
+      if (areaId)   { conditions.push("m.AreaID = ?");     params.push(areaId); }
+      if (employeeId){ conditions.push("m.EmployeeID = ?"); params.push(employeeId); }
+      if (from)     { conditions.push("m.DueDate >= ?");   params.push(from); }
+      if (to)       { conditions.push("m.DueDate <= ?");   params.push(to); }
+      if (overdue === "1") {
+        conditions.push("m.DueDate < CURDATE() AND m.Status != 'Completed'");
+      }
+      if (keyword)  {
+        conditions.push("m.TaskDescription LIKE ?");
+        params.push("%" + keyword + "%");
+      }
+
       const [rows] = await db.query(`
         SELECT m.MaintenanceAssignmentID,
-               e.Name AS EmployeeName,
+               e.Name     AS EmployeeName,
+               e.Position,
                a.AreaName,
                m.TaskDescription,
                m.Status,
-               DATE_FORMAT(m.DueDate, '%Y-%m-%d') AS DueDate
+               DATE_FORMAT(m.DueDate, '%Y-%m-%d') AS DueDate,
+               CASE WHEN m.DueDate < CURDATE() AND m.Status != 'Completed' THEN 1 ELSE 0 END AS IsOverdue
         FROM maintenanceassignment m
         LEFT JOIN employee e ON m.EmployeeID = e.EmployeeID
         LEFT JOIN area     a ON m.AreaID     = a.AreaID
-        WHERE 1=1
-          AND (? IS NULL OR ? = '' OR m.Status     = ?)
-          AND (? IS NULL OR ? = '' OR m.AreaID     = ?)
-          AND (? IS NULL OR ? = '' OR m.EmployeeID = ?)
-          AND (? IS NULL OR ? = '' OR m.DueDate   >= ?)
-          AND (? IS NULL OR ? = '' OR m.DueDate   <= ?)
-        ORDER BY m.CreatedAt DESC
-      `, [
-        status,     status,     status,
-        areaId,     areaId,     areaId,
-        employeeId, employeeId, employeeId,
-        from,       from,       from,
-        to,         to,         to,
-      ]);
+        WHERE ${conditions.join(" AND ")}
+        ORDER BY m.DueDate ASC, m.CreatedAt DESC
+      `, params);
+
       return sendJson(res, 200, rows);
     }
 
-    // ── TASK SUMMARY (stat cards + chart data) ────────────────────────────
-    // Returns per-Status counts, overdue count, and per-Area breakdown.
-    // This is the source of truth for the summary cards — counts every row.
+    // ── TASK SUMMARY ──────────────────────────────────────────────────────
     if (pathname === "/task-summary" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
 
@@ -195,15 +189,17 @@ const server = http.createServer(async (req, res) => {
          WHERE DueDate < CURDATE() AND Status != 'Completed'`
       );
 
+      // LEFT JOIN from area so ALL 6 areas appear even with 0 tasks
       const [byArea] = await db.query(`
         SELECT a.AreaName,
-               SUM(m.Status = 'Pending')     AS pending,
-               SUM(m.Status = 'In Progress') AS inProgress,
-               SUM(m.Status = 'Completed')   AS completed
-        FROM maintenanceassignment m
-        JOIN area a ON m.AreaID = a.AreaID
+               COALESCE(SUM(m.Status = 'Pending'),     0) AS pending,
+               COALESCE(SUM(m.Status = 'In Progress'), 0) AS inProgress,
+               COALESCE(SUM(m.Status = 'Completed'),   0) AS completed,
+               COALESCE(SUM(m.DueDate < CURDATE() AND m.Status != 'Completed'), 0) AS overdue
+        FROM area a
+        LEFT JOIN maintenanceassignment m ON m.AreaID = a.AreaID
         GROUP BY a.AreaID, a.AreaName
-        ORDER BY (SUM(m.Status = 'Pending') + SUM(m.Status = 'In Progress') + SUM(m.Status = 'Completed')) DESC
+        ORDER BY (COALESCE(SUM(m.Status = 'Pending'), 0) + COALESCE(SUM(m.Status = 'In Progress'), 0) + COALESCE(SUM(m.Status = 'Completed'), 0)) DESC
       `);
 
       return sendJson(res, 200, {
@@ -244,7 +240,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { message: "Task updated" });
     }
 
-    // ── DELETE TASK (DB hard-delete — frontend uses soft-delete instead) ──
+    // ── DELETE TASK ───────────────────────────────────────────────────────
     if (pathname === "/deleteTask" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
       const body = await getBody(req);
@@ -255,12 +251,21 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { message: "Task deleted" });
     }
 
-    // ── EMPLOYEES ─────────────────────────────────────────────────────────
+    // ── EMPLOYEES (maintenance-relevant positions only) ────────────────────
+    // Filters to positions that are actually maintenance roles.
+    // Excludes horror-character employees and non-maintenance departments.
     if (pathname === "/employees" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
-      const [rows] = await db.query(
-        `SELECT EmployeeID, Name, Position, Salary FROM employee ORDER BY Name`
-      );
+      const [rows] = await db.query(`
+        SELECT e.EmployeeID, e.Name, e.Position, a.AreaName, e.AreaID
+        FROM employee e
+        LEFT JOIN area a ON e.AreaID = a.AreaID
+        WHERE e.Position IN (
+          'staff', 'supervisor', 'manager assistant',
+          'Cleaning Staff', 'Staff', 'Supervisor', 'Manager Assistant'
+        )
+        ORDER BY e.Name ASC
+      `);
       return sendJson(res, 200, rows);
     }
 
@@ -278,7 +283,7 @@ const server = http.createServer(async (req, res) => {
       if (!requireAuth(req, res)) return;
       const [rows] = await db.query(`
         SELECT att.AttractionID, att.AttractionName, att.AttractionType,
-               att.Status, att.SeverityLevel, att.QueueCount, a.AreaName
+               att.Status, att.SeverityLevel, att.QueueCount, a.AreaName, a.AreaID
         FROM attraction att
         LEFT JOIN area a ON att.AreaID = a.AreaID
         ORDER BY att.AttractionName ASC
@@ -287,34 +292,59 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ── EMPLOYEE PERFORMANCE ──────────────────────────────────────────────
+    // Only includes maintenance-relevant employees.
+    // Supports optional areaId filter via query param.
     if (pathname === "/employee-performance" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
+      const { areaId } = query;
+
+      const conditions = [
+        `e.Position IN ('staff','supervisor','manager assistant','Cleaning Staff','Staff','Supervisor','Manager Assistant')`
+      ];
+      const params = [];
+      if (areaId) { conditions.push("e.AreaID = ?"); params.push(areaId); }
+
       const [rows] = await db.query(`
         SELECT
           e.EmployeeID,
           e.Name,
           e.Position,
           a.AreaName,
-          COUNT(m.MaintenanceAssignmentID)                         AS totalTasks,
-          SUM(m.Status = 'Completed')                              AS completed,
-          SUM(m.Status = 'In Progress')                            AS inProgress,
-          SUM(m.Status = 'Pending')                                AS pending,
-          SUM(m.DueDate < CURDATE() AND m.Status != 'Completed')   AS overdue
+          e.AreaID,
+          COUNT(m.MaintenanceAssignmentID)                        AS totalTasks,
+          COALESCE(SUM(m.Status = 'Completed'),    0)             AS completed,
+          COALESCE(SUM(m.Status = 'In Progress'),  0)             AS inProgress,
+          COALESCE(SUM(m.Status = 'Pending'),      0)             AS pending,
+          COALESCE(SUM(m.DueDate < CURDATE() AND m.Status != 'Completed'), 0) AS overdue
         FROM employee e
         LEFT JOIN maintenanceassignment m ON e.EmployeeID = m.EmployeeID
         LEFT JOIN area a ON e.AreaID = a.AreaID
-        GROUP BY e.EmployeeID, e.Name, e.Position, a.AreaName
+        WHERE ${conditions.join(" AND ")}
+        GROUP BY e.EmployeeID, e.Name, e.Position, a.AreaName, e.AreaID
         ORDER BY totalTasks DESC
-      `);
+      `, params);
+
       return sendJson(res, 200, rows);
     }
 
     // ── MAINTENANCE HISTORY REPORT ────────────────────────────────────────
-    // Severity = maintenance.Severity enum (Low/Medium/High), set at record creation.
-    // Filterable: severity, status, attractionId, startDate, endDate, employeeId, areaId
+    // Filterable: severity, status, attractionId, startDate, endDate, employeeId, areaId, keyword
     if (pathname === "/maintenance-report" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
-      const { startDate, endDate, severity, status, attractionId, employeeId, areaId } = query;
+      const { startDate, endDate, severity, status, attractionId, employeeId, areaId, keyword } = query;
+
+      const conditions = ["1=1"];
+      const params = [];
+
+      if (startDate)    { conditions.push("m.DateStart >= ?");    params.push(startDate); }
+      if (endDate)      { conditions.push("m.DateEnd <= ?");      params.push(endDate); }
+      if (severity)     { conditions.push("m.Severity = ?");      params.push(severity); }
+      if (status)       { conditions.push("m.Status = ?");        params.push(status); }
+      if (attractionId) { conditions.push("att.AttractionID = ?");params.push(attractionId); }
+      if (employeeId)   { conditions.push("e.EmployeeID = ?");    params.push(employeeId); }
+      if (areaId)       { conditions.push("a.AreaID = ?");        params.push(areaId); }
+      if (keyword)      { conditions.push("(att.AttractionName LIKE ? OR m.Status LIKE ?)"); params.push("%" + keyword + "%", "%" + keyword + "%"); }
+
       const [rows] = await db.query(`
         SELECT
           m.MaintenanceID,
@@ -330,79 +360,34 @@ const server = http.createServer(async (req, res) => {
         LEFT JOIN employee   e   ON m.EmployeeID   = e.EmployeeID
         LEFT JOIN attraction att ON m.AttractionID = att.AttractionID
         LEFT JOIN area       a   ON att.AreaID     = a.AreaID
-        WHERE 1=1
-          AND (? IS NULL OR ? = '' OR m.DateStart      >= ?)
-          AND (? IS NULL OR ? = '' OR m.DateEnd        <= ?)
-          AND (? IS NULL OR ? = '' OR m.Severity        = ?)
-          AND (? IS NULL OR ? = '' OR m.Status          = ?)
-          AND (? IS NULL OR ? = '' OR att.AttractionID  = ?)
-          AND (? IS NULL OR ? = '' OR e.EmployeeID      = ?)
-          AND (? IS NULL OR ? = '' OR a.AreaID          = ?)
+        WHERE ${conditions.join(" AND ")}
         ORDER BY m.DateStart DESC
-      `, [
-        startDate,    startDate,    startDate,
-        endDate,      endDate,      endDate,
-        severity,     severity,     severity,
-        status,       status,       status,
-        attractionId, attractionId, attractionId,
-        employeeId,   employeeId,   employeeId,
-        areaId,       areaId,       areaId,
-      ]);
+      `, params);
+
       return sendJson(res, 200, rows);
     }
 
     // ── AREA WORKLOAD ─────────────────────────────────────────────────────
+    // LEFT JOIN from area so all 6 zones appear even with 0 tasks.
     if (pathname === "/area-workload" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
       const [rows] = await db.query(`
         SELECT
           a.AreaName,
-          COUNT(m.MaintenanceAssignmentID)                        AS total,
-          SUM(m.Status = 'Pending')                               AS pending,
-          SUM(m.Status = 'In Progress')                           AS inProgress,
-          SUM(m.Status = 'Completed')                             AS completed,
-          SUM(m.DueDate < CURDATE() AND m.Status != 'Completed')  AS overdue
-        FROM maintenanceassignment m
-        JOIN area a ON m.AreaID = a.AreaID
+          COALESCE(COUNT(m.MaintenanceAssignmentID), 0)                        AS total,
+          COALESCE(SUM(m.Status = 'Pending'),        0)                        AS pending,
+          COALESCE(SUM(m.Status = 'In Progress'),    0)                        AS inProgress,
+          COALESCE(SUM(m.Status = 'Completed'),      0)                        AS completed,
+          COALESCE(SUM(m.DueDate < CURDATE() AND m.Status != 'Completed'), 0)  AS overdue
+        FROM area a
+        LEFT JOIN maintenanceassignment m ON m.AreaID = a.AreaID
         GROUP BY a.AreaID, a.AreaName
         ORDER BY total DESC
       `);
       return sendJson(res, 200, rows);
     }
 
-    // ── TRANSACTIONS ──────────────────────────────────────────────────────
-    // From transactionlog joined with retailitem.
-    // Filterable: type (Normal/Discount/Damaged/Stolen), from, to
-    if (pathname === "/transactions" && req.method === "GET") {
-      if (!requireAuth(req, res)) return;
-      const { type, from, to } = query;
-      const [rows] = await db.query(`
-        SELECT
-          t.TransactionID,
-          ri.ItemName,
-          t.Type,
-          t.Quantity,
-          t.Price,
-          t.TotalCost,
-          DATE_FORMAT(t.Date, '%Y-%m-%d') AS Date
-        FROM transactionlog t
-        JOIN retailitem ri ON t.ItemID = ri.ItemID
-        WHERE 1=1
-          AND (? IS NULL OR ? = '' OR t.Type  = ?)
-          AND (? IS NULL OR ? = '' OR t.Date >= ?)
-          AND (? IS NULL OR ? = '' OR t.Date <= ?)
-        ORDER BY t.Date DESC, t.Time DESC
-        LIMIT 200
-      `, [
-        type, type, type,
-        from, from, from,
-        to,   to,   to,
-      ]);
-      return sendJson(res, 200, rows);
-    }
-
-    // ── ALERTS (toast polling — trg_ride_maintenance output) ─────────────
-    // Queries activemaintenancealerts VIEW which filters Handled = 'No'.
+    // ── ALERTS (toast polling) ────────────────────────────────────────────
     if (pathname === "/alerts" && req.method === "GET") {
       if (!requireAuth(req, res)) return;
       const [rows] = await db.query(`
@@ -420,7 +405,7 @@ const server = http.createServer(async (req, res) => {
       if (!requireAuth(req, res)) return;
       const notifications = [];
 
-      // 1. trg_ride_maintenance → maintenancealert → activemaintenancealerts view
+      // 1. DB trigger alerts
       const [alertRows] = await db.query(`
         SELECT AlertID, AttractionName, SeverityLevel, AlertMessage,
                DATE_FORMAT(CreatedAt, '%Y-%m-%d %H:%i') AS CreatedAt
@@ -433,7 +418,7 @@ const server = http.createServer(async (req, res) => {
         detail:   `${r.AlertMessage} — flagged at ${r.CreatedAt}`,
       }));
 
-      // 2. trg_weather_shutdown → attraction.Status = 'ClosedDueToWeather'
+      // 2. Weather closures
       const [weatherClosures] = await db.query(`
         SELECT att.AttractionName, att.AttractionType, a.AreaName
         FROM attraction att
