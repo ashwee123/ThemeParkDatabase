@@ -38,6 +38,8 @@ END$$
 -- 3. Subtract Quantity from RetailItem.Quantity
 -- 4. Notify manager if stock falls <= LowStockThreshold
 -- -------------------------------------------------------------
+DELIMITER $$
+
 CREATE TRIGGER trg_TransactionLog_BeforeInsert
 BEFORE INSERT ON TransactionLog
 FOR EACH ROW
@@ -46,56 +48,64 @@ BEGIN
     DECLARE v_DiscountPrice DECIMAL(10,2);
 
     SELECT SellPrice, DiscountPrice
-    INTO v_SellPrice, v_DiscountPrice
+      INTO v_SellPrice, v_DiscountPrice
     FROM RetailItem
     WHERE ItemID = NEW.ItemID;
+
+    IF v_SellPrice IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Invalid ItemID or missing SellPrice.';
+    END IF;
 
     IF NEW.Type = 'Normal' THEN
         SET NEW.Price = v_SellPrice;
     ELSEIF NEW.Type = 'Discount' THEN
-        SET NEW.Price = v_DiscountPrice;
+        SET NEW.Price = COALESCE(v_DiscountPrice, v_SellPrice);
     ELSEIF NEW.Type IN ('Damaged', 'Stolen') THEN
         SET NEW.Price = 0;
+    ELSE
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Invalid transaction type.';
     END IF;
 
-    SET NEW.TotalCost = NEW.Price * NEW.Quantity;
+    SET NEW.TotalCost = ROUND(NEW.Price * NEW.Quantity, 2);
 END$$
 
 CREATE TRIGGER trg_TransactionLog_AfterInsert
 AFTER INSERT ON TransactionLog
 FOR EACH ROW
 BEGIN
-    DECLARE v_NewQuantity  INT;
-    DECLARE v_Threshold    INT;
-    DECLARE v_AreaID       INT;
-    DECLARE v_ManagerID    INT;
-    DECLARE v_ItemName     VARCHAR(100);
+    DECLARE v_NewQuantity INT;
+    DECLARE v_Threshold   INT;
+    DECLARE v_AreaID      INT;
+    DECLARE v_ItemName    VARCHAR(100);
 
     UPDATE RetailItem
-    SET Quantity = Quantity - NEW.Quantity
-    WHERE ItemID = NEW.ItemID;
+       SET Quantity = Quantity - NEW.Quantity
+     WHERE ItemID = NEW.ItemID
+       AND Quantity >= NEW.Quantity;
+
+    IF ROW_COUNT() = 0 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Insufficient stock for this transaction.';
+    END IF;
 
     SELECT ri.Quantity, ri.LowStockThreshold, ri.ItemName, rp.AreaID
-    INTO v_NewQuantity, v_Threshold, v_ItemName, v_AreaID
+      INTO v_NewQuantity, v_Threshold, v_ItemName, v_AreaID
     FROM RetailItem ri
     JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
     WHERE ri.ItemID = NEW.ItemID;
 
     IF v_NewQuantity <= v_Threshold THEN
-        SELECT ManagerID INTO v_ManagerID
-        FROM RetailManager
-        WHERE AreaID = v_AreaID;
-
         INSERT INTO NotificationLog (ManagerID, ItemID, Message, CreatedAt)
-        VALUES (
-            v_ManagerID,
-            NEW.ItemID,
-            CONCAT(v_ItemName, ' has ', v_NewQuantity, ' units left.'),
-            NOW()
-        );
+        SELECT rm.ManagerID,
+               NEW.ItemID,
+               CONCAT(v_ItemName, ' has ', v_NewQuantity, ' units left.'),
+               NOW()
+        FROM RetailManager rm
+        WHERE rm.AreaID = v_AreaID;
     END IF;
 END$$
-
 -- -------------------------------------------------------------
 -- RetailItem — ON UPDATE of BuyPrice, SellPrice, DiscountPrice
 -- 1. Verify SellPrice >= BuyPrice
