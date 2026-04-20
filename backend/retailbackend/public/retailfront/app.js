@@ -8,6 +8,8 @@ const state = {
     transactionItems: [],
     restockItems: [],
     editingItemId: null,
+    editingStoreId: null,
+    editingStoreName: "",
     selectedPriceField: "sellPrice",
     reportsData: {
         profit: [],
@@ -107,9 +109,7 @@ function showToast(msg, isError = false) {
     const toast = document.getElementById("toast");
     toast.textContent = msg;
     toast.className = "toast show" + (isError ? " error" : "");
-    setTimeout(() => {
-        toast.className = "toast";
-    }, 3000);
+    setTimeout(() => toast.className = "toast", 3000);
 }
 
 function formatCurrency(val) {
@@ -156,6 +156,28 @@ function safeArray(data) {
     return Array.isArray(data) ? data : [];
 }
 
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function getPriceValidationError(buyPrice, sellPrice, discountPrice) {
+    if (buyPrice < 0 || sellPrice < 0 || (discountPrice !== null && discountPrice < 0)) {
+        return "Prices cannot be negative.";
+    }
+    if (buyPrice > sellPrice) {
+        return "Buy price cannot be greater than sell price.";
+    }
+    if (discountPrice !== null && (discountPrice < buyPrice || discountPrice > sellPrice)) {
+        return "Discount price must be between buy price and sell price.";
+    }
+    return null;
+}
+
 function activePanelName() {
     const panel = document.querySelector(".panel.active");
     return panel ? panel.id.replace("tab-", "") : "inventory";
@@ -191,14 +213,31 @@ async function loadStores() {
     state.stores = stores;
 
     const tbody = document.querySelector("#tbl-stores tbody");
-    tbody.innerHTML = stores.length ? stores.map(s => `
-        <tr>
-            <td>${s.RetailName}</td>
-            <td>
-                <button class="btn btn-ghost btn-small" onclick="openStoreRename(${s.RetailID}, '${String(s.RetailName).replace(/'/g, "\\'")}')">Rename</button>
-            </td>
-        </tr>
-    `).join("") : `<tr><td colspan="2" style="color:var(--text-dim)">No stores found</td></tr>`;
+    tbody.innerHTML = stores.length ? stores.map((s) => {
+        const isEditing = Number(state.editingStoreId) === Number(s.RetailID);
+        if (isEditing) {
+            return `
+                <tr>
+                    <td><input id="edit-store-name" value="${escapeHtml(state.editingStoreName || s.RetailName)}" /></td>
+                    <td>
+                        <div class="table-actions">
+                            <button class="btn btn-primary btn-small" onclick="saveStoreEdit(${s.RetailID})">Save</button>
+                            <button class="btn btn-ghost btn-small" onclick="cancelStoreEdit()">Cancel</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        return `
+            <tr>
+                <td>${escapeHtml(s.RetailName)}</td>
+                <td>
+                    <button class="btn btn-ghost btn-small" onclick="startStoreEdit(${s.RetailID})">Rename</button>
+                </td>
+            </tr>
+        `;
+    }).join("") : `<tr><td colspan="2" style="color:var(--text-dim)">No stores found</td></tr>`;
 
     applyStoreSelect("dashboard-store", "All Stores");
     applyStoreSelect("items-store-filter", "All Stores");
@@ -322,6 +361,9 @@ async function saveItemEdit(itemID) {
         return showToast("Please enter valid values before saving", true);
     }
 
+    const priceError = getPriceValidationError(buyPrice, sellPrice, discountPrice);
+    if (priceError) return showToast(priceError, true);
+
     await fetchJSON("/item/name", {
         method: "PUT",
         headers: authHeader(),
@@ -379,6 +421,8 @@ document.getElementById("btn-add-item").addEventListener("click", async () => {
     if (!itemName || Number.isNaN(buyPrice) || Number.isNaN(sellPrice) || Number.isNaN(quantity) || Number.isNaN(retailID)) {
         return showToast("Please fill in all required fields", true);
     }
+    const priceError = getPriceValidationError(buyPrice, sellPrice, discountPrice);
+    if (priceError) return showToast(priceError, true);
 
     await fetchJSON("/item", {
         method: "POST",
@@ -447,7 +491,7 @@ document.getElementById("btn-log-txn").addEventListener("click", async () => {
     await fetchJSON("/transaction", {
         method: "POST",
         headers: authHeader(),
-        body: JSON.stringify({ itemID, type, quantity, visitorID: 0 })
+        body: JSON.stringify({ itemID, type, quantity, visitorID: 1 })
     });
 
     showToast("Transaction logged successfully");
@@ -458,17 +502,25 @@ function renderRestockItemOptions() {
     const selectedStore = document.getElementById("restock-store-filter").value;
     const select = document.getElementById("restock-item");
     const filtered = state.restockItems.filter(i => !selectedStore || String(i.RetailID) === String(selectedStore));
-    select.innerHTML = filtered.map(i => `<option value="${i.ItemID}">${i.ItemName} (${i.RetailName})</option>`).join("");
+    if (!filtered.length) {
+        select.innerHTML = `<option value="">No items available</option>`;
+        return;
+    }
+    select.innerHTML = filtered.map(i => `<option value="${i.ItemID}">${escapeHtml(i.ItemName)} (${escapeHtml(i.RetailName)})</option>`).join("");
 }
 
 async function loadRestock() {
-    const [restockHistory, inventory] = await Promise.all([
-        fetchJSON("/restock/history", { headers: authHeader() }),
-        fetchJSON("/inventory", { headers: authHeader() })
-    ]);
-
+    const inventory = await fetchJSON("/inventory", { headers: authHeader() });
     state.restockItems = safeArray(inventory);
     renderRestockItemOptions();
+
+    let restockHistory = [];
+    try {
+        restockHistory = await fetchJSON("/restock/history", { headers: authHeader() });
+    } catch (error) {
+        console.error(error);
+        showToast("Restock history unavailable. You can still submit new restocks.", true);
+    }
 
     const rows = safeArray(restockHistory);
     const tbody = document.querySelector("#tbl-restock tbody");
@@ -487,8 +539,11 @@ document.getElementById("btn-log-restock").addEventListener("click", async () =>
     const itemID = Number.parseInt(document.getElementById("restock-item").value, 10);
     const quantity = Number.parseInt(document.getElementById("restock-qty").value, 10);
 
-    if (Number.isNaN(itemID) || Number.isNaN(quantity)) {
-        return showToast("Please fill in all fields", true);
+    if (Number.isNaN(itemID)) {
+        return showToast("Please select an item for restock", true);
+    }
+    if (Number.isNaN(quantity)) {
+        return showToast("Please enter a restock quantity", true);
     }
 
     await fetchJSON("/restock", {
@@ -552,6 +607,7 @@ function renderActiveReport() {
     `).join("") : `<tr><td colspan="10" style="color:var(--text-dim)">No data for selected range</td></tr>`;
 
     const lossBody = document.querySelector("#tbl-damaged tbody");
+
     lossBody.innerHTML = state.reportsData.loss.length ? state.reportsData.loss.map(d => `
         <tr>
             <td>${d.RetailName}</td>
@@ -594,19 +650,45 @@ document.getElementById("btn-add-store").addEventListener("click", async () => {
     await loadStores();
 });
 
-async function openStoreRename(retailID, retailName) {
-    const nextName = prompt("Update store name:", retailName);
-    if (!nextName || !nextName.trim()) return;
+function startStoreEdit(retailID) {
+    const store = state.stores.find(s => Number(s.RetailID) === Number(retailID));
+    state.editingStoreId = retailID;
+    state.editingStoreName = store ? store.RetailName : "";
+    loadStores().catch((error) => {
+        console.error(error);
+        showToast(error.message || "Failed to open store rename", true);
+    });
+}
+
+function cancelStoreEdit() {
+    state.editingStoreId = null;
+    state.editingStoreName = "";
+    loadStores().catch((error) => {
+        console.error(error);
+        showToast(error.message || "Failed to cancel store rename", true);
+    });
+}
+
+async function saveStoreEdit(retailID) {
+    const input = document.getElementById("edit-store-name");
+    const nextName = input ? input.value.trim() : "";
+    if (!nextName) return showToast("Please enter a store name", true);
+
     await fetchJSON("/store/name", {
         method: "PUT",
         headers: authHeader(),
-        body: JSON.stringify({ retailID, retailName: nextName.trim() })
+        body: JSON.stringify({ retailID, retailName: nextName })
     });
+
+    state.editingStoreId = null;
+    state.editingStoreName = "";
     showToast("Store name updated");
     await loadStores();
 }
 
-window.openStoreRename = openStoreRename;
+window.startStoreEdit = startStoreEdit;
+window.cancelStoreEdit = cancelStoreEdit;
+window.saveStoreEdit = saveStoreEdit;
 
 document.getElementById("btn-logout").addEventListener("click", () => {
     localStorage.removeItem("token");
