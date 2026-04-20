@@ -75,29 +75,55 @@ export async function listAttractions() {
   }));
 }
 
+function mapEmployeeRow(r, accessDefaults) {
+  const {
+    AdminPortalAccessRevoked: _revRaw,
+    AdminPortalAccessRevokedAt: _revAtRaw,
+    ...rest
+  } = r;
+  const def = accessDefaults || {};
+  return {
+    ...rest,
+    Salary: r.Salary != null ? Number(r.Salary) : null,
+    HireDate: rowDate(r.HireDate),
+    adminPortalAccessRevoked:
+      def.adminPortalAccessRevoked !== undefined
+        ? def.adminPortalAccessRevoked
+        : Number(r.AdminPortalAccessRevoked) === 1,
+    adminPortalAccessRevokedAt:
+      def.adminPortalAccessRevokedAt !== undefined
+        ? def.adminPortalAccessRevokedAt
+        : r.AdminPortalAccessRevokedAt != null
+          ? rowDateTime(r.AdminPortalAccessRevokedAt)
+          : null,
+  };
+}
+
 export async function listEmployees() {
-  const [rows] = await getPool().execute(
-    `SELECT e.EmployeeID, e.Name, e.Position, e.Salary, e.HireDate, e.ManagerID, e.AreaID, a.AreaName,
+  const pool = getPool();
+  const qWithAccess = `SELECT e.EmployeeID, e.Name, e.Position, e.Salary, e.HireDate, e.ManagerID, e.AreaID, a.AreaName,
             e.AdminPortalAccessRevoked, e.AdminPortalAccessRevokedAt
      FROM employee e
      LEFT JOIN area a ON a.AreaID = e.AreaID
-     ORDER BY e.AreaID IS NULL, e.AreaID, e.Name`
-  );
-  return rows.map((r) => {
-    const {
-      AdminPortalAccessRevoked: _revRaw,
-      AdminPortalAccessRevokedAt: _revAtRaw,
-      ...rest
-    } = r;
-    return {
-      ...rest,
-      Salary: r.Salary != null ? Number(r.Salary) : null,
-      HireDate: rowDate(r.HireDate),
-      adminPortalAccessRevoked: Number(r.AdminPortalAccessRevoked) === 1,
-      adminPortalAccessRevokedAt:
-        r.AdminPortalAccessRevokedAt != null ? rowDateTime(r.AdminPortalAccessRevokedAt) : null,
-    };
-  });
+     ORDER BY e.AreaID IS NULL, e.AreaID, e.Name`;
+  const qBase = `SELECT e.EmployeeID, e.Name, e.Position, e.Salary, e.HireDate, e.ManagerID, e.AreaID, a.AreaName
+     FROM employee e
+     LEFT JOIN area a ON a.AreaID = e.AreaID
+     ORDER BY e.AreaID IS NULL, e.AreaID, e.Name`;
+  let rows;
+  try {
+    [rows] = await pool.execute(qWithAccess);
+  } catch (e) {
+    const msg = String(e && e.message ? e.message : e);
+    if (msg.includes("Unknown column") && msg.includes("AdminPortal")) {
+      [rows] = await pool.execute(qBase);
+      return rows.map((r) =>
+        mapEmployeeRow(r, { adminPortalAccessRevoked: false, adminPortalAccessRevokedAt: null })
+      );
+    }
+    throw e;
+  }
+  return rows.map((r) => mapEmployeeRow(r));
 }
 
 export async function setEmployeeAdminPortalAccess(employeeId, revoked) {

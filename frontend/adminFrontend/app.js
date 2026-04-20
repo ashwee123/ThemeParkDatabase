@@ -598,7 +598,8 @@ const ATTRACTION_STATUS_OPTIONS = [
 function fillEmployeeTable(sel, rows, opts) {
   const tb = $(sel);
   if (!tb) return;
-  const showPortalAccess = !!(opts && opts.includePortalAccess);
+  const showPortalAccess =
+    !!(opts && opts.includePortalAccess) || tb.id === "tbody-internal-users";
   const colspan = showPortalAccess ? 8 : 7;
   tb.innerHTML = rows.map(function (r) {
     const area = r.AreaName != null ? r.AreaName : r.AreaID != null ? String(r.AreaID) : "—";
