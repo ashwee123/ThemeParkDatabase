@@ -19,6 +19,7 @@ import {
   listShiftsAdmin,
   listNotificationLog,
   getReportSnapshot,
+  ReportRangeError,
   listVisitorReviewsReport,
   updateAttractionStatus,
 } from "./admin-routes.js";
@@ -153,7 +154,17 @@ export async function handleAdminApi(req, res, url) {
       return;
     }
     if (method === "GET" && pathname === "/api/reports/snapshot") {
-      sendJson(res, 200, await getReportSnapshot(), h);
+      const from = url.searchParams.get("from");
+      const to = url.searchParams.get("to");
+      try {
+        sendJson(res, 200, await getReportSnapshot(from, to), h);
+      } catch (e) {
+        if (e instanceof ReportRangeError) {
+          sendJson(res, 400, { error: e.message }, h);
+          return;
+        }
+        throw e;
+      }
       return;
     }
     if (method === "GET" && pathname === "/api/reports/visitor-reviews") {

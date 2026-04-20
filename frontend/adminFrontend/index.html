@@ -6,6 +6,7 @@
   <meta name="admin-api-origin" content="https://admin-portal-backend-c051.onrender.com" />
   <title>Admin Portal — Theme Park</title>
   <link rel="stylesheet" href="/admin/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
  
 <body>
@@ -48,10 +49,9 @@
     </section>
  
     <!-- USERS -->
-    <section id="panel-users" class="panel">
+    <section id="panel-users" class="panel" hidden>
  
-      <div class="toolbar">
-        <h2>User & Access Management</h2>
+      <div class="toolbar toolbar-no-title" aria-label="User and access actions">
         <input
           type="text"
           id="search-users"
@@ -101,8 +101,7 @@
  
     <!-- VISITORS -->
     <section id="panel-visitors" class="panel" hidden>
-      <div class="toolbar">
-        <h2>Visitor Management</h2>
+      <div class="toolbar toolbar-no-title" aria-label="Visitor management actions">
         <input
           type="text"
           id="visitor-search-q"
@@ -168,8 +167,7 @@
  
     <!-- RETAIL -->
     <section id="panel-retail" class="panel" hidden>
-      <div class="toolbar">
-        <h2>Retail Operations</h2>
+      <div class="toolbar toolbar-no-title" aria-label="Retail actions">
         <input
           type="text"
           id="search-retail"
@@ -200,8 +198,7 @@
  
     <!-- HR -->
     <section id="panel-hr" class="panel" hidden>
-      <div class="toolbar">
-        <h2>HR & Staff</h2>
+      <div class="toolbar toolbar-no-title" aria-label="HR and staff actions">
         <input
           type="text"
           id="search-hr"
@@ -269,8 +266,7 @@
  
     <!-- MAINTENANCE -->
     <section id="panel-maint" class="panel" hidden>
-      <div class="toolbar">
-        <h2>Maintenance</h2>
+      <div class="toolbar toolbar-no-title" aria-label="Maintenance actions">
         <input
           type="text"
           id="search-maint"
@@ -352,8 +348,23 @@
  
     <!-- REPORTS -->
     <section id="panel-reports" class="panel" hidden>
-      <div class="toolbar">
-        <h2>Reports</h2>
+      <div class="toolbar toolbar-wrap" aria-label="Reports filters and actions">
+        <select id="reports-data-scope" class="reports-filter-select" title="All-time shows lifetime totals; date range enables charts">
+          <option value="range">Date range (charts)</option>
+          <option value="legacy">All-time snapshot</option>
+        </select>
+        <label class="reports-date-label">From
+          <input type="date" id="reports-date-from" class="input-search reports-date-input" />
+        </label>
+        <label class="reports-date-label">To
+          <input type="date" id="reports-date-to" class="input-search reports-date-input" />
+        </label>
+        <div class="reports-preset-row">
+          <span class="hint-inline">Presets:</span>
+          <button type="button" class="btn btn-small btn-ghost btn-reports-preset" data-days="7">7d</button>
+          <button type="button" class="btn btn-small btn-ghost btn-reports-preset" data-days="30">30d</button>
+          <button type="button" class="btn btn-small btn-ghost btn-reports-preset" data-days="90">90d</button>
+        </div>
         <input
           type="text"
           id="search-reports"
@@ -371,12 +382,38 @@
         </select>
         <button id="btn-refresh-reports" class="btn btn-ghost">Refresh</button>
       </div>
+      <p id="reports-range-summary" class="reports-range-summary hidden"></p>
       <div id="report-snapshot-grid" class="stat-grid"></div>
+      <div id="report-charts-wrap" class="report-charts-wrap hidden">
+        <h3 class="subheading">Visual summary</h3>
+        <div class="report-charts-grid">
+          <div class="report-chart-card" data-metric-type="ticket">
+            <div class="report-chart-title">Tickets issued per day</div>
+            <canvas id="chart-reports-tickets" height="220"></canvas>
+          </div>
+          <div class="report-chart-card" data-metric-type="retail">
+            <div class="report-chart-title">Retail revenue per day</div>
+            <canvas id="chart-reports-retail" height="220"></canvas>
+          </div>
+          <div class="report-chart-card" data-metric-type="incident review">
+            <div class="report-chart-title">Incidents &amp; visitor reviews per day</div>
+            <canvas id="chart-reports-incidents-reviews" height="220"></canvas>
+          </div>
+          <div class="report-chart-card" data-metric-type="ticket">
+            <div class="report-chart-title">Tickets by type</div>
+            <canvas id="chart-reports-ticket-types" height="260"></canvas>
+          </div>
+          <div class="report-chart-card" data-metric-type="retail">
+            <div class="report-chart-title">Retail transactions by type</div>
+            <canvas id="chart-reports-retail-types" height="260"></canvas>
+          </div>
+        </div>
+      </div>
     </section>
  
     <!-- SYSTEM -->
     <section id="panel-system" class="panel" hidden>
-      <div class="toolbar">
+      <div class="toolbar" aria-label="System checklist">
         <h2>System</h2>
         <input
           type="text"
@@ -395,8 +432,7 @@
  
     <!-- SECURITY -->
     <section id="panel-security" class="panel" hidden>
-      <div class="toolbar">
-        <h2>Security</h2>
+      <div class="toolbar toolbar-no-title" aria-label="Security actions">
         <input
           type="text"
           id="search-security"
@@ -473,479 +509,3 @@
  
 </body>
 </html>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="admin-api-origin" content="https://admin-portal-backend-c051.onrender.com" />
-  <title>Admin Portal — Theme Park</title>
-  <link rel="stylesheet" href="/admin/styles.css" />
-</head>
-
-<body>
-  <div class="noise"></div>
-
-  <header class="site-header">
-    <h1>Admin Portal</h1>
-  </header>
-
-  <!-- NAV -->
-  <nav class="tabs">
-    <button class="tab active" data-tab="dash">Dashboard</button>
-    <button class="tab" data-tab="users">Users & Access</button>
-    <button class="tab" data-tab="visitors">Visitors</button>
-    <button class="tab" data-tab="retail">Retail</button>
-    <button class="tab" data-tab="hr">HR & Staff</button>
-    <button class="tab" data-tab="maint">Maintenance</button>
-    <button class="tab" data-tab="park">Park & Rides</button>
-    <button class="tab" data-tab="reports">Reports</button>
-    <button class="tab" data-tab="system">System</button>
-    <button class="tab" data-tab="security">Security</button>
-  </nav>
-
-  <main>
-
-    <!-- DASHBOARD -->
-    <section id="panel-dash" class="panel active">
-      <div class="toolbar">
-        <h2>Dashboard</h2>
-        <input
-          type="text"
-          id="search-dash"
-          class="input-search panel-search"
-          data-panel-target="panel-dash"
-          placeholder="Search dashboard..."
-        />
-        <button id="btn-refresh-dash" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div id="stat-grid" class="stat-grid"></div>
-    </section>
-
-    <!-- USERS -->
-    <section id="panel-users" class="panel">
-
-      <div class="toolbar">
-        <h2>User & Access Management</h2>
-        <input
-          type="text"
-          id="search-users"
-          class="input-search panel-search"
-          data-panel-target="panel-users"
-          placeholder="Search users..."
-        />
-        <button id="btn-refresh-users" class="btn btn-ghost">Refresh</button>
-      </div>
-
-      <!-- EMPLOYEE TABLE -->
-      <h3>Internal Staff Directory</h3>
-
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Position</th>
-              <th>Salary</th>
-              <th>Hire</th>
-              <th>Mgr</th>
-              <th>Area</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-internal-users"></tbody>
-        </table>
-      </div>
-
-      <h3>Notification Log</h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Message</th>
-              <th>Retail</th>
-              <th>Item</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-admin-notifications"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- VISITORS -->
-    <section id="panel-visitors" class="panel" hidden>
-      <div class="toolbar">
-        <h2>Visitor Management</h2>
-        <input
-          type="text"
-          id="visitor-search-q"
-          class="input-search panel-search"
-          data-panel-target="panel-visitors"
-          placeholder="Search by name, email, phone..."
-        />
-        <button id="btn-visitor-search" class="btn btn-ghost">Search</button>
-        <button id="btn-refresh-visitors" class="btn btn-ghost">Refresh</button>
-      </div>
-
-      <h3>Visitors</h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Phone</th>
-              <th>Gender</th>
-              <th>Age</th>
-              <th>Status</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-visitors"></tbody>
-        </table>
-      </div>
-
-      <h3>Tickets</h3>
-      <div class="toolbar">
-        <input
-          type="text"
-          id="search-visitors-tickets"
-          class="input-search panel-search"
-          data-panel-target="panel-visitors"
-          placeholder="Filter visitors and tickets..."
-        />
-        <button id="btn-export-visitors" class="btn btn-ghost">Export Visitors</button>
-        <button id="btn-export-tickets" class="btn btn-ghost">Export Tickets</button>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Ticket #</th>
-              <th>Visitor</th>
-              <th>Email</th>
-              <th>Type</th>
-              <th>Discount</th>
-              <th>Price</th>
-              <th>Issued</th>
-              <th>Expiry</th>
-              <th>Active</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-visitor-tickets"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- RETAIL -->
-    <section id="panel-retail" class="panel" hidden>
-      <div class="toolbar">
-        <h2>Retail Operations</h2>
-        <input
-          type="text"
-          id="search-retail"
-          class="input-search panel-search"
-          data-panel-target="panel-retail"
-          placeholder="Search retail items..."
-        />
-        <button id="btn-refresh-retail" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Retail Shop</th>
-              <th>Area</th>
-              <th>Qty</th>
-              <th>Low Stock</th>
-              <th>Buy Price</th>
-              <th>Sell Price</th>
-              <th>Discount</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-retail"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- HR -->
-    <section id="panel-hr" class="panel" hidden>
-      <div class="toolbar">
-        <h2>HR & Staff</h2>
-        <input
-          type="text"
-          id="search-hr"
-          class="input-search panel-search"
-          data-panel-target="panel-hr"
-          placeholder="Search HR records..."
-        />
-        <button id="btn-refresh-hr" class="btn btn-ghost">Refresh</button>
-      </div>
-      <h3>Staff Directory</h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Position</th>
-              <th>Salary</th>
-              <th>Hire</th>
-              <th>Mgr</th>
-              <th>Area</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-hr-staff"></tbody>
-        </table>
-      </div>
-
-      <h3>Shifts</h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Shift ID</th>
-              <th>Employee ID</th>
-              <th>Employee</th>
-              <th>Date</th>
-              <th>Start</th>
-              <th>End</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-shifts"></tbody>
-        </table>
-      </div>
-
-      <div class="toolbar">
-        <button id="btn-export-visitor-reviews" class="btn btn-ghost">Export Visitor Reviews</button>
-      </div>
-      <h3>Visitor Reviews</h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Review ID</th>
-              <th>Visitor</th>
-              <th>Area</th>
-              <th>Rating</th>
-              <th>Date</th>
-              <th>Comment</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-hr-visitor-reviews"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- MAINTENANCE -->
-    <section id="panel-maint" class="panel" hidden>
-      <div class="toolbar">
-        <h2>Maintenance</h2>
-        <input
-          type="text"
-          id="search-maint"
-          class="input-search panel-search"
-          data-panel-target="panel-maint"
-          placeholder="Search maintenance records..."
-        />
-        <button id="btn-refresh-maint" class="btn btn-ghost">Refresh</button>
-      </div>
-      <h3>Alerts</h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Attraction</th>
-              <th>Severity</th>
-              <th>Message</th>
-              <th>Created</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-alerts"></tbody>
-        </table>
-      </div>
-
-      <h3>Assignments</h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Employee</th>
-              <th>Area</th>
-              <th>Task</th>
-              <th>Status</th>
-              <th>Due</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-assign"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- PARK -->
-    <section id="panel-park" class="panel" hidden>
-      <div class="toolbar">
-        <h2>Park & Rides</h2>
-        <input
-          type="text"
-          id="search-park"
-          class="input-search panel-search"
-          data-panel-target="panel-park"
-          placeholder="Search attractions..."
-        />
-        <button id="btn-refresh-park" class="btn btn-ghost">Refresh</button>
-      </div>
-      <h3>Areas</h3>
-      <div id="park-areas-list" class="card area-chip-row"></div>
-      <h3>Attractions</h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Area</th>
-              <th>Status</th>
-              <th>Queue</th>
-              <th>Severity</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-park-att"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- REPORTS -->
-    <section id="panel-reports" class="panel" hidden>
-      <div class="toolbar">
-        <h2>Reports</h2>
-        <input
-          type="text"
-          id="search-reports"
-          class="input-search panel-search"
-          data-panel-target="panel-reports"
-          placeholder="Search report metrics..."
-        />
-        <select id="reports-filter-type" class="reports-filter-select">
-          <option value="all">All metrics</option>
-          <option value="visitor">Visitor</option>
-          <option value="ticket">Ticket</option>
-          <option value="retail">Retail</option>
-          <option value="incident">Incident</option>
-          <option value="review">Review</option>
-        </select>
-        <button id="btn-refresh-reports" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div id="report-snapshot-grid" class="stat-grid"></div>
-    </section>
-
-    <!-- SYSTEM -->
-    <section id="panel-system" class="panel" hidden>
-      <div class="toolbar">
-        <h2>System</h2>
-        <input
-          type="text"
-          id="search-system"
-          class="input-search panel-search"
-          data-panel-target="panel-system"
-          placeholder="Search system checklist..."
-        />
-      </div>
-      <ul class="checklist">
-        <li>Admin API health checks and startup monitoring.</li>
-        <li>Cross-portal notification stream is visible in Admin.</li>
-        <li>Audit retention and backup policies are documented.</li>
-      </ul>
-    </section>
-
-    <!-- SECURITY -->
-    <section id="panel-security" class="panel" hidden>
-      <div class="toolbar">
-        <h2>Security</h2>
-        <input
-          type="text"
-          id="search-security"
-          class="input-search panel-search"
-          data-panel-target="panel-security"
-          placeholder="Search incidents and alerts..."
-        />
-        <button id="btn-refresh-security" class="btn btn-ghost">Refresh</button>
-      </div>
-      <div class="toolbar">
-        <button id="btn-export-incidents" class="btn btn-ghost">Export Incidents</button>
-      </div>
-      <h3>Incidents</h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Report ID</th>
-              <th>Employee</th>
-              <th>Type</th>
-              <th>Attraction ID</th>
-              <th>Item ID</th>
-              <th>Date</th>
-              <th>Description</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-security-incidents"></tbody>
-        </table>
-      </div>
-
-      <h3>Weather</h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Weather ID</th>
-              <th>Date</th>
-              <th>High</th>
-              <th>Low</th>
-              <th>Severity</th>
-              <th>Operation Status</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-security-weather"></tbody>
-        </table>
-      </div>
-
-      <h3>Notifications</h3>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Message</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-security-notifications"></tbody>
-        </table>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- TOAST -->
-  <div id="backend-status" class="backend-status hidden">
-    <span id="backend-status-text"></span>
-    <button id="btn-backend-retry" class="btn btn-ghost hidden">Retry</button>
-  </div>
-  <div id="toast" class="toast"></div>
-
-  <!-- SCRIPT -->
-  <script src="/admin/app.js"></script>
-
-</body>
-</html>
-

@@ -95,8 +95,20 @@ main {
   padding: 1.5rem;
 }
 
-.panel { display: none; }
-.panel.active { display: block; }
+.panel {
+  display: none;
+}
+/* Only the selected tab’s panel is shown (guards against stray active/hidden states). */
+.panel.active:not([hidden]) {
+  display: block;
+}
+.panel[hidden] {
+  display: none !important;
+}
+
+.toolbar-no-title {
+  justify-content: flex-start;
+}
 
 .toolbar {
   display: flex;
@@ -351,6 +363,65 @@ input:focus, select:focus, textarea:focus {
 }
 .reports-filter-select {
   min-width: 170px;
+}
+
+.toolbar-wrap {
+  justify-content: flex-start;
+  align-items: center;
+}
+.reports-date-label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--ash);
+  font-size: 0.82rem;
+}
+.reports-date-input {
+  min-width: 10.5rem;
+  max-width: 11rem;
+}
+.reports-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.hint-inline {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  margin-right: 0.15rem;
+}
+.reports-range-summary {
+  color: var(--text-dim);
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.report-charts-wrap {
+  margin-top: 1.5rem;
+}
+.report-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.25rem;
+}
+.report-chart-card {
+  background: var(--dark-card);
+  border: 1px solid rgba(139, 0, 0, 0.2);
+  border-radius: var(--radius);
+  padding: 1rem 1rem 0.75rem;
+  min-height: 260px;
+}
+.report-chart-card canvas {
+  max-height: 280px;
+}
+.report-chart-title {
+  font-family: "Cinzel Decorative", serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 0.65rem;
 }
 
 .hidden-by-filter {

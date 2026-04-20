@@ -291,7 +291,66 @@ export async function listNotificationLog(limit = 100) {
   }));
 }
 
-export async function getReportSnapshot() {
+export class ReportRangeError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ReportRangeError";
+  }
+}
+
+function sqlDayKey(d) {
+  if (d == null) return null;
+  if (d instanceof Date) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  return String(d).slice(0, 10);
+}
+
+function eachDayInclusive(from, to) {
+  const out = [];
+  const [fy, fm, fd] = from.split("-").map((x) => parseInt(x, 10));
+  const [ty, tm, td] = to.split("-").map((x) => parseInt(x, 10));
+  let cur = new Date(fy, fm - 1, fd);
+  const end = new Date(ty, tm - 1, td);
+  while (cur <= end) {
+    out.push(sqlDayKey(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+
+function parseReportRange(fromParam, toParam) {
+  const parseOne = (s) => {
+    if (s == null) return null;
+    const t = String(s).trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return null;
+    const [y, m, d] = t.split("-").map((x) => parseInt(x, 10));
+    const dt = new Date(y, m - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+    return t;
+  };
+  let from = parseOne(fromParam);
+  let to = parseOne(toParam);
+  if (!from && !to) {
+    throw new ReportRangeError("Provide both from and to as YYYY-MM-DD (inclusive).");
+  }
+  if (!from || !to) {
+    throw new ReportRangeError("from and to are both required for range reports (YYYY-MM-DD).");
+  }
+  if (from > to) throw new ReportRangeError("from must be on or before to.");
+  const fp = from.split("-").map((x) => parseInt(x, 10));
+  const tp = to.split("-").map((x) => parseInt(x, 10));
+  const fromD = new Date(fp[0], fp[1] - 1, fp[2]);
+  const toD = new Date(tp[0], tp[1] - 1, tp[2]);
+  const days = Math.floor((toD - fromD) / (24 * 60 * 60 * 1000)) + 1;
+  if (days > 366) throw new ReportRangeError("Date range cannot exceed 366 days.");
+  return { from, to };
+}
+
+async function getReportSnapshotLegacy() {
   const p = getPool();
   const [
     [[{ visitorsTotal }]],
@@ -328,6 +387,7 @@ export async function getReportSnapshot() {
   const visitorReviewsAvg30dNum =
     avgRaw != null && Number.isFinite(Number(avgRaw)) ? Number(avgRaw) : null;
   return {
+    mode: "legacy",
     visitorsTotal,
     visitorsActive,
     ticketsTotal,
@@ -339,6 +399,160 @@ export async function getReportSnapshot() {
     visitorReviewsLast30d,
     visitorReviewsAvgRating30d: visitorReviewsAvg30dNum,
   };
+}
+
+async function getReportSnapshotRanged(from, to) {
+  const p = getPool();
+  const rangeArgs = [from, to];
+  const [
+    [[{ visitorSignups }]],
+    [[{ visitorsActiveNow }]],
+    [[{ ticketsIssued }]],
+    [[{ ticketsActiveIssued }]],
+    [[{ retailTxCount }]],
+    [[{ retailRevenue }]],
+    [[{ incidentsCount }]],
+    [[{ visitorReviewsCount }]],
+    [[{ visitorReviewsAvgRating }]],
+    [ticketByDay],
+    [retailByDay],
+    [incidentsByDay],
+    [reviewsByDay],
+    [ticketsByTypeRows],
+    [retailByTypeRows],
+  ] = await Promise.all([
+    p.execute(
+      `SELECT COUNT(*) AS visitorSignups FROM visitor
+       WHERE DATE(CreatedAt) >= ? AND DATE(CreatedAt) <= ?`,
+      rangeArgs
+    ),
+    p.execute("SELECT COUNT(*) AS visitorsActiveNow FROM visitor WHERE IsActive = 1"),
+    p.execute(
+      `SELECT COUNT(*) AS ticketsIssued FROM ticket
+       WHERE IssueDate >= ? AND IssueDate <= ?`,
+      rangeArgs
+    ),
+    p.execute(
+      `SELECT COUNT(*) AS ticketsActiveIssued FROM ticket
+       WHERE IssueDate >= ? AND IssueDate <= ? AND IsActive = 1`,
+      rangeArgs
+    ),
+    p.execute(
+      `SELECT COUNT(*) AS retailTxCount FROM transactionlog
+       WHERE Date >= ? AND Date <= ?`,
+      rangeArgs
+    ),
+    p.execute(
+      `SELECT COALESCE(SUM(TotalCost), 0) AS retailRevenue FROM transactionlog
+       WHERE Date >= ? AND Date <= ?`,
+      rangeArgs
+    ),
+    p.execute(
+      `SELECT COUNT(*) AS incidentsCount FROM incidentreport
+       WHERE DATE(ReportDate) >= ? AND DATE(ReportDate) <= ?`,
+      rangeArgs
+    ),
+    p.execute(
+      `SELECT COUNT(*) AS visitorReviewsCount FROM review
+       WHERE IsActive = 1 AND DateSubmitted >= ? AND DateSubmitted <= ?`,
+      rangeArgs
+    ),
+    p.execute(
+      `SELECT AVG(Feedback) AS visitorReviewsAvgRating FROM review
+       WHERE IsActive = 1 AND DateSubmitted >= ? AND DateSubmitted <= ?`,
+      rangeArgs
+    ),
+    p.execute(
+      `SELECT IssueDate AS d, COUNT(*) AS n FROM ticket
+       WHERE IssueDate >= ? AND IssueDate <= ? GROUP BY IssueDate ORDER BY IssueDate`,
+      rangeArgs
+    ),
+    p.execute(
+      `SELECT Date AS d, COALESCE(SUM(TotalCost), 0) AS revenue FROM transactionlog
+       WHERE Date >= ? AND Date <= ? GROUP BY Date ORDER BY Date`,
+      rangeArgs
+    ),
+    p.execute(
+      `SELECT DATE(ReportDate) AS d, COUNT(*) AS n FROM incidentreport
+       WHERE DATE(ReportDate) >= ? AND DATE(ReportDate) <= ? GROUP BY DATE(ReportDate) ORDER BY d`,
+      rangeArgs
+    ),
+    p.execute(
+      `SELECT DATE(DateSubmitted) AS d, COUNT(*) AS n FROM review
+       WHERE IsActive = 1 AND DateSubmitted >= ? AND DateSubmitted <= ? GROUP BY DATE(DateSubmitted) ORDER BY d`,
+      rangeArgs
+    ),
+    p.execute(
+      `SELECT TicketType AS ticketType, COUNT(*) AS n FROM ticket
+       WHERE IssueDate >= ? AND IssueDate <= ? GROUP BY TicketType ORDER BY n DESC`,
+      rangeArgs
+    ),
+    p.execute(
+      `SELECT Type AS txType, COUNT(*) AS n, COALESCE(SUM(TotalCost), 0) AS revenue FROM transactionlog
+       WHERE Date >= ? AND Date <= ? GROUP BY Type ORDER BY n DESC`,
+      rangeArgs
+    ),
+  ]);
+
+  const toMap = (rows, keyCol, valCol) => {
+    const m = new Map();
+    for (const r of rows) {
+      const k = sqlDayKey(r[keyCol]);
+      if (k) m.set(k, Number(r[valCol]) || 0);
+    }
+    return m;
+  };
+
+  const tMap = toMap(ticketByDay, "d", "n");
+  const rMap = toMap(retailByDay, "d", "revenue");
+  const iMap = toMap(incidentsByDay, "d", "n");
+  const vMap = toMap(reviewsByDay, "d", "n");
+
+  const days = eachDayInclusive(from, to);
+  const seriesDaily = days.map((day) => ({
+    day,
+    ticketsIssued: tMap.get(day) || 0,
+    retailRevenue: rMap.get(day) || 0,
+    incidents: iMap.get(day) || 0,
+    reviews: vMap.get(day) || 0,
+  }));
+
+  const avgRaw = visitorReviewsAvgRating;
+  const visitorReviewsAvgNum =
+    avgRaw != null && Number.isFinite(Number(avgRaw)) ? Number(avgRaw) : null;
+
+  return {
+    mode: "range",
+    range: { from, to },
+    visitorSignups,
+    visitorsActiveNow,
+    ticketsIssued,
+    ticketsActiveIssued,
+    retailTxCount,
+    retailRevenue: retailRevenue != null ? Number(retailRevenue) : 0,
+    incidentsCount,
+    visitorReviewsCount,
+    visitorReviewsAvgRating: visitorReviewsAvgNum,
+    seriesDaily,
+    ticketsByType: ticketsByTypeRows.map((r) => ({
+      ticketType: String(r.ticketType ?? "—"),
+      count: Number(r.n) || 0,
+    })),
+    retailByType: retailByTypeRows.map((r) => ({
+      txType: String(r.txType ?? "—"),
+      count: Number(r.n) || 0,
+      revenue: r.revenue != null ? Number(r.revenue) : 0,
+    })),
+  };
+}
+
+/** @param {string | null} fromParam @param {string | null} toParam */
+export async function getReportSnapshot(fromParam, toParam) {
+  const fromRaw = fromParam != null ? String(fromParam).trim() : "";
+  const toRaw = toParam != null ? String(toParam).trim() : "";
+  if (!fromRaw && !toRaw) return getReportSnapshotLegacy();
+  const { from, to } = parseReportRange(fromRaw, toRaw);
+  return getReportSnapshotRanged(from, to);
 }
 
 /** Visitor-area reviews (1–10 + comment), including rows synced from the visitor portal feedback form — for HR / reporting. */

@@ -44,7 +44,17 @@ function showToast(msg, err) {
 }
 
 function panelSearchSelector(panelId) {
-  return "#" + panelId + " .table-wrap tbody tr, #" + panelId + " .stat-card, #" + panelId + " .checklist li";
+  return (
+    "#" +
+    panelId +
+    " .table-wrap tbody tr, #" +
+    panelId +
+    " .stat-card, #" +
+    panelId +
+    " .report-chart-card, #" +
+    panelId +
+    " .checklist li"
+  );
 }
 
 function applyPanelTextFilter(panelId, query) {
@@ -64,13 +74,290 @@ function applyReportsFilter() {
   const selectEl = $("#reports-filter-type");
   const q = String(searchEl && searchEl.value ? searchEl.value : "").trim().toLowerCase();
   const category = selectEl && selectEl.value ? selectEl.value : "all";
-  panel.querySelectorAll(".stat-card").forEach(function (card) {
+  panel.querySelectorAll(".stat-card, .report-chart-card").forEach(function (card) {
     const txt = (card.textContent || "").toLowerCase();
-    const metricType = card.getAttribute("data-metric-type") || "all";
+    const raw = card.getAttribute("data-metric-type");
+    const types =
+      raw != null && String(raw).trim() !== ""
+        ? String(raw).trim().split(/\s+/).filter(Boolean)
+        : [];
     const matchesText = !q || txt.indexOf(q) !== -1;
-    const matchesCategory = category === "all" || metricType === category;
+    const matchesCategory =
+      category === "all" || (types.length > 0 && types.indexOf(category) !== -1);
     card.classList.toggle("hidden-by-filter", !(matchesText && matchesCategory));
   });
+}
+
+function localYmd(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return y + "-" + m + "-" + day;
+}
+
+function initReportsDateDefaults() {
+  const fromEl = $("#reports-date-from");
+  const toEl = $("#reports-date-to");
+  if (!fromEl || !toEl) return;
+  if (fromEl.value && toEl.value) return;
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - 30);
+  toEl.value = localYmd(to);
+  fromEl.value = localYmd(from);
+}
+
+function setReportsPresetDays(days) {
+  const toEl = $("#reports-date-to");
+  const fromEl = $("#reports-date-from");
+  if (!toEl || !fromEl) return;
+  const n = Math.min(Math.max(Number(days) || 0, 1), 366);
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - (n - 1));
+  toEl.value = localYmd(to);
+  fromEl.value = localYmd(from);
+}
+
+function updateReportsScopeUi() {
+  const scope = $("#reports-data-scope");
+  const fromEl = $("#reports-date-from");
+  const toEl = $("#reports-date-to");
+  const legacy = scope && scope.value === "legacy";
+  if (fromEl) fromEl.disabled = !!legacy;
+  if (toEl) toEl.disabled = !!legacy;
+  document.querySelectorAll(".btn-reports-preset").forEach(function (b) {
+    b.disabled = !!legacy;
+  });
+}
+
+function buildReportsApiPath() {
+  const scope = $("#reports-data-scope");
+  if (scope && scope.value === "legacy") return "/reports/snapshot";
+  const fromEl = $("#reports-date-from");
+  const toEl = $("#reports-date-to");
+  if (!fromEl || !toEl || !fromEl.value || !toEl.value) return "/reports/snapshot";
+  return (
+    "/reports/snapshot?from=" +
+    encodeURIComponent(fromEl.value) +
+    "&to=" +
+    encodeURIComponent(toEl.value)
+  );
+}
+
+let reportChartInstances = [];
+
+function destroyReportCharts() {
+  reportChartInstances.forEach(function (c) {
+    try {
+      c.destroy();
+    } catch (e) {
+      /* ignore */
+    }
+  });
+  reportChartInstances = [];
+}
+
+function renderReportCharts(snap) {
+  destroyReportCharts();
+  if (snap.mode !== "range" || typeof Chart === "undefined") return;
+  const axisColor = "rgba(224, 218, 204, 0.7)";
+  const gridColor = "rgba(139, 0, 0, 0.12)";
+  const font = { family: "'Crimson Text', serif", size: 12 };
+  const commonScale = {
+    ticks: { color: axisColor, font: font, maxTicksLimit: 12 },
+    grid: { color: gridColor },
+  };
+  const series = snap.seriesDaily || [];
+  const labels = series.map(function (r) {
+    return r.day;
+  });
+
+  const elTickets = document.getElementById("chart-reports-tickets");
+  if (elTickets) {
+    reportChartInstances.push(
+      new Chart(elTickets, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "Tickets issued",
+              data: series.map(function (r) {
+                return r.ticketsIssued;
+              }),
+              borderColor: "rgba(197, 165, 114, 0.95)",
+              backgroundColor: "rgba(197, 165, 114, 0.12)",
+              fill: true,
+              tension: 0.25,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: axisColor, font: font } } },
+          scales: { x: commonScale, y: { ...commonScale, beginAtZero: true } },
+        },
+      })
+    );
+  }
+
+  const elRetail = document.getElementById("chart-reports-retail");
+  if (elRetail) {
+    reportChartInstances.push(
+      new Chart(elRetail, {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "Revenue",
+              data: series.map(function (r) {
+                return r.retailRevenue;
+              }),
+              backgroundColor: "rgba(139, 0, 0, 0.55)",
+              borderColor: "rgba(139, 0, 0, 0.85)",
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: axisColor, font: font } } },
+          scales: { x: commonScale, y: { ...commonScale, beginAtZero: true } },
+        },
+      })
+    );
+  }
+
+  const elOps = document.getElementById("chart-reports-incidents-reviews");
+  if (elOps) {
+    reportChartInstances.push(
+      new Chart(elOps, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "Incidents",
+              data: series.map(function (r) {
+                return r.incidents;
+              }),
+              borderColor: "rgba(139, 0, 0, 0.9)",
+              backgroundColor: "rgba(139, 0, 0, 0.08)",
+              fill: true,
+              tension: 0.25,
+              yAxisID: "y",
+            },
+            {
+              label: "Reviews",
+              data: series.map(function (r) {
+                return r.reviews;
+              }),
+              borderColor: "rgba(120, 160, 140, 0.95)",
+              backgroundColor: "rgba(120, 160, 140, 0.1)",
+              fill: true,
+              tension: 0.25,
+              yAxisID: "y1",
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: axisColor, font: font } } },
+          scales: {
+            x: commonScale,
+            y: {
+              type: "linear",
+              position: "left",
+              beginAtZero: true,
+              ticks: { color: axisColor, font: font },
+              grid: { color: gridColor },
+              title: { display: true, text: "Incidents", color: axisColor, font: font },
+            },
+            y1: {
+              type: "linear",
+              position: "right",
+              beginAtZero: true,
+              ticks: { color: axisColor, font: font },
+              grid: { drawOnChartArea: false },
+              title: { display: true, text: "Reviews", color: axisColor, font: font },
+            },
+          },
+        },
+      })
+    );
+  }
+
+  const pieColors = [
+    "rgba(197, 165, 114, 0.85)",
+    "rgba(139, 0, 0, 0.75)",
+    "rgba(120, 160, 140, 0.8)",
+    "rgba(140, 140, 200, 0.8)",
+    "rgba(200, 160, 120, 0.8)",
+    "rgba(160, 160, 160, 0.75)",
+  ];
+
+  const elTypes = document.getElementById("chart-reports-ticket-types");
+  if (elTypes && snap.ticketsByType && snap.ticketsByType.length) {
+    reportChartInstances.push(
+      new Chart(elTypes, {
+        type: "pie",
+        data: {
+          labels: snap.ticketsByType.map(function (t) {
+            return t.ticketType;
+          }),
+          datasets: [
+            {
+              data: snap.ticketsByType.map(function (t) {
+                return t.count;
+              }),
+              backgroundColor: snap.ticketsByType.map(function (_t, i) {
+                return pieColors[i % pieColors.length];
+              }),
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: "bottom", labels: { color: axisColor, font: font } } },
+        },
+      })
+    );
+  }
+
+  const elRetailTypes = document.getElementById("chart-reports-retail-types");
+  if (elRetailTypes && snap.retailByType && snap.retailByType.length) {
+    reportChartInstances.push(
+      new Chart(elRetailTypes, {
+        type: "doughnut",
+        data: {
+          labels: snap.retailByType.map(function (t) {
+            return t.txType;
+          }),
+          datasets: [
+            {
+              data: snap.retailByType.map(function (t) {
+                return t.count;
+              }),
+              backgroundColor: snap.retailByType.map(function (_t, i) {
+                return pieColors[i % pieColors.length];
+              }),
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: "bottom", labels: { color: axisColor, font: font } } },
+        },
+      })
+    );
+  }
 }
 
 function setBackendStatus(message, options = {}) {
@@ -457,28 +744,73 @@ async function loadParkPanel() {
 }
 
 async function loadReportsPanel() {
-  const snap = await apiGet("/reports/snapshot");
+  const path = buildReportsApiPath();
+  const snap = await apiGet(path);
   const g = $("#report-snapshot-grid");
+  const wrap = $("#report-charts-wrap");
+  const summaryEl = $("#reports-range-summary");
+  if (summaryEl) {
+    if (snap.mode === "range" && snap.range) {
+      summaryEl.classList.remove("hidden");
+      summaryEl.textContent =
+        "Period " + snap.range.from + " → " + snap.range.to + " (inclusive). Metrics below are limited to this window unless noted.";
+    } else {
+      summaryEl.classList.add("hidden");
+      summaryEl.textContent = "";
+    }
+  }
+  if (wrap) {
+    if (snap.mode === "range") {
+      wrap.classList.remove("hidden");
+      renderReportCharts(snap);
+    } else {
+      wrap.classList.add("hidden");
+      destroyReportCharts();
+    }
+  }
   if (g) {
-    const avgRaw = snap.visitorReviewsAvgRating30d;
-    const avg30 =
-      avgRaw != null && Number.isFinite(Number(avgRaw)) ? Number(avgRaw).toFixed(2) : "—";
-    const cards = [
-      ["Visitors (total)", snap.visitorsTotal, "visitor"],
-      ["Visitors (active accts)", snap.visitorsActive, "visitor"],
-      ["Tickets issued", snap.ticketsTotal, "ticket"],
-      ["Tickets active", snap.ticketsActive, "ticket"],
-      ["Retail transactions", snap.retailTxCount, "retail"],
-      ["Retail revenue (sum)", snap.retailRevenue.toFixed(2), "retail"],
-      ["Incidents (90d)", snap.incidents90d, "incident"],
-      ["Visitor reviews (total)", snap.visitorReviewsTotal ?? "—", "review"],
-      ["Visitor reviews (30d)", snap.visitorReviewsLast30d ?? "—", "review"],
-      ["Avg visitor rating (30d, 1–10)", avg30, "review"],
-    ];
+    let cards;
+    if (snap.mode === "range") {
+      const avgRaw = snap.visitorReviewsAvgRating;
+      const avgP =
+        avgRaw != null && Number.isFinite(Number(avgRaw)) ? Number(avgRaw).toFixed(2) : "—";
+      cards = [
+        ["New visitor registrations", snap.visitorSignups, "visitor"],
+        ["Active visitor accounts (now)", snap.visitorsActiveNow, "visitor"],
+        ["Tickets issued (period)", snap.ticketsIssued, "ticket"],
+        ["Active tickets issued in period", snap.ticketsActiveIssued, "ticket"],
+        ["Retail transactions (period)", snap.retailTxCount, "retail"],
+        ["Retail revenue (period)", snap.retailRevenue.toFixed(2), "retail"],
+        ["Incidents (period)", snap.incidentsCount, "incident"],
+        ["Visitor reviews (period)", snap.visitorReviewsCount ?? "—", "review"],
+        ["Avg visitor rating (period, 1–10)", avgP, "review"],
+      ];
+    } else {
+      const avgRaw = snap.visitorReviewsAvgRating30d;
+      const avg30 =
+        avgRaw != null && Number.isFinite(Number(avgRaw)) ? Number(avgRaw).toFixed(2) : "—";
+      cards = [
+        ["Visitors (total)", snap.visitorsTotal, "visitor"],
+        ["Visitors (active accts)", snap.visitorsActive, "visitor"],
+        ["Tickets issued", snap.ticketsTotal, "ticket"],
+        ["Tickets active", snap.ticketsActive, "ticket"],
+        ["Retail transactions", snap.retailTxCount, "retail"],
+        ["Retail revenue (sum)", snap.retailRevenue.toFixed(2), "retail"],
+        ["Incidents (90d)", snap.incidents90d, "incident"],
+        ["Visitor reviews (total)", snap.visitorReviewsTotal ?? "—", "review"],
+        ["Visitor reviews (30d)", snap.visitorReviewsLast30d ?? "—", "review"],
+        ["Avg visitor rating (30d, 1–10)", avg30, "review"],
+      ];
+    }
     g.innerHTML = cards.map(function (c) {
       return (
-        '<div class="stat-card" data-metric-type="' + escapeHtml(c[2]) + '"><div class="label">' + escapeHtml(c[0]) + '</div><div class="value">' +
-        escapeHtml(c[1]) + "</div></div>"
+        '<div class="stat-card" data-metric-type="' +
+        escapeHtml(c[2]) +
+        '"><div class="label">' +
+        escapeHtml(c[0]) +
+        '</div><div class="value">' +
+        escapeHtml(c[1]) +
+        "</div></div>"
       );
     }).join("");
     applyReportsFilter();
@@ -748,6 +1080,48 @@ const reportFilterType = $("#reports-filter-type");
 if (reportFilterType) {
   reportFilterType.addEventListener("change", applyReportsFilter);
 }
+
+const reportScope = $("#reports-data-scope");
+if (reportScope) {
+  reportScope.addEventListener("change", function () {
+    if (reportScope.value === "range") {
+      initReportsDateDefaults();
+    }
+    updateReportsScopeUi();
+    loadReportsPanel().catch(function (e) {
+      showToast(e.message, true);
+    });
+  });
+}
+
+document.querySelectorAll(".btn-reports-preset").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    const days = parseInt(btn.getAttribute("data-days"), 10);
+    if (!Number.isFinite(days)) return;
+    setReportsPresetDays(days);
+    const scope = $("#reports-data-scope");
+    if (scope) scope.value = "range";
+    updateReportsScopeUi();
+    loadReportsPanel().catch(function (e) {
+      showToast(e.message, true);
+    });
+  });
+});
+
+["reports-date-from", "reports-date-to"].forEach(function (id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener("change", function () {
+    const scope = $("#reports-data-scope");
+    if (!scope || scope.value !== "range") return;
+    loadReportsPanel().catch(function (e) {
+      showToast(e.message, true);
+    });
+  });
+});
+
+initReportsDateDefaults();
+updateReportsScopeUi();
 
 async function exportVisitorsCsv() {
   const rows = await apiGet("/visitors?limit=500");
