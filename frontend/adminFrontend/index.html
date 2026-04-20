@@ -1,10 +1,10 @@
-c<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Optional: origin only (no /api). Empty = auto: localhost uses same-origin /api; production uses homepage Render service. -->
-  <meta name="admin-api-origin" content="" />
+  <meta name="admin-api-origin" content="https://admin-portal-backend-c051.onrender.com" />
   <title>Admin Portal — Theme Park</title>
   <link rel="stylesheet" href="/admin/styles.css" />
 </head>
@@ -27,6 +27,10 @@ c<!DOCTYPE html>
     <button type="button" class="tab" data-tab="security">Security</button>
   </nav>
   <main>
+    <div id="backend-status" class="backend-status hidden" role="status" aria-live="polite">
+      <span id="backend-status-text">Connecting to backend service…</span>
+      <button type="button" id="btn-backend-retry" class="btn btn-ghost btn-small hidden">Retry now</button>
+    </div>
     <section id="panel-dash" class="panel active" role="tabpanel">
       <div class="toolbar">
         <h2>Dashboard</h2>
@@ -303,4 +307,3 @@ c<!DOCTYPE html>
   <script src="/admin/app.js"></script>
 </body>
 </html>
-
