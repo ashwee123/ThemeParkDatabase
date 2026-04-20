@@ -335,13 +335,13 @@ async function loadRideOperations() {
       var open       = allOpsData.filter(function (r) { return r.Status === "Open"; }).length;
       var needsMaint = allOpsData.filter(function (r) { return r.Status === "NeedsMaintenance" || r.Status === "UnderMaintenance"; }).length;
       var weather    = allOpsData.filter(function (r) { return r.Status === "ClosedDueToWeather"; }).length;
-      var hasAlerts  = allOpsData.filter(function (r) { return r.alerts && r.alerts.length > 0; }).length;
+      var totalAlerts = allOpsData.reduce(function (s, r) { return s + (r.alerts ? r.alerts.length : 0); }, 0);
       cards.innerHTML =
         '<div class="perf-card"><h3>Total Attractions</h3><p class="stat-number">' + total + "</p></div>"
         + '<div class="perf-card"><h3>Operational</h3><p class="stat-number" style="color:#27ae60">' + open + "</p></div>"
         + '<div class="perf-card"><h3>Under / Needs Maintenance</h3><p class="stat-number" style="color:var(--ember)">' + needsMaint + "</p></div>"
         + '<div class="perf-card"><h3>Weather Closures</h3><p class="stat-number" style="color:#3498db">' + weather + "</p></div>"
-        + '<div class="perf-card"><h3>Active Trigger Alerts</h3><p class="stat-number" style="color:var(--blood-light)">' + hasAlerts + "</p></div>";
+        + '<div class="perf-card"><h3>Active Trigger Alerts</h3><p class="stat-number" style="color:var(--blood-light)">' + totalAlerts + "</p></div>";
     }
     renderOpsTable();
   } catch (err) {
@@ -462,11 +462,12 @@ async function loadTaskSummary() {
 
     var cards = document.getElementById("task-summary-cards");
     if (cards) {
-      var total  = stats.reduce(function (s, r) { return s + Number(r.count || 0); }, 0);
       var inProg = stats.find(function (r) { return r.Status === "In Progress"; });
       var pend   = stats.find(function (r) { return r.Status === "Pending"; });
+      // Total = active tasks only (Pending + In Progress); Completed tasks move to Maintenance History
+      var total  = ((inProg && Number(inProg.count)) || 0) + ((pend && Number(pend.count)) || 0);
       cards.innerHTML =
-        '<div class="perf-card"><h3>Total Tasks</h3><p class="stat-number">' + total + "</p></div>"
+        '<div class="perf-card"><h3>Active Tasks</h3><p class="stat-number">' + total + "</p></div>"
         + '<div class="perf-card"><h3>In Progress</h3><p class="stat-number" style="color:var(--gold)">' + ((inProg && inProg.count) || 0) + "</p></div>"
         + '<div class="perf-card"><h3>Pending</h3><p class="stat-number" style="color:var(--ember)">'    + ((pend   && pend.count)   || 0) + "</p></div>"
         + '<div class="perf-card"><h3>Overdue</h3><p class="stat-number" style="color:var(--blood-light)">' + overdue + "</p></div>";

@@ -448,7 +448,7 @@ const server = http.createServer(async (req, res) => {
         const key = (row.AreaName || "").trim().toLowerCase();
         if (areaMap.has(key)) {
           const e = areaMap.get(key);
-          e.total          += Number(row.historyTotal) + Number(row.taskTotal);  // ← change this line
+          e.total          += Number(row.historyTotal);  // history only — matches severity counts
           e.highSeverity   += Number(row.highSeverity);
           e.mediumSeverity += Number(row.mediumSeverity);
           e.lowSeverity    += Number(row.lowSeverity);
@@ -457,7 +457,7 @@ const server = http.createServer(async (req, res) => {
         } else {
           areaMap.set(key, {
             AreaID: row.AreaID, AreaName: row.AreaName,
-            total:          Number(row.historyTotal) + Number(row.taskTotal),  // combined
+            total:          Number(row.historyTotal),  // history only — matches severity counts
             highSeverity:   Number(row.highSeverity),
             mediumSeverity: Number(row.mediumSeverity),
             lowSeverity:    Number(row.lowSeverity),
