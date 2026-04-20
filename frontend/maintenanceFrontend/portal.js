@@ -469,8 +469,7 @@ async function loadTaskSummary() {
         '<div class="perf-card"><h3>Total Tasks</h3><p class="stat-number">' + total + "</p></div>"
         + '<div class="perf-card"><h3>In Progress</h3><p class="stat-number" style="color:var(--gold)">' + ((inProg && inProg.count) || 0) + "</p></div>"
         + '<div class="perf-card"><h3>Pending</h3><p class="stat-number" style="color:var(--ember)">'    + ((pend   && pend.count)   || 0) + "</p></div>"
-        + '<div class="perf-card"><h3>Overdue</h3><p class="stat-number" style="color:var(--blood-light)">' + overdue + "</p></div>"
-        + '<div class="perf-card"><h3>Completion Rate</h3><p class="stat-number" style="color:#2ecc71">' + rate + "%</p></div>";
+        + '<div class="perf-card"><h3>Overdue</h3><p class="stat-number" style="color:var(--blood-light)">' + overdue + "</p></div>";
     }
     renderPieChart(stats);
     renderBarChart(dedupedByArea);
@@ -558,6 +557,7 @@ async function loadMaintenanceHistory() {
       var total        = rows.length;
       var high         = rows.filter(function (r) { return r.Severity === "High"; }).length;
       var ongoingCount = rows.filter(function (r) { return !r.DateEnd; }).length;
+      var done         = rows.filter(function (r) { return r.DateEnd; }).length;
       cards.innerHTML =
         '<div class="perf-card"><h3>Total Records</h3><p class="stat-number">' + total + "</p></div>"
         + '<div class="perf-card"><h3>High Severity</h3><p class="stat-number" style="color:var(--blood-light)">' + high + "</p></div>"

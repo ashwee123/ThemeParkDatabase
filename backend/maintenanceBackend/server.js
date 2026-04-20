@@ -344,9 +344,11 @@ const server = http.createServer(async (req, res) => {
 
       // Same unhandled alerts as the notifications/alerts tab
       const [alerts] = await db.query(`
-        SELECT ma.AttractionID, ma.SeverityLevel, ma.AlertMessage,
-              DATE_FORMAT(ma.CreatedAt, '%Y-%m-%d %H:%i') AS CreatedAt
-        FROM activemaintenancealerts ma
+        SELECT ma.AttractionID, a.SeverityLevel, ma.AlertMessage,
+               DATE_FORMAT(ma.CreatedAt, '%Y-%m-%d %H:%i') AS CreatedAt
+        FROM maintenancealert ma
+        JOIN attraction a ON ma.AttractionID = a.AttractionID
+        WHERE ma.Handled = 'No'
       `);
 
       // Active maintenance (same source as notifications shutdown list)
