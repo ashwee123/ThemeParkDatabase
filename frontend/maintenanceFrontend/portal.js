@@ -201,12 +201,12 @@ async function populateDropdowns() {
     var attractions = toArray(results[2]);
 
     // Deduplicate areas by AreaID
-    var seenAreaIds = new Set();
-    areas = areas.filter(function (a) {
-      if (seenAreaIds.has(a.AreaID)) return false;
-      seenAreaIds.add(a.AreaID);
-      return true;
+    var seen = new Map();
+    areas.forEach(function (a) {
+      var key = (a.AreaName || "").trim().toLowerCase();
+      if (!seen.has(key)) seen.set(key, a);
     });
+    areas = Array.from(seen.values());
 
     fillSelect("select-employee",       employees,   "EmployeeID",   function (e) { return e.Name + " (" + (e.Position || "Staff") + ")"; });
     fillSelect("select-area",           areas,       "AreaID",       function (a) { return a.AreaName; }, true);
@@ -345,8 +345,14 @@ async function loadRideOperations() {
     }
     renderOpsTable();
   } catch (err) {
-    console.error("loadRideOperations:", err);
-    if (tbody) tbody.innerHTML = "<tr><td colspan='8' style='text-align:center;color:var(--blood-light);padding:20px;'>Failed to load ride operations. Check that your backend is running.</td></tr>";
+    console.error("loadRideOperations FULL ERROR:", err);
+    console.error("Token:", token);
+
+    if (tbody) tbody.innerHTML =
+      "<tr><td colspan='8' style='text-align:center;color:var(--blood-light);padding:20px;'>"
+      + "Failed to load ride operations.<br>"
+      + (err.message || "Unknown error")
+      + "</td></tr>";
   }
 }
 
@@ -442,14 +448,12 @@ async function loadTaskSummary() {
         var e = areaMap.get(key);
         e.pending    += Number(row.pending    || 0);
         e.inProgress += Number(row.inProgress || 0);
-        e.completed  += Number(row.completed  || 0);
         e.overdue    += Number(row.overdue    || 0);
       } else {
         areaMap.set(key, {
           AreaName:   row.AreaName,
           pending:    Number(row.pending    || 0),
           inProgress: Number(row.inProgress || 0),
-          completed:  Number(row.completed  || 0),
           overdue:    Number(row.overdue    || 0),
         });
       }
@@ -459,13 +463,11 @@ async function loadTaskSummary() {
     var cards = document.getElementById("task-summary-cards");
     if (cards) {
       var total  = stats.reduce(function (s, r) { return s + Number(r.count || 0); }, 0);
-      var done   = stats.find(function (r) { return r.Status === "Completed"; });
       var inProg = stats.find(function (r) { return r.Status === "In Progress"; });
       var pend   = stats.find(function (r) { return r.Status === "Pending"; });
       var rate   = total ? Math.round((Number((done && done.count) || 0) / total) * 100) : 0;
       cards.innerHTML =
         '<div class="perf-card"><h3>Total Tasks</h3><p class="stat-number">' + total + "</p></div>"
-        + '<div class="perf-card"><h3>Completed</h3><p class="stat-number" style="color:#2ecc71">'        + ((done   && done.count)   || 0) + "</p></div>"
         + '<div class="perf-card"><h3>In Progress</h3><p class="stat-number" style="color:var(--gold)">' + ((inProg && inProg.count) || 0) + "</p></div>"
         + '<div class="perf-card"><h3>Pending</h3><p class="stat-number" style="color:var(--ember)">'    + ((pend   && pend.count)   || 0) + "</p></div>"
         + '<div class="perf-card"><h3>Overdue</h3><p class="stat-number" style="color:var(--blood-light)">' + overdue + "</p></div>"
@@ -668,7 +670,7 @@ function renderFreqBarChart(data, grandTotal) {
       datasets: [{ label: "% of All Maintenance Events",
         data: data.map(function (d) { return grandTotal > 0 ? parseFloat(((d.total / grandTotal) * 100).toFixed(1)) : 0; }),
         backgroundColor: data.map(function (d, i) {
-          return ["rgba(139,0,0,0.8)","rgba(212,88,10,0.8)","rgba(201,168,76,0.8)","rgba(46,204,113,0.8)","rgba(41,128,185,0.8)","rgba(142,68,211,0.8)"][i % 6];
+          return ["rgba(139,0,0,0.8)","rgba(212,88,10,0.8)","rgba(201,168,76,0.8)","rgba(41,128,185,0.8)","rgba(142,68,211,0.8)"][i % 6];
         }), borderRadius: 4 }],
     },
     options: {
@@ -713,8 +715,8 @@ function renderPieChart(taskStats) {
   var ctx = document.getElementById("chart-status-pie");
   if (!ctx) return;
   if (pieChartInstance) { pieChartInstance.destroy(); pieChartInstance = null; }
-  var colorMap = { "Pending": "#d4580a", "In Progress": "#c9a84c", "Completed": "#2ecc71" };
-  var allStatuses = ["Pending","In Progress","Completed"];
+  var colorMap = { "Pending": "#d4580a", "In Progress": "#c9a84c"};
+  var allStatuses = ["Pending","In Progress"];
   var statLookup = {};
   toArray(taskStats).forEach(function (s) { statLookup[s.Status] = Number(s.count || 0); });
   pieChartInstance = new Chart(ctx, {
@@ -746,7 +748,6 @@ function renderBarChart(byArea) {
       datasets: [
         { label: "Pending",     data: byArea.map(function (d) { return d.pending    || 0; }), backgroundColor: "rgba(212,88,10,0.75)",  borderRadius: 3 },
         { label: "In Progress", data: byArea.map(function (d) { return d.inProgress || 0; }), backgroundColor: "rgba(201,168,76,0.75)", borderRadius: 3 },
-        { label: "Completed",   data: byArea.map(function (d) { return d.completed  || 0; }), backgroundColor: "rgba(46,204,113,0.75)", borderRadius: 3 },
         { label: "Overdue",     data: byArea.map(function (d) { return d.overdue    || 0; }), backgroundColor: "rgba(139,0,0,0.75)",    borderRadius: 3 },
       ],
     },
