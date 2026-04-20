@@ -277,9 +277,7 @@ const getRestockHistory = (areaID, retailID, callback) => {
             rp.RetailName,
             ri.ItemName,
             rl.Quantity,
-            rl.Cost,
-            rl.Date,
-            rl.Time
+            rl.Cost
         FROM RestockLog rl
         JOIN RetailItem ri  ON rl.ItemID   = ri.ItemID
         JOIN RetailPlace rp ON ri.RetailID = rp.RetailID
@@ -293,7 +291,7 @@ const getRestockHistory = (areaID, retailID, callback) => {
 const addTransaction = (itemID, type, quantity, callback) => {
     const sql = `
         INSERT INTO TransactionLog (ItemID, VisitorID, Date, Time, Type, Price, Quantity, TotalCost)
-        VALUES (?, 0, CURDATE(), CURTIME(), ?, 0, ?, 0)
+        VALUES (?, 1, CURDATE(), CURTIME(), ?, 0, ?, 0)
     `;
     db.query(sql, [itemID, type, quantity], callback);
 };
