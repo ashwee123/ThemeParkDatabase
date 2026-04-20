@@ -442,6 +442,113 @@ async function deleteManager(managerId) {
     }
 }
 
+/** Demo sales report rows (park-wide). Filtered by `date`. Replaced when <code>GET /reports?date=</code> returns data. */
+const MOCK_DATA_REPORTS = [
+    { date: "2026-04-19", Store: "Dockside Grill", Item: "Apple Pie Slice", UnitsSold: 2, Revenue: 9.98, COGS: 3.5, GrossProfit: 6.48, MarginPct: 64.93, Discounts: 0, Damaged: 0, Stolen: 0 },
+    { date: "2026-04-19", Store: "Dockside Grill", Item: "Blackwood Brisket Sandwich", UnitsSold: 1, Revenue: 23.98, COGS: 10.0, GrossProfit: 13.98, MarginPct: 58.3, Discounts: 0, Damaged: 0, Stolen: 0 },
+    { date: "2026-04-19", Store: "Dockside Grill", Item: "Bottled Water", UnitsSold: 12, Revenue: 35.88, COGS: 9.6, GrossProfit: 26.28, MarginPct: 73.24, Discounts: 0, Damaged: 0, Stolen: 0 },
+    { date: "2026-04-19", Store: "Dockside Grill", Item: "Camp Fries", UnitsSold: 8, Revenue: 47.92, COGS: 14.4, GrossProfit: 33.52, MarginPct: 69.95, Discounts: 0, Damaged: 0, Stolen: 0 },
+    { date: "2026-04-18", Store: "Dockside Grill", Item: "Campfire Hotdog", UnitsSold: 5, Revenue: 29.95, COGS: 8.75, GrossProfit: 21.2, MarginPct: 70.78, Discounts: 0, Damaged: 0, Stolen: 0 },
+    { date: "2026-04-18", Store: "Crimson Tavern", Item: "Moonlit Ale", UnitsSold: 14, Revenue: 83.86, COGS: 28.0, GrossProfit: 55.86, MarginPct: 66.61, Discounts: 0, Damaged: 0, Stolen: 0 },
+];
+
+function formatReportDateLong(isoDate) {
+    if (!isoDate) return "—";
+    const d = new Date(`${isoDate}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return isoDate;
+    return d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+}
+
+function formatReportMoney(n) {
+    if (n == null || Number.isNaN(Number(n))) return "—";
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(Number(n));
+}
+
+function formatReportPct(n) {
+    if (n == null || Number.isNaN(Number(n))) return "—";
+    return `${Number(n).toFixed(2)}%`;
+}
+
+function normalizeReportRow(r) {
+    return {
+        Store: r.Store ?? r.store ?? "—",
+        Item: r.Item ?? r.item ?? "—",
+        UnitsSold: Number(r.UnitsSold ?? r.unitsSold ?? 0),
+        Revenue: Number(r.Revenue ?? r.revenue ?? 0),
+        COGS: Number(r.COGS ?? r.cogs ?? 0),
+        GrossProfit: Number(r.GrossProfit ?? r.grossProfit ?? 0),
+        MarginPct: Number(r.MarginPct ?? r.marginPct ?? 0),
+        Discounts: Number(r.Discounts ?? r.discounts ?? 0),
+        Damaged: Number(r.Damaged ?? r.damaged ?? 0),
+        Stolen: Number(r.Stolen ?? r.stolen ?? 0),
+    };
+}
+
+async function fetchHrReports(dateStr) {
+    try {
+        const res = await fetch(`${API}/reports?date=${encodeURIComponent(dateStr)}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length) return data.map(normalizeReportRow);
+        }
+    } catch {
+        /* offline or CORS — use demo below */
+    }
+    const exact = MOCK_DATA_REPORTS.filter((row) => row.date === dateStr).map(normalizeReportRow);
+    if (exact.length) return exact;
+    // Deployed API often returns [] until SQL is wired; show sample rows for any date
+    return MOCK_DATA_REPORTS.filter((row) => row.date === "2026-04-19").map(normalizeReportRow);
+}
+
+function updateHrReportsHeader(dateStr) {
+    const longEl = document.getElementById("reports-date-long");
+    if (longEl) longEl.textContent = formatReportDateLong(dateStr);
+}
+
+async function loadDataReports() {
+    const tbody = document.getElementById("tbody-reports");
+    const dateInput = document.getElementById("reports-date");
+    if (!tbody || !dateInput) return;
+    const dateStr = dateInput.value || new Date().toISOString().slice(0, 10);
+    dateInput.value = dateStr;
+    updateHrReportsHeader(dateStr);
+    tbody.innerHTML = "";
+    try {
+        const rows = await fetchHrReports(dateStr);
+        if (!rows.length) {
+            tbody.innerHTML =
+                "<tr><td colspan=\"10\" class=\"hint\">No report rows for this date. Try another date or implement <code>GET /reports</code> on the HR API.</td></tr>";
+            return;
+        }
+        tbody.innerHTML = rows
+            .map(
+                (r) => `
+            <tr>
+                <td>${escapeHtml(r.Store)}</td>
+                <td>${escapeHtml(r.Item)}</td>
+                <td class="num">${r.UnitsSold}</td>
+                <td class="num">${formatReportMoney(r.Revenue)}</td>
+                <td class="num">${formatReportMoney(r.COGS)}</td>
+                <td class="num">${formatReportMoney(r.GrossProfit)}</td>
+                <td class="num">${formatReportPct(r.MarginPct)}</td>
+                <td class="num">${r.Discounts}</td>
+                <td class="num">${r.Damaged}</td>
+                <td class="num">${r.Stolen}</td>
+            </tr>`
+            )
+            .join("");
+    } catch (e) {
+        console.error(e);
+        tbody.innerHTML = `<tr><td colspan="10" class="hint">Could not load reports.</td></tr>`;
+    }
+}
+
+function wireHrReports() {
+    document.getElementById("btn-refresh-reports")?.addEventListener("click", () => loadDataReports());
+    document.getElementById("btn-reports-apply")?.addEventListener("click", () => loadDataReports());
+    document.getElementById("reports-date")?.addEventListener("change", () => loadDataReports());
+}
+
 /* ================= TAB NAVIGATION ================= */
 document.querySelectorAll(".tab").forEach(btn => {
     btn.onclick = () => {
@@ -452,6 +559,7 @@ document.querySelectorAll(".tab").forEach(btn => {
         const panelId = btn.getAttribute("data-target");
         const panel = document.getElementById(panelId);
         if (panel) panel.classList.add("active");
+        if (panelId === "reports") loadDataReports();
     };
 });
 
@@ -473,6 +581,12 @@ window.onload = () => {
             loadManagers();
             loadActivity();
             loadSalary();
+            wireHrReports();
+            const reportsDate = document.getElementById("reports-date");
+            if (reportsDate && !reportsDate.value) {
+                reportsDate.value = new Date().toISOString().slice(0, 10);
+            }
+            loadDataReports();
         }
     }
 };
