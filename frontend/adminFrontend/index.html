@@ -93,22 +93,6 @@
         <strong>Scope:</strong> search visitors, review ticket purchases, deactivate accounts (ban) or reactivate. Refunds, reservation overrides, and incident links require extending <code>visitor_order</code> / <code>visitor_reservation</code> APIs from the visitor backend — hooks are documented here for parity.
       </div>
       <h3 class="subheading">Visitors (<code>visitor</code>)</h3>
-      <p class="hint">Password is stored with the same PBKDF2 format as the visitor portal (guests can sign in with the password you set here).</p>
-      <div class="toolbar-actions admin-inline-form">
-        <input id="vis-name" type="text" class="input-search" placeholder="Name" autocomplete="name" />
-        <input id="vis-email" type="email" class="input-search" placeholder="Email" autocomplete="email" />
-        <input id="vis-password" type="password" class="input-search" placeholder="Password (min 6)" autocomplete="new-password" />
-        <input id="vis-phone" type="text" class="input-search" placeholder="Phone" />
-        <select id="vis-gender" class="input-search" title="Gender">
-          <option value="">Gender (optional)</option>
-          <option value="Male">Male</option>
-          <option value="Female">Female</option>
-          <option value="Other">Other</option>
-          <option value="Prefer not to say">Prefer not to say</option>
-        </select>
-        <input id="vis-age" type="text" class="input-search" style="max-width: 4rem" placeholder="Age" inputmode="numeric" />
-        <button type="button" id="btn-add-visitor" class="btn">Add visitor</button>
-      </div>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
@@ -160,33 +144,7 @@
       <div class="callout">
         <strong>Oversight:</strong> park-wide roster below. Visitor feedback from the guest portal is mirrored into <code>review</code> (1–10 scores and comments) so HR and ops can trend satisfaction alongside staffing.
       </div>
-      <h3 class="subheading">HR managers (<code>hrmanager</code> + <code>manager</code>)</h3>
-      <p class="hint">Each park area may have at most one HR manager row. Area IDs come from <code>area</code> (e.g. 101 rides zone, 102 food court).</p>
-      <div class="toolbar-actions admin-inline-form">
-        <input id="hr-mgr-name" type="text" class="input-search" placeholder="Manager name" autocomplete="off" />
-        <input id="hr-mgr-area" type="text" class="input-search" style="max-width: 6rem" placeholder="Area ID" inputmode="numeric" autocomplete="off" />
-        <button type="button" id="btn-add-hr-manager" class="btn">Add HR manager</button>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Manager ID</th><th>Manager name</th><th>Area ID</th><th>Area name</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-hr-managers"></tbody>
-        </table>
-      </div>
-      <h3 class="subheading">Employees (<code>employee</code>)</h3>
-      <div class="toolbar-actions admin-inline-form">
-        <input id="emp-name" type="text" class="input-search" placeholder="Name" autocomplete="name" />
-        <input id="emp-position" type="text" class="input-search" placeholder="Position" />
-        <input id="emp-salary" type="text" class="input-search" style="max-width: 6rem" placeholder="Salary" inputmode="decimal" />
-        <input id="emp-hire" type="date" class="input-search" title="Hire date" />
-        <input id="emp-mgr" type="text" class="input-search" style="max-width: 5rem" placeholder="Mgr ID" inputmode="numeric" title="ManagerID from manager table" />
-        <input id="emp-area" type="text" class="input-search" style="max-width: 5rem" placeholder="Area" inputmode="numeric" title="AreaID" />
-        <button type="button" id="btn-add-employee" class="btn">Add employee</button>
-      </div>
+      <h3 class="subheading">Employees</h3>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
