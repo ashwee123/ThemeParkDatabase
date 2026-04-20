@@ -3,12 +3,10 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "postinstall": "npm install --omit=dev --prefix ../adminBackend"
+    "start": "node server.js"
   },
   "dependencies": {
     "mysql2": "^3.0.0",
-    "jsonwebtoken": "^9.0.0",
-    "bcrypt": "^5.0.1"
+    "jsonwebtoken": "^9.0.0"
   }
 }
