@@ -1,3 +1,4 @@
+// maintenanceBackend/server.js
 const http = require("http");
 const url = require("url");
 const db = require("./db");
@@ -12,7 +13,10 @@ const ROLES = {
 };
 
 function sendJson(res, statusCode, data) {
-  res.writeHead(statusCode, { "Content-Type": "application/json" });
+  res.writeHead(statusCode, {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*"
+  });
   res.end(JSON.stringify(data));
 }
 
@@ -86,7 +90,9 @@ const server = http.createServer(async (req, res) => {
         [email]
       );
 
-      if (!rows.length) return sendJson(res, 401, { error: "Invalid login" });
+      if (!rows.length) {
+        return sendJson(res, 401, { error: "Invalid login" });
+      }
 
       const manager = rows[0];
 
@@ -94,19 +100,23 @@ const server = http.createServer(async (req, res) => {
         ? await bcrypt.compare(password, manager.ManagerPassword)
         : password === manager.ManagerPassword;
 
-      if (!match) return sendJson(res, 401, { error: "Invalid login" });
+      if (!match) {
+        return sendJson(res, 401, { error: "Invalid login" });
+      }
+
+      const role = (manager.Role || "").toLowerCase(); // 🔥 FIX HERE
 
       const token = jwt.sign(
         {
           managerId: manager.ManagerID,
           email: manager.ManagerEmail,
-          role: manager.Role
+          role
         },
         SECRET,
         { expiresIn: "1h" }
       );
 
-      return sendJson(res, 200, { token, role: manager.Role });
+      return sendJson(res, 200, { token, role });
     }
 
     // TASKS
@@ -186,23 +196,24 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, rows);
     }
 
-    // NOTIFICATIONS (FIXED → ARRAY)
+    // NOTIFICATIONS (FIXED SHAPE)
     if (parsedUrl.pathname === "/notifications" && req.method === "GET") {
       const user = requireRole(req, res);
       if (!user) return;
 
-      return sendJson(res, 200, [
-        {
-          type: "weather",
-          severity: "high",
-          title: "Weather Alert",
-          detail: "Storm warning active"
-        }
-      ]);
+      return sendJson(res, 200, {
+        notifications: [
+          {
+            type: "weather",
+            severity: "high",
+            title: "Weather Alert",
+            detail: "Storm warning active"
+          }
+        ]
+      });
     }
 
-    res.writeHead(404);
-    res.end("Not found");
+    return sendJson(res, 404, { error: "Not found" }); // 🔥 FIXED
   } catch (err) {
     console.error(err);
     sendJson(res, 500, { error: "Server error" });
