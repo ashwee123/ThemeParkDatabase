@@ -16,6 +16,14 @@ let pieChartInstance     = null;
 let barChartInstance     = null;
 let awBarChartInstance   = null;
 
+// ─── WHITELIST ──────────────────────────────────────────────────────────────────
+const allowedEmployeeIDs = new Set([
+  128374, 992834, 445362, 112233, 666001,
+  900800, 777111, 223344, 554433, 881122,
+  334455, 998877, 123456, 654321, 111222,
+  333444, 555666, 777888, 999000, 121212,
+  343434, 565656, 787878, 909090, 212121, 434343
+]);
 // ─── BOOT ──────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -115,6 +123,10 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast("Task updated.");
       closeModal("edit-modal");
       loadTasks();
+      await loadTasks();
+      loadScheduleCalendar();
+      loadEmployeePerformance();
+      initReports();
     });
   }
 
@@ -329,7 +341,6 @@ function loadReportByKey(key) {
     case "task-summary":       loadTaskSummary();       break;
     case "maintenance-history": loadMaintenanceHistory(); break;
     case "area-workload":       loadAreaWorkload();       break;
-    case "transactions":        loadTransactions();       break;
   }
 }
 
@@ -687,7 +698,14 @@ async function loadScheduleCalendar() {
     const res   = await authFetch("/tasks");
     const tasks = await res.json();
     if (calendarInstance) { calendarInstance.destroy(); calendarInstance = null; }
-    const areaColors = { "Zone A": "#8b0000", "rides zone": "#c0392b", "food court": "#d4580a", "kids area": "#c9a84c" };
+    const areaColors = {
+      "Uncanny Valley": "#8b0000",
+      "Bloodmoon Village": "#c0392b",
+      "Space Station X": "#d35400",
+      "Camp Blackwood": "#c9a84c",
+      "Dead End District": "#7f8c8d",
+      "Isolation Ward": "#2c3e50"
+    };
     const events = tasks
       .filter((t) => t.DueDate && !hiddenTaskIds.has(t.MaintenanceAssignmentID))
       .map((t) => ({
@@ -737,4 +755,12 @@ function resetTable() {
   currentSortCol = ""; isAscending = true;
   document.querySelectorAll(".data-table th").forEach((th) => th.classList.remove("active-sort", "asc", "desc"));
   renderTables(allTasksData);
+}
+
+async function refreshAllViews() {
+  await loadTasks();
+  await loadScheduleCalendar();
+  await loadEmployeePerformance();
+  initReports();
+  loadNotifications();
 }
