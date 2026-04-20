@@ -33,11 +33,35 @@ function sendJson(res, status, data, extra = {}) {
   res.end(body);
 }
 
-const cors = {
-  "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
-  "Access-Control-Allow-Methods": "GET, PATCH, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
+function getCorsHeaders(req) {
+  const configured = String(process.env.CORS_ORIGIN || "").trim();
+  const allowMethods = "GET, PATCH, OPTIONS";
+  const allowHeaders = "Content-Type, Authorization";
+  if (!configured) {
+    return {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": allowMethods,
+      "Access-Control-Allow-Headers": allowHeaders,
+    };
+  }
+  const origin = (req.headers && req.headers.origin ? String(req.headers.origin) : "").trim();
+  const allowed = configured
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const wildcard = allowed.includes("*");
+  const match = origin && allowed.includes(origin);
+  return {
+    "Access-Control-Allow-Origin": wildcard
+      ? "*"
+      : match
+        ? origin
+        : allowed[0],
+    "Access-Control-Allow-Methods": allowMethods,
+    "Access-Control-Allow-Headers": allowHeaders,
+    Vary: "Origin",
+  };
+}
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -58,6 +82,7 @@ function readJsonBody(req) {
 export async function handleAdminApi(req, res, url) {
   const pathname = url.pathname;
   const method = req.method || "GET";
+  const cors = getCorsHeaders(req);
 
   if (method === "OPTIONS") {
     res.writeHead(204, cors);
@@ -195,10 +220,3 @@ export async function handleAdminApi(req, res, url) {
     sendJson(res, 500, { error: "Server error", detail: String(e.message) }, h);
   }
 }
-
-
-
-
-
-
-
