@@ -57,13 +57,18 @@ async function authFetch(path, opts) {
 
   var body;
   try { body = await res.json(); }
-  catch (e) { throw new Error("Non-JSON response from " + path); }
+  catch (e) { 
+    console.error("Non-JSON from " + path, res.status, res.statusText);
+    throw new Error("Non-JSON response from " + path); 
+  }
+
+  // ADD THIS LOG:
+  console.log("RAW RESPONSE from " + path + ":", JSON.stringify(body).substring(0, 200));
 
   if (res.status === 401) { logout(); throw new Error("Unauthorized"); }
 
   if (!res.ok) {
     var errMsg = (body && (body.error || body.message)) || ("Request failed: " + res.status);
-    console.error("API error on " + path + ":", body);
     throw new Error(errMsg);
   }
 
