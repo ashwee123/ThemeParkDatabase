@@ -75,23 +75,6 @@ async function apiPatch(path, body) {
   return data;
 }
 
-async function apiPost(path, body) {
-  const res = await fetch(API + path, {
-    method: "POST",
-    credentials: fetchCredentials(),
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body != null ? body : {}),
-  });
-  const text = await res.text();
-  let data = {};
-  if (text) {
-    try { data = JSON.parse(text); }
-    catch (e) { data = { error: text }; }
-  }
-  if (!res.ok) throw new Error(data.error || res.statusText);
-  return data;
-}
-
 function downloadCsv(filename, rows, columns) {
   function escCell(v) {
     const s = String(v ?? "");
@@ -154,32 +137,12 @@ document.querySelectorAll(".tab").forEach(function (btn) {
 });
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
-/** Coerce /api/summary JSON into safe numbers for the stat grid. */
-function normalizeSummaryPayload(raw) {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  function n(v) {
-    const x = Number(v);
-    return Number.isFinite(x) ? x : 0;
-  }
-  return {
-    employees: n(raw.employees),
-    visitorsActive: n(raw.visitorsActive),
-    attractions: n(raw.attractions),
-    rides: n(raw.rides),
-    openAlerts: n(raw.openAlerts),
-    pendingMaint: n(raw.pendingMaint),
-    retailItems: n(raw.retailItems),
-    lowStock: n(raw.lowStock),
-    incidents30d: n(raw.incidents30d),
-  };
-}
-
 async function loadDashboard() {
   const grid = $("#stat-grid");
   if (!grid) return;
-  let raw;
+  let s;
   try {
-    raw = await apiGet("/summary");
+    s = await apiGet("/summary");
   } catch (e) {
     const msg = String(e && e.message ? e.message : e);
     grid.innerHTML =
@@ -187,15 +150,6 @@ async function loadDashboard() {
       escapeHtml(msg) +
       "</p><p class=\"hint\">If you opened this from Vercel, the API must be live on your Render homepage service (<code>/api/summary</code>) and the database reachable.</p>";
     showToast(msg, true);
-    return;
-  }
-  const s = normalizeSummaryPayload(raw);
-  if (!s) {
-    grid.innerHTML =
-      '<p class="api-error" role="alert"><strong>Could not load dashboard.</strong><br />' +
-      "The server returned an unexpected response (expected a JSON object from <code>/api/summary</code>).</p>" +
-      '<p class="hint">Do not point the admin UI at a path that returns HTML (e.g. a wrong <code>admin-api-origin</code> or a non-API URL).</p>';
-    showToast("Invalid summary response", true);
     return;
   }
   const cards = [
@@ -297,36 +251,12 @@ async function loadVisitorsPanel() {
   if (!rows.length) tb.innerHTML = '<tr><td colspan="9" class="hint">No visitors</td></tr>';
 }
 
-function fillHrManagersTable(rows) {
-  const tb = $("#tbody-hr-managers");
-  if (!tb) return;
-  tb.innerHTML = rows.map(function (r) {
-    return (
-      "<tr>" +
-        '<td class="num">' + escapeHtml(r.ManagerID) + "</td>" +
-        "<td>" + escapeHtml(r.ManagerName || "—") + "</td>" +
-        '<td class="num">' + escapeHtml(r.AreaID ?? "—") + "</td>" +
-        "<td>" + escapeHtml(r.AreaName || "—") + "</td>" +
-      "</tr>"
-    );
-  }).join("");
-  if (!rows.length) tb.innerHTML = '<tr><td colspan="4" class="hint">No HR manager rows</td></tr>';
-}
-
 async function loadHrPanel() {
   const [emps, shifts, vrevs] = await Promise.all([
     apiGet("/employees"),
     apiGet("/shifts"),
     apiGet("/reports/visitor-reviews?limit=200"),
   ]);
-  let mgrs = [];
-  try {
-    const m = await apiGet("/hr-managers");
-    mgrs = Array.isArray(m) ? m : [];
-  } catch (e) {
-    /* Older APIs without GET /api/hr-managers — keep rest of HR tab working */
-  }
-  fillHrManagersTable(mgrs);
   fillEmployeeTable("#tbody-hr-staff", emps);
   const ts = $("#tbody-shifts");
   if (ts) {
@@ -658,84 +588,6 @@ async function loadWeatherTable(tbodySel) {
   }
 });
 
-const btnAddHrMgr = $("#btn-add-hr-manager");
-if (btnAddHrMgr) {
-  btnAddHrMgr.addEventListener("click", function () {
-    const managerName = $("#hr-mgr-name") && $("#hr-mgr-name").value.trim();
-    const areaId = $("#hr-mgr-area") && $("#hr-mgr-area").value.trim();
-    apiPost("/hr-managers", { managerName: managerName, areaId: areaId })
-      .then(function () {
-        showToast("HR manager added");
-        if ($("#hr-mgr-name")) $("#hr-mgr-name").value = "";
-        if ($("#hr-mgr-area")) $("#hr-mgr-area").value = "";
-        return loadHrPanel();
-      })
-      .catch(function (e) { showToast(e.message, true); });
-  });
-}
-
-const btnAddEmp = $("#btn-add-employee");
-if (btnAddEmp) {
-  btnAddEmp.addEventListener("click", function () {
-    const nameEl = $("#emp-name");
-    const posEl = $("#emp-position");
-    const salEl = $("#emp-salary");
-    const hireEl = $("#emp-hire");
-    const mgrEl = $("#emp-mgr");
-    const areaEl = $("#emp-area");
-    apiPost("/employees", {
-      name: nameEl && nameEl.value.trim(),
-      position: posEl && posEl.value.trim(),
-      salary: salEl && salEl.value.trim(),
-      hireDate: hireEl && hireEl.value,
-      managerId: mgrEl && mgrEl.value.trim(),
-      areaId: areaEl && areaEl.value.trim(),
-    })
-      .then(function () {
-        showToast("Employee added");
-        [nameEl, posEl, salEl, hireEl, mgrEl, areaEl].forEach(function (el) {
-          if (el) el.value = "";
-        });
-        return loadHrPanel();
-      })
-      .catch(function (e) { showToast(e.message, true); });
-  });
-}
-
-const btnAddVisitor = $("#btn-add-visitor");
-if (btnAddVisitor) {
-  btnAddVisitor.addEventListener("click", function () {
-    const name = $("#vis-name") && $("#vis-name").value.trim();
-    const email = $("#vis-email") && $("#vis-email").value.trim();
-    const password = $("#vis-password") && $("#vis-password").value;
-    const phone = $("#vis-phone") && $("#vis-phone").value.trim();
-    const genderEl = $("#vis-gender");
-    const gender = genderEl && genderEl.value;
-    const ageRaw = $("#vis-age") && $("#vis-age").value.trim();
-    apiPost("/visitors", {
-      name: name,
-      email: email,
-      password: password,
-      phone: phone || undefined,
-      gender: gender || undefined,
-      age: ageRaw || undefined,
-    })
-      .then(function () {
-        showToast("Visitor added");
-        const pw = $("#vis-password");
-        if (pw) pw.value = "";
-        const ids = ["vis-name", "vis-email", "vis-phone", "vis-age"];
-        ids.forEach(function (id) {
-          const el = document.getElementById(id);
-          if (el) el.value = "";
-        });
-        if (genderEl) genderEl.value = "";
-        return loadVisitorsPanel().then(function () { return loadVisitorsTickets(); });
-      })
-      .catch(function (e) { showToast(e.message, true); });
-  });
-}
-
 const vq = $("#visitor-search-q");
 if (vq) {
   vq.addEventListener("keydown", function (ev) {
@@ -823,12 +675,4 @@ async function exportIncidentsCsv() {
 });
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
-function bootAdmin() {
-  loadDashboard().catch(function (e) { showToast(e.message, true); });
-}
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", bootAdmin);
-} else {
-  bootAdmin();
-}
+loadDashboard().catch(function (e) { showToast(e.message, true); });
