@@ -599,23 +599,19 @@ function fillEmployeeTable(sel, rows, opts) {
   const tb = $(sel);
   if (!tb) return;
   const showPortalAccess = !!(opts && opts.includePortalAccess);
-  const colspan = showPortalAccess ? 9 : 7;
+  const colspan = showPortalAccess ? 8 : 7;
   tb.innerHTML = rows.map(function (r) {
     const area = r.AreaName != null ? r.AreaName : r.AreaID != null ? String(r.AreaID) : "—";
     const revoked = r.adminPortalAccessRevoked === true || Number(r.adminPortalAccessRevoked) === 1;
     const accessCell = showPortalAccess
       ? "<td>" +
         (revoked
-          ? '<span class="badge-warn" title="Staff record kept; portal login disabled">Revoked</span>' +
+          ? '<span class="badge-warn" title="Staff record kept in database; portal access disabled">Revoked</span>' +
             (r.adminPortalAccessRevokedAt
               ? ' <span class="hint-inline">' + escapeHtml(r.adminPortalAccessRevokedAt) + "</span>"
-              : "")
-          : '<span class="badge-ok">Active</span>') +
-        "</td>" +
-        "<td>" +
-        (revoked
-          ? '<button type="button" class="btn btn-small btn-ghost btn-restore-portal-access">Restore access</button>'
-          : '<button type="button" class="btn btn-small btn-ghost btn-revoke-portal-access">Revoke access</button>') +
+              : "") +
+            ' <button type="button" class="btn btn-small btn-ghost btn-restore-portal-access">Restore</button>'
+          : '<button type="button" class="btn btn-small btn-ghost btn-revoke-portal-access">Revoke</button>') +
         "</td>"
       : "";
     return (
