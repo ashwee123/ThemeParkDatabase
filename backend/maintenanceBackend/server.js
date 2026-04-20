@@ -12,6 +12,13 @@ const ROLES = {
   MAINTENANCE_MANAGER: "maintenance_manager"
 };
 
+
+// ─── HELPER ──────────────────────────────────────────────────────────────────
+function sendJson(res, statusCode, data) {
+  res.writeHead(statusCode, { "Content-Type": "application/json" });
+  return res.end(JSON.stringify(data));
+}
+
 // ─────────────────────────────────────────────────────────────
 // AUTH HELPERS
 // ─────────────────────────────────────────────────────────────
@@ -34,14 +41,12 @@ function requireRole(req, res, allowedRoles) {
   const user = verifyToken(req);
 
   if (!user) {
-    res.writeHead(401, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Missing or invalid token" }));
+    sendJson(res, 401, { error: "Missing or invalid token" });
     return null;
   }
 
   if (!allowedRoles.includes(user.role)) {
-    res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Unauthorized role" }));
+    sendJson(res, 403, { error: "Forbidden: invalid role" });
     return null;
   }
 
@@ -220,6 +225,30 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify(rows));
     }
 
+    if (parsedUrl.pathname === "/employee-performance" && req.method === "GET") {
+      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      if (!user) return;
+
+      const [rows] = await db.query(`
+        SELECT 
+          e.EmployeeID,
+          e.Name,
+          e.Position,
+          a.AreaName,
+          COUNT(m.MaintenanceAssignmentID) AS totalTasks,
+          SUM(m.Status = 'Completed') AS completed,
+          SUM(m.Status = 'In Progress') AS inProgress,
+          SUM(m.Status = 'Pending') AS pending,
+          SUM(m.DueDate < CURDATE() AND m.Status != 'Completed') AS overdue
+        FROM employee e
+        LEFT JOIN maintenanceassignment m ON e.EmployeeID = m.EmployeeID
+        LEFT JOIN area a ON e.AreaID = a.AreaID
+        GROUP BY e.EmployeeID
+      `);
+
+      return sendJson(res, 200, rows);
+    }
+
     // ───────────────────────── AREAS (ALL 6 ALWAYS) ─────────────────────────
     if (parsedUrl.pathname === "/areas" && req.method === "GET") {
       const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
@@ -270,6 +299,102 @@ const server = http.createServer(async (req, res) => {
 
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify(rows));
+    }
+
+    if (parsedUrl.pathname === "/task-summary" && req.method === "GET") {
+      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      if (!user) return;
+
+      const [stats] = await db.query(`
+        SELECT Status, COUNT(*) AS count
+        FROM maintenanceassignment
+        GROUP BY Status
+      `);
+
+      const [byArea] = await db.query(`
+        SELECT a.AreaName,
+              SUM(m.Status='Pending') AS pending,
+              SUM(m.Status='In Progress') AS inProgress,
+              SUM(m.Status='Completed') AS completed
+        FROM maintenanceassignment m
+        LEFT JOIN area a ON m.AreaID = a.AreaID
+        GROUP BY a.AreaID
+      `);
+
+      const [overdue] = await db.query(`
+        SELECT COUNT(*) AS overdue
+        FROM maintenanceassignment
+        WHERE DueDate < CURDATE() AND Status != 'Completed'
+      `);
+
+      return sendJson(res, 200, {
+        stats,
+        byArea,
+        overdue: overdue[0].overdue
+      });
+    }
+
+    if (parsedUrl.pathname === "/tasks-filtered" && req.method === "GET") {
+      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      if (!user) return;
+
+      const { status, areaId, employeeId, from, to } = parsedUrl.query;
+
+      const [rows] = await db.query(`
+        SELECT 
+          m.*,
+          e.Name AS EmployeeName,
+          a.AreaName
+        FROM maintenanceassignment m
+        LEFT JOIN employee e ON m.EmployeeID = e.EmployeeID
+        LEFT JOIN area a ON m.AreaID = a.AreaID
+        WHERE 1=1
+          AND (? IS NULL OR ? = '' OR m.Status = ?)
+          AND (? IS NULL OR ? = '' OR m.AreaID = ?)
+          AND (? IS NULL OR ? = '' OR m.EmployeeID = ?)
+          AND (? IS NULL OR ? = '' OR m.DueDate >= ?)
+          AND (? IS NULL OR ? = '' OR m.DueDate <= ?)
+      `, [
+        status, status, status,
+        areaId, areaId, areaId,
+        employeeId, employeeId, employeeId,
+        from, from, from,
+        to, to, to
+      ]);
+
+      return sendJson(res, 200, rows);
+    }
+
+    // ───────────────────────── ALERTS ─────────────────────────
+    if (parsedUrl.pathname === "/alerts" && req.method === "GET") {
+      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      if (!user) return;
+
+      const [rows] = await db.query(`
+        SELECT AlertID, AlertMessage, SeverityLevel
+        FROM alerts
+        ORDER BY AlertID DESC
+        LIMIT 20
+      `);
+
+      return sendJson(res, 200, rows);
+    }
+
+    // ───────────────────────── NOTIFICATION ─────────────────────────
+    if (parsedUrl.pathname === "/notifications" && req.method === "GET") {
+      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      if (!user) return;
+
+      const notifications = [
+        {
+          type: "weather",
+          severity: "high",
+          title: "Weather Alert",
+          detail: "Storm warning active"
+        }
+      ];
+
+      return sendJson(res, 200, { notifications });
     }
 
     // ───────────────────────── DEFAULT 404 ─────────────────────────
