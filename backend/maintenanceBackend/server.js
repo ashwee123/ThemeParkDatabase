@@ -12,16 +12,11 @@ const ROLES = {
   MAINTENANCE_MANAGER: "maintenance_manager"
 };
 
-
-// ─── HELPER ──────────────────────────────────────────────────────────────────
+// ─── HELPERS ───────────────────────────────────────────────
 function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, { "Content-Type": "application/json" });
   return res.end(JSON.stringify(data));
 }
-
-// ─────────────────────────────────────────────────────────────
-// AUTH HELPERS
-// ─────────────────────────────────────────────────────────────
 
 function verifyToken(req) {
   const authHeader = req.headers["authorization"];
@@ -37,7 +32,8 @@ function verifyToken(req) {
   }
 }
 
-function requireRole(req, res, allowedRoles) {
+// ✅ FIX: allow BOTH admin + manager
+function requireRole(req, res) {
   const user = verifyToken(req);
 
   if (!user) {
@@ -45,7 +41,9 @@ function requireRole(req, res, allowedRoles) {
     return null;
   }
 
-  if (!allowedRoles.includes(user.role)) {
+  const allowed = [ROLES.ADMIN, ROLES.MAINTENANCE_MANAGER];
+
+  if (!allowed.includes(user.role)) {
     sendJson(res, 403, { error: "Forbidden: invalid role" });
     return null;
   }
@@ -67,16 +65,10 @@ function getBody(req) {
   });
 }
 
-// ─────────────────────────────────────────────────────────────
-// SERVER
-// ─────────────────────────────────────────────────────────────
-
+// ─── SERVER ───────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
-  console.log("REQUEST:", req.method, req.url);
-
   const parsedUrl = url.parse(req.url, true);
 
-  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -87,8 +79,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-
-    // ───────────────────────── LOGIN ─────────────────────────
+    // ───────── LOGIN ─────────
     if (parsedUrl.pathname === "/login" && req.method === "POST") {
       const { email, password } = await getBody(req);
 
@@ -99,25 +90,15 @@ const server = http.createServer(async (req, res) => {
         [email]
       );
 
-      if (!rows.length) {
-        res.writeHead(401);
-        return res.end(JSON.stringify({ error: "Invalid login" }));
-      }
+      if (!rows.length) return sendJson(res, 401, { error: "Invalid login" });
 
       const manager = rows[0];
 
-      let match = false;
+      let match = manager.ManagerPassword.startsWith("$2b$")
+        ? await bcrypt.compare(password, manager.ManagerPassword)
+        : password === manager.ManagerPassword;
 
-      if (manager.ManagerPassword.startsWith("$2b$")) {
-        match = await bcrypt.compare(password, manager.ManagerPassword);
-      } else {
-        match = password === manager.ManagerPassword;
-      }
-
-      if (!match) {
-        res.writeHead(401);
-        return res.end(JSON.stringify({ error: "Invalid login" }));
-      }
+      if (!match) return sendJson(res, 401, { error: "Invalid login" });
 
       const token = jwt.sign(
         {
@@ -129,18 +110,12 @@ const server = http.createServer(async (req, res) => {
         { expiresIn: "1h" }
       );
 
-      return res.end(JSON.stringify({ token, role: manager.Role }));
+      return sendJson(res, 200, { token, role: manager.Role });
     }
 
-    // ───────────────────────── ROOT ─────────────────────────
-    if (parsedUrl.pathname === "/" && req.method === "GET") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify({ status: "OK" }));
-    }
-
-    // ───────────────────────── TASKS ─────────────────────────
+    // ───────── TASKS ─────────
     if (parsedUrl.pathname === "/tasks" && req.method === "GET") {
-      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      const user = requireRole(req, res);
       if (!user) return;
 
       const [rows] = await db.query(`
@@ -156,115 +131,36 @@ const server = http.createServer(async (req, res) => {
         ORDER BY m.CreatedAt DESC
       `);
 
-      res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify(rows));
+      return sendJson(res, 200, rows);
     }
 
-    // ───────────────────────── ADD TASK ─────────────────────────
-    if (parsedUrl.pathname === "/addTask" && req.method === "POST") {
-      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
-      if (!user) return;
-
-      const body = await getBody(req);
-
-      if (!body.EmployeeID || !body.TaskDescription) {
-        res.writeHead(400);
-        return res.end(JSON.stringify({ error: "Missing required fields" }));
-      }
-
-      await db.query(
-        `INSERT INTO maintenanceassignment
-         (EmployeeID, AreaID, TaskDescription, Status, DueDate)
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          body.EmployeeID,
-          body.AreaID || null,
-          body.TaskDescription,
-          body.Status || "Pending",
-          body.DueDate || null
-        ]
-      );
-
-      return res.end(JSON.stringify({ message: "Task added" }));
-    }
-
-    // ───────────────────────── UPDATE TASK ─────────────────────────
-    if (parsedUrl.pathname === "/updateTask" && req.method === "POST") {
-      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
-      if (!user) return;
-
-      const body = await getBody(req);
-
-      await db.query(
-        `UPDATE maintenanceassignment
-         SET EmployeeID = ?, AreaID = ?, TaskDescription = ?, Status = ?, DueDate = ?
-         WHERE MaintenanceAssignmentID = ?`,
-        [
-          body.EmployeeID,
-          body.AreaID || null,
-          body.TaskDescription,
-          body.Status,
-          body.DueDate || null,
-          body.MaintenanceAssignmentID
-        ]
-      );
-
-      return res.end(JSON.stringify({ message: "Task updated" }));
-    }
-
-    // ───────────────────────── EMPLOYEES ─────────────────────────
+    // ───────── EMPLOYEES ─────────
     if (parsedUrl.pathname === "/employees" && req.method === "GET") {
-      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      const user = requireRole(req, res);
       if (!user) return;
 
       const [rows] = await db.query(
         `SELECT EmployeeID, Name, Position, Salary FROM employee ORDER BY Name`
       );
 
-      res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify(rows));
-    }
-
-    if (parsedUrl.pathname === "/employee-performance" && req.method === "GET") {
-      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
-      if (!user) return;
-
-      const [rows] = await db.query(`
-        SELECT 
-          e.EmployeeID,
-          e.Name,
-          e.Position,
-          a.AreaName,
-          COUNT(m.MaintenanceAssignmentID) AS totalTasks,
-          SUM(m.Status = 'Completed') AS completed,
-          SUM(m.Status = 'In Progress') AS inProgress,
-          SUM(m.Status = 'Pending') AS pending,
-          SUM(m.DueDate < CURDATE() AND m.Status != 'Completed') AS overdue
-        FROM employee e
-        LEFT JOIN maintenanceassignment m ON e.EmployeeID = m.EmployeeID
-        LEFT JOIN area a ON e.AreaID = a.AreaID
-        GROUP BY e.EmployeeID
-      `);
-
       return sendJson(res, 200, rows);
     }
 
-    // ───────────────────────── AREAS (ALL 6 ALWAYS) ─────────────────────────
+    // ───────── AREAS ─────────
     if (parsedUrl.pathname === "/areas" && req.method === "GET") {
-      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      const user = requireRole(req, res);
       if (!user) return;
 
       const [rows] = await db.query(
         `SELECT AreaID, AreaName FROM area ORDER BY AreaID`
       );
 
-      res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify(rows));
+      return sendJson(res, 200, rows);
     }
 
-    // ───────────────────────── ATTRACTIONS ─────────────────────────
+    // ───────── ATTRACTIONS ─────────
     if (parsedUrl.pathname === "/attractions" && req.method === "GET") {
-      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      const user = requireRole(req, res);
       if (!user) return;
 
       const [rows] = await db.query(`
@@ -276,13 +172,12 @@ const server = http.createServer(async (req, res) => {
         ORDER BY att.AttractionName
       `);
 
-      res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify(rows));
+      return sendJson(res, 200, rows);
     }
 
-    // ───────────────────────── AREA WORKLOAD ─────────────────────────
+    // ───────── AREA WORKLOAD ─────────
     if (parsedUrl.pathname === "/area-workload" && req.method === "GET") {
-      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      const user = requireRole(req, res);
       if (!user) return;
 
       const [rows] = await db.query(`
@@ -297,12 +192,12 @@ const server = http.createServer(async (req, res) => {
         ORDER BY total DESC
       `);
 
-      res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify(rows));
+      return sendJson(res, 200, rows);
     }
 
+    // ───────── TASK SUMMARY ─────────
     if (parsedUrl.pathname === "/task-summary" && req.method === "GET") {
-      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      const user = requireRole(req, res);
       if (!user) return;
 
       const [stats] = await db.query(`
@@ -313,9 +208,9 @@ const server = http.createServer(async (req, res) => {
 
       const [byArea] = await db.query(`
         SELECT a.AreaName,
-              SUM(m.Status='Pending') AS pending,
-              SUM(m.Status='In Progress') AS inProgress,
-              SUM(m.Status='Completed') AS completed
+               SUM(m.Status='Pending') AS pending,
+               SUM(m.Status='In Progress') AS inProgress,
+               SUM(m.Status='Completed') AS completed
         FROM maintenanceassignment m
         LEFT JOIN area a ON m.AreaID = a.AreaID
         GROUP BY a.AreaID
@@ -334,40 +229,9 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    if (parsedUrl.pathname === "/tasks-filtered" && req.method === "GET") {
-      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
-      if (!user) return;
-
-      const { status, areaId, employeeId, from, to } = parsedUrl.query;
-
-      const [rows] = await db.query(`
-        SELECT 
-          m.*,
-          e.Name AS EmployeeName,
-          a.AreaName
-        FROM maintenanceassignment m
-        LEFT JOIN employee e ON m.EmployeeID = e.EmployeeID
-        LEFT JOIN area a ON m.AreaID = a.AreaID
-        WHERE 1=1
-          AND (? IS NULL OR ? = '' OR m.Status = ?)
-          AND (? IS NULL OR ? = '' OR m.AreaID = ?)
-          AND (? IS NULL OR ? = '' OR m.EmployeeID = ?)
-          AND (? IS NULL OR ? = '' OR m.DueDate >= ?)
-          AND (? IS NULL OR ? = '' OR m.DueDate <= ?)
-      `, [
-        status, status, status,
-        areaId, areaId, areaId,
-        employeeId, employeeId, employeeId,
-        from, from, from,
-        to, to, to
-      ]);
-
-      return sendJson(res, 200, rows);
-    }
-
-    // ───────────────────────── ALERTS ─────────────────────────
+    // ───────── ALERTS ─────────
     if (parsedUrl.pathname === "/alerts" && req.method === "GET") {
-      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      const user = requireRole(req, res);
       if (!user) return;
 
       const [rows] = await db.query(`
@@ -380,39 +244,32 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, rows);
     }
 
-    // ───────────────────────── NOTIFICATION ─────────────────────────
+    // ───────── NOTIFICATIONS ─────────
     if (parsedUrl.pathname === "/notifications" && req.method === "GET") {
-      const user = requireRole(req, res, [ROLES.MAINTENANCE_MANAGER]);
+      const user = requireRole(req, res);
       if (!user) return;
 
-      const notifications = [
-        {
-          type: "weather",
-          severity: "high",
-          title: "Weather Alert",
-          detail: "Storm warning active"
-        }
-      ];
-
-      return sendJson(res, 200, { notifications });
+      return sendJson(res, 200, {
+        notifications: [
+          {
+            type: "weather",
+            severity: "high",
+            title: "Weather Alert",
+            detail: "Storm warning active"
+          }
+        ]
+      });
     }
 
-    // ───────────────────────── DEFAULT 404 ─────────────────────────
     res.writeHead(404);
-    return res.end("Not found");
-
+    res.end("Not found");
   } catch (err) {
-    console.error("SERVER ERROR:", err);
-    res.writeHead(500, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ error: "Server error" }));
+    console.error(err);
+    sendJson(res, 500, { error: "Server error" });
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// START SERVER
-// ─────────────────────────────────────────────────────────────
-
 const PORT = process.env.PORT || 3008;
 server.listen(PORT, () =>
-  console.log(`Maintenance server running on port ${PORT}`)
+  console.log(`Server running on port ${PORT}`)
 );
