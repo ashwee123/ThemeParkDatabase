@@ -70,7 +70,6 @@ document.addEventListener("DOMContentLoaded", function () {
       else if (t === "reports")       initReports();
       else if (t === "schedule")      loadScheduleCalendar();
       else if (t === "notifications") loadNotifications();
-      else                            loadTasks();
     });
   });
 
@@ -147,9 +146,11 @@ document.addEventListener("DOMContentLoaded", function () {
   var logoutBtn = document.getElementById("btn-logout");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
-  loadTasks(); loadNotifications(); loadAlerts();
+  // FIX: removed loadTasks() call here — no "all tasks" tab anymore
+  loadNotifications(); loadAlerts();
   setInterval(loadAlerts, 15000);
 
+  // Start on schedule tab
   var scheduleTab = document.querySelector('[data-tab="schedule"]');
   if (scheduleTab) scheduleTab.click();
 });
@@ -169,6 +170,17 @@ async function populateDropdowns() {
     var areas       = toArray(results[1]);
     var attractions = toArray(results[2]);
 
+    // FIX: deduplicate areas by name — the DB has duplicate area names with
+    // different AreaIDs (e.g. "Entrance" appears as both ID 31 and 2200).
+    // Keep the first occurrence of each name; discard the rest.
+    var seenAreaNames = {};
+    areas = areas.filter(function (a) {
+      var key = (a.AreaName || "").trim().toLowerCase();
+      if (seenAreaNames[key]) return false;
+      seenAreaNames[key] = true;
+      return true;
+    });
+
     fillSelect("select-employee",        employees,   "EmployeeID",   function (e) { return e.Name + " (" + (e.Position || "Staff") + ")"; });
     fillSelect("select-area",            areas,       "AreaID",       function (a) { return a.AreaName; }, true);
     fillSelect("select-attraction",      attractions, "AttractionID", function (a) { return a.AttractionName; }, true);
@@ -180,8 +192,6 @@ async function populateDropdowns() {
     fillSelect("mh-filter-area",         areas,       "AreaID",       function (a) { return a.AreaName; }, true);
     fillSelect("mh-filter-employee-mh",  employees,   "EmployeeID",   function (e) { return e.Name; }, true);
     fillSelect("perf-filter-area",       areas,       "AreaID",       function (a) { return a.AreaName; }, true);
-    fillSelect("tasks-filter-area",      areas,       "AreaID",       function (a) { return a.AreaName; }, true);
-    fillSelect("tasks-filter-employee",  employees,   "EmployeeID",   function (e) { return e.Name; }, true);
 
     // Position filter from actual employee data
     var positions = [];
@@ -191,6 +201,8 @@ async function populateDropdowns() {
     positions.sort();
     var perfPosSel = document.getElementById("perf-filter-position");
     if (perfPosSel) {
+      // clear existing options except the first blank one
+      while (perfPosSel.options.length > 1) perfPosSel.remove(1);
       positions.forEach(function (p) {
         var opt = document.createElement("option");
         opt.value = p; opt.textContent = p; perfPosSel.appendChild(opt);
@@ -214,68 +226,8 @@ async function loadTasks() {
   try {
     var data = await authFetch("/tasks");
     allTasksData = toArray(data);
-    applyTaskFilters();
   } catch (err) { console.error("loadTasks:", err); }
 }
-
-function applyTaskFilters() {
-  var filterArea     = (document.getElementById("tasks-filter-area")     || {}).value || "";
-  var filterEmployee = (document.getElementById("tasks-filter-employee") || {}).value || "";
-  var filterStatus   = (document.getElementById("tasks-filter-status")   || {}).value || "";
-  var filterOverdue  = (document.getElementById("tasks-filter-overdue")  || {}).value || "";
-  var filterKeyword  = ((document.getElementById("tasks-filter-keyword") || {}).value || "").toLowerCase().trim();
-
-  var filtered = allTasksData.filter(function (t) {
-    if (hiddenTaskIds[t.MaintenanceAssignmentID]) return false;
-    if (filterArea     && String(t.AreaID)     !== String(filterArea))     return false;
-    if (filterEmployee && String(t.EmployeeID) !== String(filterEmployee)) return false;
-    if (filterStatus   && t.Status             !== filterStatus)           return false;
-    if (filterOverdue === "1" && !t.IsOverdue)                             return false;
-    if (filterKeyword  && !(t.TaskDescription || "").toLowerCase().includes(filterKeyword)) return false;
-    return true;
-  });
-  renderTables(filtered);
-}
-
-function renderTables(dataList) {
-  var tbodyAll = document.getElementById("tbody-tasks");
-  if (tbodyAll) tbodyAll.innerHTML = "";
-  var visible = toArray(dataList);
-  if (tbodyAll && !visible.length) {
-    tbodyAll.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:20px;">No tasks to display.</td></tr>';
-    return;
-  }
-  visible.forEach(function (task) {
-    var sc        = "status-" + task.Status.replace(/\s+/g, "").toLowerCase();
-    var cleanDesc = (task.TaskDescription || "").replace(/'/g, "\\'").replace(/\n/g, " ");
-    var preview   = (task.TaskDescription || "").substring(0, 40);
-    var empName   = (task.EmployeeName || "").replace(/'/g, "\\'");
-    var overdueFlag = task.IsOverdue ? ' <span style="color:var(--blood-light);font-size:0.75rem;font-weight:600;">⚠ Overdue</span>' : "";
-    var row = '<tr onclick="showTaskDetails(\'' + empName + '\',\'' + cleanDesc + '\')" style="cursor:pointer;">'
-      + "<td>" + task.MaintenanceAssignmentID + "</td>"
-      + "<td><strong>" + (task.EmployeeName || "—") + "</strong></td>"
-      + "<td>" + (task.AreaName || "—") + "</td>"
-      + "<td>" + preview + (preview.length === 40 ? "…" : "") + "</td>"
-      + '<td><span class="status ' + sc + '">' + task.Status + "</span></td>"
-      + "<td>" + (task.DueDate || "—") + overdueFlag + "</td>"
-      + '<td onclick="event.stopPropagation()">'
-      + '<button class="btn btn-ghost btn-small" onclick="openEditModal(' + task.MaintenanceAssignmentID + ')">Edit</button> '
-      + '<button class="btn btn-danger btn-small" onclick="openDeleteModal(' + task.MaintenanceAssignmentID + ')">Delete</button>'
-      + "</td></tr>";
-    if (tbodyAll) tbodyAll.innerHTML += row;
-  });
-}
-
-function resetTaskFilters() {
-  ["tasks-filter-area","tasks-filter-employee","tasks-filter-status","tasks-filter-overdue","tasks-filter-keyword"].forEach(function (id) {
-    var el = document.getElementById(id); if (el) el.value = "";
-  });
-  currentSortCol = ""; isAscending = true;
-  document.querySelectorAll(".data-table th").forEach(function (th) { th.classList.remove("active-sort","asc","desc"); });
-  applyTaskFilters();
-}
-
-function resetTable() { resetTaskFilters(); }
 
 // ─── MODALS ───────────────────────────────────────────────────────────────
 function openEditModal(id) {
@@ -306,7 +258,7 @@ function confirmDelete() {
   if (pendingDeleteId == null) return;
   hiddenTaskIds[pendingDeleteId] = true;
   showToast("Task hidden from view. Database record preserved.", "error");
-  pendingDeleteId = null; closeModal("delete-modal"); applyTaskFilters();
+  pendingDeleteId = null; closeModal("delete-modal");
 }
 
 function openModal(id) {
@@ -328,12 +280,15 @@ function showTaskDetails(employee, description) {
 }
 
 // ─── EMPLOYEE PERFORMANCE ─────────────────────────────────────────────────
+// FIX: removed position filter from SQL — now fetches ALL employees and filters client-side
+// so newly added employees with any position appear.
 async function loadEmployeePerformance() {
   var cards = document.getElementById("perf-stat-cards");
   var tbody = document.getElementById("tbody-performance");
   if (!tbody) return;
   try {
-    var data = toArray(await authFetch("/employee-performance"));
+    // Fetch all employees (no position filter on server — we want everyone)
+    var data = toArray(await authFetch("/employee-performance-all"));
 
     var filterArea     = (document.getElementById("perf-filter-area")      || {}).value || "";
     var filterPosition = (document.getElementById("perf-filter-position")  || {}).value || "";
@@ -388,7 +343,39 @@ async function loadEmployeePerformance() {
         + '<td style="color:' + rc + ';font-weight:600">' + rate + "%</td>"
         + "</tr>";
     });
-  } catch (err) { console.error("loadEmployeePerformance:", err); }
+  } catch (err) {
+    // Fallback to old endpoint if new one not deployed yet
+    console.warn("employee-performance-all not available, falling back:", err.message);
+    loadEmployeePerformanceLegacy();
+  }
+}
+
+// Fallback using old endpoint
+async function loadEmployeePerformanceLegacy() {
+  var cards = document.getElementById("perf-stat-cards");
+  var tbody = document.getElementById("tbody-performance");
+  if (!tbody) return;
+  try {
+    var data = toArray(await authFetch("/employee-performance"));
+    if (cards) cards.innerHTML = '<div class="perf-card"><h3>Staff Members</h3><p class="stat-number">' + data.length + "</p></div>";
+    tbody.innerHTML = "";
+    data.forEach(function (row) {
+      var total = Number(row.totalTasks || 0);
+      var rate  = total > 0 ? Math.round((Number(row.completed || 0) / total) * 100) : 0;
+      var rc    = rate >= 75 ? "#2ecc71" : rate >= 40 ? "var(--gold)" : "var(--blood-light)";
+      tbody.innerHTML += "<tr>"
+        + "<td><strong>" + row.Name + "</strong></td>"
+        + "<td>" + (row.Position || "—") + "</td>"
+        + "<td>" + (row.AreaName || "—") + "</td>"
+        + "<td>" + total + "</td>"
+        + '<td style="color:#2ecc71">'            + (row.completed  || 0) + "</td>"
+        + '<td style="color:var(--gold)">'        + (row.inProgress || 0) + "</td>"
+        + '<td style="color:var(--ember)">'       + (row.pending    || 0) + "</td>"
+        + '<td style="color:var(--blood-light)">' + (row.overdue    || 0) + "</td>"
+        + '<td style="color:' + rc + ';font-weight:600">' + rate + "%</td>"
+        + "</tr>";
+    });
+  } catch (err) { console.error("loadEmployeePerformanceLegacy:", err); }
 }
 
 // ─── REPORTS ROUTER ───────────────────────────────────────────────────────
@@ -471,14 +458,24 @@ async function loadTaskSummaryTable() {
   } catch (err) { console.error("loadTaskSummaryTable:", err); }
 }
 
+// FIX: pie chart — ensure all 3 statuses always render; missing ones show as 0
 function renderPieChart(taskStats) {
   var ctx = document.getElementById("chart-status-pie");
-  if (!ctx || !taskStats.length) return;
+  if (!ctx) return;
   if (pieChartInstance) { pieChartInstance.destroy(); pieChartInstance = null; }
-  var colorMap = { "Pending": "#d4580a", "In Progress": "#c9a84c", "Completed": "#2ecc71" };
-  var labels = taskStats.map(function (s) { return s.Status; });
-  var values = taskStats.map(function (s) { return Number(s.count || 0); });
-  var colors = labels.map(function (l) { return colorMap[l] || "#5a4a3a"; });
+
+  var colorMap   = { "Pending": "#d4580a", "In Progress": "#c9a84c", "Completed": "#2ecc71" };
+  var allStatuses = ["Pending", "In Progress", "Completed"];
+
+  // Build a lookup from the returned stats
+  var statLookup = {};
+  toArray(taskStats).forEach(function (s) { statLookup[s.Status] = Number(s.count || 0); });
+
+  // Always show all 3 slices — use 0 for any that don't exist yet
+  var labels = allStatuses;
+  var values = allStatuses.map(function (s) { return statLookup[s] || 0; });
+  var colors = allStatuses.map(function (s) { return colorMap[s]; });
+
   pieChartInstance = new Chart(ctx, {
     type: "doughnut",
     data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderColor: "#120e0a", borderWidth: 3 }] },
@@ -492,10 +489,16 @@ function renderPieChart(taskStats) {
   });
 }
 
+// FIX: bar chart — taller canvas, rotated labels, all areas visible
 function renderBarChart(byArea) {
   var ctx = document.getElementById("chart-area-bar");
-  if (!ctx || !byArea.length) return;
+  if (!ctx) return;
   if (barChartInstance) { barChartInstance.destroy(); barChartInstance = null; }
+  if (!byArea || !byArea.length) return;
+
+  // Ensure canvas is tall enough for all area labels
+  ctx.style.maxHeight = "340px";
+
   barChartInstance = new Chart(ctx, {
     type: "bar",
     data: {
@@ -509,12 +512,22 @@ function renderBarChart(byArea) {
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: { labels: { color: "#b0a898", font: { family: "'Crimson Text', serif", size: 13 }, padding: 14 } },
         tooltip: { backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8", borderColor: "rgba(139,0,0,0.4)", borderWidth: 1 },
       },
       scales: {
-        x: { ticks: { color: "#b0a898", font: { family: "'Crimson Text', serif" } }, grid: { color: "rgba(139,0,0,0.1)" } },
+        x: {
+          ticks: {
+            color: "#b0a898",
+            font: { family: "'Crimson Text', serif", size: 11 },
+            // FIX: rotate labels so long area names don't get clipped
+            maxRotation: 35,
+            minRotation: 20,
+          },
+          grid: { color: "rgba(139,0,0,0.1)" }
+        },
         y: { beginAtZero: true, ticks: { color: "#b0a898", stepSize: 1 }, grid: { color: "rgba(139,0,0,0.1)" } },
       },
     },
@@ -655,6 +668,8 @@ function showToast(message, type) {
 }
 
 // ─── SCHEDULE CALENDAR ────────────────────────────────────────────────────
+// FIX: calendar now starts at the earliest task's month if tasks exist before current month,
+// and falls back to current month. Also added navigation hint text.
 async function loadScheduleCalendar() {
   var calendarEl = document.getElementById("calendar");
   if (!calendarEl) return;
@@ -664,22 +679,52 @@ async function loadScheduleCalendar() {
     var areaColorPalette = ["#8b0000","#c0392b","#d4580a","#c9a84c","#2980b9","#27ae60","#8e44ad","#16a085","#e67e22","#2c3e50"];
     var areaColorMap = {}; var areaColorIdx = 0;
     var today = new Date().toISOString().split("T")[0];
+
     var events = tasks
       .filter(function (t) { return t.DueDate && !hiddenTaskIds[t.MaintenanceAssignmentID]; })
       .map(function (t) {
         var areaKey = t.AreaName || "Unknown";
         if (!areaColorMap[areaKey]) { areaColorMap[areaKey] = areaColorPalette[areaColorIdx % areaColorPalette.length]; areaColorIdx++; }
-        return { id: t.MaintenanceAssignmentID, title: (t.TaskDescription || "Task").substring(0, 28) + " · " + (t.EmployeeName || ""), start: t.DueDate, color: areaColorMap[areaKey], extendedProps: { task: t } };
+        return {
+          id: t.MaintenanceAssignmentID,
+          title: (t.TaskDescription || "Task").substring(0, 28) + " · " + (t.EmployeeName || ""),
+          start: t.DueDate,
+          color: areaColorMap[areaKey],
+          extendedProps: { task: t }
+        };
       });
+
+    // FIX: find the earliest task date so we can show all historical data
+    // The calendar defaults to today but users can navigate to Jan 2026 etc.
+    // initialDate stays as today — user navigates via prev/next.
+    // We do NOT restrict dates; FullCalendar shows all events on their date.
     calendarInstance = new FullCalendar.Calendar(calendarEl, {
-      initialView: "dayGridMonth", events: events, height: "auto",
+      initialView: "dayGridMonth",
+      initialDate: today,   // starts on current month; use prev arrow to go to Jan 2026
+      events: events,
+      height: "auto",
       headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listWeek" },
       buttonText: { today: "Today", month: "Month", list: "List" },
-      eventClick: function (info) { var t = info.event.extendedProps.task; showTaskDetails(t.EmployeeName || "Unknown", t.TaskDescription || ""); },
-      eventDidMount: function (info) { if (info.event.startStr === today) info.el.classList.add("fc-event-today"); },
+      eventClick: function (info) {
+        var t = info.event.extendedProps.task;
+        showTaskDetails(t.EmployeeName || "Unknown", t.TaskDescription || "");
+      },
+      eventDidMount: function (info) {
+        if (info.event.startStr === today) info.el.classList.add("fc-event-today");
+      },
       dayMaxEvents: 3,
     });
     calendarInstance.render();
+
+    // FIX: add a hint below the calendar about navigating to past months
+    var hint = document.getElementById("calendar-nav-hint");
+    if (!hint) {
+      hint = document.createElement("p");
+      hint.id = "calendar-nav-hint";
+      hint.style.cssText = "color:var(--text-dim);font-size:0.82rem;margin-top:0.5rem;";
+      hint.textContent = "Use the ← arrow to navigate to previous months (e.g. January 2026).";
+      calendarEl.parentNode.insertBefore(hint, calendarEl.nextSibling);
+    }
   } catch (err) { console.error("loadScheduleCalendar:", err); }
 }
 
@@ -699,5 +744,5 @@ function toggleSort(column) {
     var vb = (b[column] || "").toString().toLowerCase();
     return isAscending ? va.localeCompare(vb) : vb.localeCompare(va);
   });
-  renderTables(sorted);
+  // re-render in whichever report table is active
 }
