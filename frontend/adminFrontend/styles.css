@@ -114,14 +114,6 @@ main {
   align-items: center;
 }
 
-.admin-inline-form {
-  margin-bottom: 0.75rem;
-}
-
-.admin-inline-form .input-search {
-  max-width: 12rem;
-}
-
 .toolbar h2, .subheading {
   font-family: "Cinzel Decorative", serif;
   color: var(--bone);
