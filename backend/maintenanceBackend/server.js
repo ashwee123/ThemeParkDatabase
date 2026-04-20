@@ -3,7 +3,7 @@ const http = require("http");
 const url  = require("url");
 const db   = require("./db");
 const jwt  = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 
 const SECRET = process.env.JWT_SECRET || "dev_secret";
 
