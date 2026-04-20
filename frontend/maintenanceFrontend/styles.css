@@ -107,6 +107,54 @@ main { position: relative; z-index: 1; max-width: 1220px; margin: 0 auto; paddin
 .data-table tbody tr:hover td { color: var(--bone); }
 .data-table tbody tr:active { transform: scale(0.995); }
 
+/* ── ACTION BUTTONS IN REPORT TABLES ────────────────────────────────────── */
+.action-cell {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* Prevent the row hover scale from distorting action cells */
+.data-table tbody tr:hover .action-cell { color: inherit; }
+
+.btn-edit-sm,
+.btn-del-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  font-size: 0.72rem;
+  font-family: "Cinzel Decorative", serif;
+  letter-spacing: 0.06em;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: var(--transition);
+  line-height: 1.4;
+}
+
+.btn-edit-sm {
+  background: rgba(201, 168, 76, 0.12);
+  color: var(--gold);
+  border-color: rgba(201, 168, 76, 0.35);
+}
+.btn-edit-sm:hover {
+  background: rgba(201, 168, 76, 0.28);
+  border-color: var(--gold);
+  box-shadow: 0 0 8px rgba(201, 168, 76, 0.25);
+}
+
+.btn-del-sm {
+  background: rgba(139, 0, 0, 0.12);
+  color: var(--blood-light);
+  border-color: rgba(139, 0, 0, 0.35);
+  margin-left: 5px;
+}
+.btn-del-sm:hover {
+  background: rgba(192, 57, 43, 0.25);
+  border-color: var(--blood-light);
+  box-shadow: 0 0 8px rgba(139, 0, 0, 0.4);
+}
+
 /* ── STATUS BADGES ────────────────────────────────────────────────────────── */
 .status { font-weight: 600; padding: 0.2rem 0.45rem; border-radius: var(--radius); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; }
 .status-pending    { color: var(--ember);  background: rgba(212,88,10,0.1);  border: 1px solid rgba(212,88,10,0.3); }
@@ -242,4 +290,5 @@ select:hover { border-color: var(--blood-light); }
   .modal-content { padding: 1.25rem; }
   .report-subtabs { gap: 0; }
   .report-subtab { padding: 0.6rem 0.8rem; font-size: 0.55rem; }
+  .btn-edit-sm, .btn-del-sm { font-size: 0.65rem; padding: 3px 6px; }
 }

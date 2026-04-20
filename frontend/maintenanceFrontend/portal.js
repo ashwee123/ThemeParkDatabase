@@ -8,16 +8,19 @@ if (!token) window.location.href = "/";
 
 // ─── GLOBAL STATE ─────────────────────────────────────────────────────────
 var allTasksData        = [];
+var allMhData           = [];
 var currentSortCol      = "";
 var isAscending         = true;
 var seenAlertIds        = {};
-var hiddenTaskIds       = {};
 var pendingDeleteId     = null;
+var pendingDeleteType   = null; // "task" or "maintenance"
 var _dropdownsPopulated = false;
 
-var pieChartInstance = null;
-var barChartInstance = null;
-var calendarInstance = null;
+var pieChartInstance     = null;
+var barChartInstance     = null;
+var freqBarInstance      = null;
+var severityPieInstance  = null;
+var calendarInstance     = null;
 
 // ─── SAFE HELPERS ─────────────────────────────────────────────────────────
 function toArray(val) {
@@ -66,8 +69,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!panel) return;
       panel.classList.add("active");
       var t = tab.dataset.tab;
-      if      (t === "performance")   loadEmployeePerformance();
-      else if (t === "reports")       initReports();
+      if      (t === "reports")       initReports();
       else if (t === "schedule")      loadScheduleCalendar();
       else if (t === "notifications") loadNotifications();
     });
@@ -94,6 +96,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   populateDropdowns();
 
+  // ── Assign Task form ──
   var form = document.getElementById("form-add-task");
   if (form) {
     form.addEventListener("submit", async function (e) {
@@ -107,9 +110,12 @@ document.addEventListener("DOMContentLoaded", function () {
         await authFetch("/addTask", {
           method: "POST",
           body: JSON.stringify({
-            EmployeeID: fd.get("EmployeeID") || null, AreaID: fd.get("AreaID") || null,
-            AttractionID: fd.get("AttractionID") || null, TaskDescription: fd.get("TaskDescription"),
-            Status: fd.get("Status"), DueDate: dueDate || null,
+            EmployeeID: fd.get("EmployeeID") || null,
+            AreaID: fd.get("AreaID") || null,
+            AttractionID: fd.get("AttractionID") || null,
+            TaskDescription: fd.get("TaskDescription"),
+            Status: fd.get("Status"),
+            DueDate: dueDate || null,
           }),
         });
         showToast("Task assigned successfully.");
@@ -120,6 +126,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // ── Edit Task form ──
   var editForm = document.getElementById("form-edit-task");
   if (editForm) {
     editForm.addEventListener("submit", async function (e) {
@@ -138,15 +145,37 @@ document.addEventListener("DOMContentLoaded", function () {
             DueDate:         document.getElementById("edit-due-date").value || null,
           }),
         });
-        showToast("Task updated."); closeModal("edit-modal"); loadTasks();
+        showToast("Task updated."); closeModal("edit-modal"); loadTaskSummaryTable();
       } catch (err) { showToast(err.message || "Failed to update task.", "error"); }
+    });
+  }
+
+  // ── Edit Maintenance History form ──
+  var editMhForm = document.getElementById("form-edit-mh");
+  if (editMhForm) {
+    editMhForm.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var id = document.getElementById("edit-mh-id").value;
+      try {
+        await authFetch("/updateMaintenance", {
+          method: "POST",
+          body: JSON.stringify({
+            MaintenanceID: id,
+            EmployeeID:    document.getElementById("edit-mh-employee").value || null,
+            Severity:      document.getElementById("edit-mh-severity").value,
+            Status:        document.getElementById("edit-mh-status").value,
+            DateStart:     document.getElementById("edit-mh-start").value || null,
+            DateEnd:       document.getElementById("edit-mh-end").value   || null,
+          }),
+        });
+        showToast("Maintenance record updated."); closeModal("edit-mh-modal"); loadMaintenanceHistory();
+      } catch (err) { showToast(err.message || "Failed to update record.", "error"); }
     });
   }
 
   var logoutBtn = document.getElementById("btn-logout");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
-  // FIX: removed loadTasks() call here — no "all tasks" tab anymore
   loadNotifications(); loadAlerts();
   setInterval(loadAlerts, 15000);
 
@@ -170,9 +199,7 @@ async function populateDropdowns() {
     var areas       = toArray(results[1]);
     var attractions = toArray(results[2]);
 
-    // FIX: deduplicate areas by name — the DB has duplicate area names with
-    // different AreaIDs (e.g. "Entrance" appears as both ID 31 and 2200).
-    // Keep the first occurrence of each name; discard the rest.
+    // Deduplicate areas by name
     var seenAreaNames = {};
     areas = areas.filter(function (a) {
       var key = (a.AreaName || "").trim().toLowerCase();
@@ -186,28 +213,12 @@ async function populateDropdowns() {
     fillSelect("select-attraction",      attractions, "AttractionID", function (a) { return a.AttractionName; }, true);
     fillSelect("edit-employee",          employees,   "EmployeeID",   function (e) { return e.Name + " (" + (e.Position || "Staff") + ")"; });
     fillSelect("edit-area",              areas,       "AreaID",       function (a) { return a.AreaName; }, true);
+    fillSelect("edit-mh-employee",       employees,   "EmployeeID",   function (e) { return e.Name + " (" + (e.Position || "Staff") + ")"; }, true);
     fillSelect("ts-filter-area",         areas,       "AreaID",       function (a) { return a.AreaName; }, true);
     fillSelect("ts-filter-employee",     employees,   "EmployeeID",   function (e) { return e.Name; }, true);
     fillSelect("mh-filter-attraction",   attractions, "AttractionID", function (a) { return a.AttractionName; }, true);
     fillSelect("mh-filter-area",         areas,       "AreaID",       function (a) { return a.AreaName; }, true);
     fillSelect("mh-filter-employee-mh",  employees,   "EmployeeID",   function (e) { return e.Name; }, true);
-    fillSelect("perf-filter-area",       areas,       "AreaID",       function (a) { return a.AreaName; }, true);
-
-    // Position filter from actual employee data
-    var positions = [];
-    employees.forEach(function (e) {
-      if (e.Position && positions.indexOf(e.Position) === -1) positions.push(e.Position);
-    });
-    positions.sort();
-    var perfPosSel = document.getElementById("perf-filter-position");
-    if (perfPosSel) {
-      // clear existing options except the first blank one
-      while (perfPosSel.options.length > 1) perfPosSel.remove(1);
-      positions.forEach(function (p) {
-        var opt = document.createElement("option");
-        opt.value = p; opt.textContent = p; perfPosSel.appendChild(opt);
-      });
-    }
   } catch (err) { console.error("populateDropdowns:", err); }
 }
 
@@ -233,7 +244,7 @@ async function loadTasks() {
 function openEditModal(id) {
   var task = allTasksData.find(function (t) { return t.MaintenanceAssignmentID === id; });
   if (!task) return;
-  document.getElementById("edit-task-id").value    = id;
+  document.getElementById("edit-task-id").value     = id;
   document.getElementById("edit-description").value = task.TaskDescription || "";
   document.getElementById("edit-due-date").value    = task.DueDate || "";
   var statusSel = document.getElementById("edit-status");
@@ -245,20 +256,54 @@ function openEditModal(id) {
   openModal("edit-modal");
 }
 
-function openDeleteModal(id) {
-  var task = allTasksData.find(function (t) { return t.MaintenanceAssignmentID === id; });
-  if (!task) return;
-  pendingDeleteId = id;
-  document.getElementById("delete-task-preview").textContent =
-    "Task #" + id + " · " + (task.EmployeeName || "Unknown") + " · \"" + (task.TaskDescription || "").substring(0, 60) + "…\"";
+function openEditMhModal(id) {
+  var row = allMhData.find(function (r) { return r.MaintenanceID == id; });
+  if (!row) return;
+  document.getElementById("edit-mh-id").value    = id;
+  document.getElementById("edit-mh-start").value = row.DateStart || "";
+  document.getElementById("edit-mh-end").value   = row.DateEnd   || "";
+
+  var sevSel = document.getElementById("edit-mh-severity");
+  Array.from(sevSel.options).forEach(function (o) { o.selected = o.value === row.Severity; });
+
+  var staSel = document.getElementById("edit-mh-status");
+  Array.from(staSel.options).forEach(function (o) { o.selected = o.value === row.Status; });
+
+  // Match employee by name since MH doesn't carry EmployeeID directly
+  var empSel = document.getElementById("edit-mh-employee");
+  Array.from(empSel.options).forEach(function (o) {
+    o.selected = (row.EmployeeID && o.value == row.EmployeeID) || o.textContent.startsWith(row.EmployeeName || "___NONE___");
+  });
+
+  openModal("edit-mh-modal");
+}
+
+function openDeleteModal(id, type, preview) {
+  pendingDeleteId   = id;
+  pendingDeleteType = type || "task";
+  document.getElementById("delete-task-preview").textContent = preview || ("Record #" + id);
   openModal("delete-modal");
 }
 
-function confirmDelete() {
+async function confirmDelete() {
   if (pendingDeleteId == null) return;
-  hiddenTaskIds[pendingDeleteId] = true;
-  showToast("Task hidden from view. Database record preserved.", "error");
-  pendingDeleteId = null; closeModal("delete-modal");
+  try {
+    var endpoint = pendingDeleteType === "maintenance" ? "/deleteMaintenance" : "/deleteTask";
+    var body     = pendingDeleteType === "maintenance"
+      ? { MaintenanceID: pendingDeleteId }
+      : { MaintenanceAssignmentID: pendingDeleteId };
+
+    await authFetch(endpoint, { method: "POST", body: JSON.stringify(body) });
+    showToast("Record deleted.", "error");
+    closeModal("delete-modal");
+
+    if (pendingDeleteType === "maintenance") loadMaintenanceHistory();
+    else loadTaskSummaryTable();
+  } catch (err) {
+    showToast(err.message || "Failed to delete.", "error");
+  }
+  pendingDeleteId   = null;
+  pendingDeleteType = null;
 }
 
 function openModal(id) {
@@ -279,105 +324,6 @@ function showTaskDetails(employee, description) {
   openModal("task-modal");
 }
 
-// ─── EMPLOYEE PERFORMANCE ─────────────────────────────────────────────────
-// FIX: removed position filter from SQL — now fetches ALL employees and filters client-side
-// so newly added employees with any position appear.
-async function loadEmployeePerformance() {
-  var cards = document.getElementById("perf-stat-cards");
-  var tbody = document.getElementById("tbody-performance");
-  if (!tbody) return;
-  try {
-    // Fetch all employees (no position filter on server — we want everyone)
-    var data = toArray(await authFetch("/employee-performance-all"));
-
-    var filterArea     = (document.getElementById("perf-filter-area")      || {}).value || "";
-    var filterPosition = (document.getElementById("perf-filter-position")  || {}).value || "";
-    var filterMinRate  = parseInt((document.getElementById("perf-filter-min-rate")  || {}).value || "0", 10) || 0;
-    var filterOverdue  = (document.getElementById("perf-filter-overdue")   || {}).value || "";
-    var filterMinTasks = parseInt((document.getElementById("perf-filter-min-tasks") || {}).value || "0", 10) || 0;
-
-    var filtered = data.filter(function (row) {
-      if (filterArea     && String(row.AreaID) !== String(filterArea)) return false;
-      if (filterPosition && row.Position       !== filterPosition)      return false;
-      if (filterOverdue === "1" && Number(row.overdue || 0) === 0)      return false;
-      var total = Number(row.totalTasks || 0);
-      var rate  = total > 0 ? Math.round((Number(row.completed || 0) / total) * 100) : 0;
-      if (filterMinRate  > 0 && rate  < filterMinRate)  return false;
-      if (filterMinTasks > 0 && total < filterMinTasks) return false;
-      return true;
-    });
-
-    var totalStaff     = filtered.length;
-    var totalCompleted = filtered.reduce(function (s, r) { return s + Number(r.completed  || 0); }, 0);
-    var totalOverdue   = filtered.reduce(function (s, r) { return s + Number(r.overdue    || 0); }, 0);
-    var totalTasks     = filtered.reduce(function (s, r) { return s + Number(r.totalTasks || 0); }, 0);
-    var avgRate        = totalTasks ? Math.round((totalCompleted / totalTasks) * 100) : 0;
-
-    if (cards) {
-      cards.innerHTML =
-        '<div class="perf-card"><h3>Staff Members</h3><p class="stat-number">' + totalStaff + "</p></div>"
-        + '<div class="perf-card"><h3>Total Tasks Assigned</h3><p class="stat-number">' + totalTasks + "</p></div>"
-        + '<div class="perf-card"><h3>Team Completion Rate</h3><p class="stat-number" style="color:#2ecc71">' + avgRate + "%</p></div>"
-        + '<div class="perf-card"><h3>Overdue Across Team</h3><p class="stat-number" style="color:var(--blood-light)">' + totalOverdue + "</p></div>";
-    }
-
-    tbody.innerHTML = "";
-    if (!filtered.length) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-dim);padding:20px;">No employees match filters.</td></tr>';
-      return;
-    }
-    filtered.forEach(function (row) {
-      var total = Number(row.totalTasks || 0);
-      var rate  = total > 0 ? Math.round((Number(row.completed || 0) / total) * 100) : 0;
-      var rc    = rate >= 75 ? "#2ecc71" : rate >= 40 ? "var(--gold)" : "var(--blood-light)";
-      tbody.innerHTML +=
-        "<tr>"
-        + "<td><strong>" + row.Name + "</strong></td>"
-        + "<td>" + (row.Position || "—") + "</td>"
-        + "<td>" + (row.AreaName || "—") + "</td>"
-        + "<td>" + total + "</td>"
-        + '<td style="color:#2ecc71">'            + (row.completed  || 0) + "</td>"
-        + '<td style="color:var(--gold)">'        + (row.inProgress || 0) + "</td>"
-        + '<td style="color:var(--ember)">'       + (row.pending    || 0) + "</td>"
-        + '<td style="color:var(--blood-light)">' + (row.overdue    || 0) + "</td>"
-        + '<td style="color:' + rc + ';font-weight:600">' + rate + "%</td>"
-        + "</tr>";
-    });
-  } catch (err) {
-    // Fallback to old endpoint if new one not deployed yet
-    console.warn("employee-performance-all not available, falling back:", err.message);
-    loadEmployeePerformanceLegacy();
-  }
-}
-
-// Fallback using old endpoint
-async function loadEmployeePerformanceLegacy() {
-  var cards = document.getElementById("perf-stat-cards");
-  var tbody = document.getElementById("tbody-performance");
-  if (!tbody) return;
-  try {
-    var data = toArray(await authFetch("/employee-performance"));
-    if (cards) cards.innerHTML = '<div class="perf-card"><h3>Staff Members</h3><p class="stat-number">' + data.length + "</p></div>";
-    tbody.innerHTML = "";
-    data.forEach(function (row) {
-      var total = Number(row.totalTasks || 0);
-      var rate  = total > 0 ? Math.round((Number(row.completed || 0) / total) * 100) : 0;
-      var rc    = rate >= 75 ? "#2ecc71" : rate >= 40 ? "var(--gold)" : "var(--blood-light)";
-      tbody.innerHTML += "<tr>"
-        + "<td><strong>" + row.Name + "</strong></td>"
-        + "<td>" + (row.Position || "—") + "</td>"
-        + "<td>" + (row.AreaName || "—") + "</td>"
-        + "<td>" + total + "</td>"
-        + '<td style="color:#2ecc71">'            + (row.completed  || 0) + "</td>"
-        + '<td style="color:var(--gold)">'        + (row.inProgress || 0) + "</td>"
-        + '<td style="color:var(--ember)">'       + (row.pending    || 0) + "</td>"
-        + '<td style="color:var(--blood-light)">' + (row.overdue    || 0) + "</td>"
-        + '<td style="color:' + rc + ';font-weight:600">' + rate + "%</td>"
-        + "</tr>";
-    });
-  } catch (err) { console.error("loadEmployeePerformanceLegacy:", err); }
-}
-
 // ─── REPORTS ROUTER ───────────────────────────────────────────────────────
 function initReports() {
   var activeBtn = document.querySelector(".report-subtab.active");
@@ -387,6 +333,7 @@ function initReports() {
 function loadReportByKey(key) {
   if      (key === "task-summary")        loadTaskSummary();
   else if (key === "maintenance-history") loadMaintenanceHistory();
+  else if (key === "area-frequency")      loadAreaFrequency();
 }
 
 // ─── REPORT: TASK SUMMARY ─────────────────────────────────────────────────
@@ -438,9 +385,10 @@ async function loadTaskSummaryTable() {
   if (keyword)  params.set("keyword",    keyword);
   try {
     var rows = toArray(await authFetch("/tasks-filtered?" + params.toString()));
+    allTasksData = rows; // keep in sync for edit modal lookup
     tbody.innerHTML = "";
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">No tasks match filters.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:20px;">No tasks match filters.</td></tr>';
       return;
     }
     rows.forEach(function (t) {
@@ -453,85 +401,13 @@ async function loadTaskSummaryTable() {
         + "<td>" + (t.TaskDescription || "").substring(0, 50) + "…</td>"
         + '<td><span class="status ' + sc + '">' + t.Status + "</span></td>"
         + "<td>" + (t.DueDate || "—") + overdueFlag + "</td>"
+        + '<td class="action-cell">'
+        + '<button class="btn-edit-sm" onclick="openEditModal(' + t.MaintenanceAssignmentID + ')">✏ Edit</button> '
+        + '<button class="btn-del-sm" onclick="openDeleteModal(' + t.MaintenanceAssignmentID + ', \'task\', \'Task #' + t.MaintenanceAssignmentID + ' · ' + (t.EmployeeName || "Unknown").replace(/'/g, "\\'") + '\')">🗑 Delete</button>'
+        + "</td>"
         + "</tr>";
     });
   } catch (err) { console.error("loadTaskSummaryTable:", err); }
-}
-
-// FIX: pie chart — ensure all 3 statuses always render; missing ones show as 0
-function renderPieChart(taskStats) {
-  var ctx = document.getElementById("chart-status-pie");
-  if (!ctx) return;
-  if (pieChartInstance) { pieChartInstance.destroy(); pieChartInstance = null; }
-
-  var colorMap   = { "Pending": "#d4580a", "In Progress": "#c9a84c", "Completed": "#2ecc71" };
-  var allStatuses = ["Pending", "In Progress", "Completed"];
-
-  // Build a lookup from the returned stats
-  var statLookup = {};
-  toArray(taskStats).forEach(function (s) { statLookup[s.Status] = Number(s.count || 0); });
-
-  // Always show all 3 slices — use 0 for any that don't exist yet
-  var labels = allStatuses;
-  var values = allStatuses.map(function (s) { return statLookup[s] || 0; });
-  var colors = allStatuses.map(function (s) { return colorMap[s]; });
-
-  pieChartInstance = new Chart(ctx, {
-    type: "doughnut",
-    data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderColor: "#120e0a", borderWidth: 3 }] },
-    options: {
-      responsive: true, cutout: "65%",
-      plugins: {
-        legend: { position: "bottom", labels: { color: "#b0a898", font: { family: "'Crimson Text', serif", size: 13 }, padding: 16 } },
-        tooltip: { backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8", borderColor: "rgba(139,0,0,0.4)", borderWidth: 1 },
-      },
-    },
-  });
-}
-
-// FIX: bar chart — taller canvas, rotated labels, all areas visible
-function renderBarChart(byArea) {
-  var ctx = document.getElementById("chart-area-bar");
-  if (!ctx) return;
-  if (barChartInstance) { barChartInstance.destroy(); barChartInstance = null; }
-  if (!byArea || !byArea.length) return;
-
-  // Ensure canvas is tall enough for all area labels
-  ctx.style.maxHeight = "340px";
-
-  barChartInstance = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: byArea.map(function (d) { return d.AreaName; }),
-      datasets: [
-        { label: "Pending",     data: byArea.map(function (d) { return Number(d.pending    || 0); }), backgroundColor: "rgba(212,88,10,0.75)",  borderRadius: 3 },
-        { label: "In Progress", data: byArea.map(function (d) { return Number(d.inProgress || 0); }), backgroundColor: "rgba(201,168,76,0.75)", borderRadius: 3 },
-        { label: "Completed",   data: byArea.map(function (d) { return Number(d.completed  || 0); }), backgroundColor: "rgba(46,204,113,0.75)", borderRadius: 3 },
-        { label: "Overdue",     data: byArea.map(function (d) { return Number(d.overdue    || 0); }), backgroundColor: "rgba(139,0,0,0.75)",    borderRadius: 3 },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { labels: { color: "#b0a898", font: { family: "'Crimson Text', serif", size: 13 }, padding: 14 } },
-        tooltip: { backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8", borderColor: "rgba(139,0,0,0.4)", borderWidth: 1 },
-      },
-      scales: {
-        x: {
-          ticks: {
-            color: "#b0a898",
-            font: { family: "'Crimson Text', serif", size: 11 },
-            // FIX: rotate labels so long area names don't get clipped
-            maxRotation: 35,
-            minRotation: 20,
-          },
-          grid: { color: "rgba(139,0,0,0.1)" }
-        },
-        y: { beginAtZero: true, ticks: { color: "#b0a898", stepSize: 1 }, grid: { color: "rgba(139,0,0,0.1)" } },
-      },
-    },
-  });
 }
 
 // ─── REPORT: MAINTENANCE HISTORY ──────────────────────────────────────────
@@ -547,7 +423,6 @@ async function loadMaintenanceHistory() {
   var empId   = (document.getElementById("mh-filter-employee-mh") || {}).value || "";
   var from    = (document.getElementById("mh-filter-from")        || {}).value || "";
   var to      = (document.getElementById("mh-filter-to")          || {}).value || "";
-  var ongoing = (document.getElementById("mh-filter-ongoing")     || {}).value || "";
   var keyword = (document.getElementById("mh-filter-keyword")     || {}).value || "";
   if (sev)    params.set("severity",     sev);
   if (stat)   params.set("status",       stat);
@@ -559,7 +434,7 @@ async function loadMaintenanceHistory() {
   if (keyword)params.set("keyword",      keyword);
   try {
     var rows = toArray(await authFetch("/maintenance-report?" + params.toString()));
-    if (ongoing === "1") rows = rows.filter(function (r) { return !r.DateEnd; });
+    allMhData = rows; // keep in sync for edit modal
     if (cards) {
       var total        = rows.length;
       var high         = rows.filter(function (r) { return r.Severity === "High"; }).length;
@@ -573,7 +448,7 @@ async function loadMaintenanceHistory() {
     }
     tbody.innerHTML = "";
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-dim);padding:20px;">No records match filters.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-dim);padding:20px;">No records match filters.</td></tr>';
       return;
     }
     rows.forEach(function (row) {
@@ -587,9 +462,200 @@ async function loadMaintenanceHistory() {
         + "<td>" + (row.Status         || "—") + "</td>"
         + "<td>" + (row.DateStart      || "—") + "</td>"
         + "<td>" + (row.DateEnd        || "Ongoing") + "</td>"
+        + '<td class="action-cell">'
+        + '<button class="btn-edit-sm" onclick="openEditMhModal(' + row.MaintenanceID + ')">✏ Edit</button> '
+        + '<button class="btn-del-sm" onclick="openDeleteModal(' + row.MaintenanceID + ', \'maintenance\', \'Maintenance #' + row.MaintenanceID + ' · ' + (row.AttractionName || "Unknown").replace(/'/g, "\\'") + '\')">🗑 Delete</button>'
+        + "</td>"
         + "</tr>";
     });
   } catch (err) { console.error("loadMaintenanceHistory:", err); }
+}
+
+// ─── REPORT: AREA FREQUENCY BREAKDOWN ────────────────────────────────────
+async function loadAreaFrequency() {
+  var tbody = document.getElementById("tbody-freq");
+  var cards = document.getElementById("freq-summary-cards");
+  if (!tbody) return;
+  try {
+    var data = toArray(await authFetch("/area-frequency"));
+    var grandTotal = data.reduce(function (s, r) { return s + Number(r.total || 0); }, 0);
+
+    if (cards) {
+      var mostAffected = data.length ? data[0] : null;
+      var totalHigh    = data.reduce(function (s, r) { return s + Number(r.highSeverity || 0); }, 0);
+      var avgPct       = data.length ? Math.round(grandTotal / data.length) : 0;
+      cards.innerHTML =
+        '<div class="perf-card"><h3>Total Maintenance Events</h3><p class="stat-number">' + grandTotal + "</p></div>"
+        + '<div class="perf-card"><h3>Most Affected Area</h3><p class="stat-number" style="font-size:1.1rem;color:var(--blood-light)">' + (mostAffected ? mostAffected.AreaName : "—") + "</p></div>"
+        + '<div class="perf-card"><h3>High Severity Total</h3><p class="stat-number" style="color:var(--blood-light)">' + totalHigh + "</p></div>"
+        + '<div class="perf-card"><h3>Areas Tracked</h3><p class="stat-number">' + data.length + "</p></div>";
+    }
+
+    renderFreqBarChart(data, grandTotal);
+    renderSeverityPieChart(data);
+
+    tbody.innerHTML = "";
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:20px;">No maintenance data available.</td></tr>';
+      return;
+    }
+    data.forEach(function (row) {
+      var pct = grandTotal > 0 ? ((Number(row.total || 0) / grandTotal) * 100).toFixed(1) : "0.0";
+      var pctColor = Number(pct) >= 25 ? "color:var(--blood-light);font-weight:700"
+                  : Number(pct) >= 15 ? "color:var(--ember);font-weight:600"
+                  : "color:var(--gold)";
+      tbody.innerHTML += "<tr>"
+        + "<td><strong>" + (row.AreaName || "—") + "</strong></td>"
+        + "<td>" + (row.total || 0) + "</td>"
+        + '<td style="color:var(--blood-light)">' + (row.highSeverity   || 0) + "</td>"
+        + '<td style="color:var(--ember)">'       + (row.mediumSeverity || 0) + "</td>"
+        + '<td style="color:var(--gold)">'        + (row.lowSeverity    || 0) + "</td>"
+        + '<td style="' + pctColor + '">' + pct + "%</td>"
+        + "<td>" + (row.mostAffectedAttraction || "—") + "</td>"
+        + "</tr>";
+    });
+  } catch (err) { console.error("loadAreaFrequency:", err); }
+}
+
+function renderFreqBarChart(data, grandTotal) {
+  var ctx = document.getElementById("chart-freq-bar");
+  if (!ctx) return;
+  if (freqBarInstance) { freqBarInstance.destroy(); freqBarInstance = null; }
+  if (!data || !data.length) return;
+
+  ctx.style.maxHeight = "300px";
+
+  var pcts = data.map(function (d) {
+    return grandTotal > 0 ? parseFloat(((Number(d.total || 0) / grandTotal) * 100).toFixed(1)) : 0;
+  });
+
+  freqBarInstance = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: data.map(function (d) { return d.AreaName; }),
+      datasets: [{
+        label: "% of All Maintenance Events",
+        data: pcts,
+        backgroundColor: data.map(function (d, i) {
+          var colors = ["rgba(139,0,0,0.8)","rgba(212,88,10,0.8)","rgba(201,168,76,0.8)","rgba(46,204,113,0.8)","rgba(41,128,185,0.8)","rgba(142,68,211,0.8)"];
+          return colors[i % colors.length];
+        }),
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8",
+          callbacks: { label: function (ctx) { return ctx.parsed.y + "% of maintenance events"; } }
+        },
+      },
+      scales: {
+        x: { ticks: { color: "#b0a898", maxRotation: 35, minRotation: 20, font: { size: 11 } }, grid: { color: "rgba(139,0,0,0.1)" } },
+        y: {
+          beginAtZero: true, max: 100,
+          ticks: { color: "#b0a898", callback: function (v) { return v + "%"; } },
+          grid: { color: "rgba(139,0,0,0.1)" }
+        },
+      },
+    },
+  });
+}
+
+function renderSeverityPieChart(data) {
+  var ctx = document.getElementById("chart-severity-pie");
+  if (!ctx) return;
+  if (severityPieInstance) { severityPieInstance.destroy(); severityPieInstance = null; }
+
+  var totalHigh   = data.reduce(function (s, r) { return s + Number(r.highSeverity   || 0); }, 0);
+  var totalMedium = data.reduce(function (s, r) { return s + Number(r.mediumSeverity || 0); }, 0);
+  var totalLow    = data.reduce(function (s, r) { return s + Number(r.lowSeverity    || 0); }, 0);
+
+  severityPieInstance = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["High", "Medium", "Low"],
+      datasets: [{
+        data: [totalHigh, totalMedium, totalLow],
+        backgroundColor: ["rgba(139,0,0,0.85)", "rgba(212,88,10,0.85)", "rgba(201,168,76,0.85)"],
+        borderColor: "#120e0a",
+        borderWidth: 3,
+      }],
+    },
+    options: {
+      responsive: true, cutout: "60%",
+      plugins: {
+        legend: { position: "bottom", labels: { color: "#b0a898", font: { size: 13 }, padding: 16 } },
+        tooltip: { backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8" },
+      },
+    },
+  });
+}
+
+// ─── PIE / BAR CHARTS (Task Summary) ──────────────────────────────────────
+function renderPieChart(taskStats) {
+  var ctx = document.getElementById("chart-status-pie");
+  if (!ctx) return;
+  if (pieChartInstance) { pieChartInstance.destroy(); pieChartInstance = null; }
+
+  var colorMap    = { "Pending": "#d4580a", "In Progress": "#c9a84c", "Completed": "#2ecc71" };
+  var allStatuses = ["Pending", "In Progress", "Completed"];
+  var statLookup  = {};
+  toArray(taskStats).forEach(function (s) { statLookup[s.Status] = Number(s.count || 0); });
+
+  pieChartInstance = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: allStatuses,
+      datasets: [{
+        data: allStatuses.map(function (s) { return statLookup[s] || 0; }),
+        backgroundColor: allStatuses.map(function (s) { return colorMap[s]; }),
+        borderColor: "#120e0a", borderWidth: 3,
+      }],
+    },
+    options: {
+      responsive: true, cutout: "65%",
+      plugins: {
+        legend: { position: "bottom", labels: { color: "#b0a898", font: { family: "'Crimson Text', serif", size: 13 }, padding: 16 } },
+        tooltip: { backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8", borderColor: "rgba(139,0,0,0.4)", borderWidth: 1 },
+      },
+    },
+  });
+}
+
+function renderBarChart(byArea) {
+  var ctx = document.getElementById("chart-area-bar");
+  if (!ctx) return;
+  if (barChartInstance) { barChartInstance.destroy(); barChartInstance = null; }
+  if (!byArea || !byArea.length) return;
+  ctx.style.maxHeight = "340px";
+
+  barChartInstance = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: byArea.map(function (d) { return d.AreaName; }),
+      datasets: [
+        { label: "Pending",     data: byArea.map(function (d) { return Number(d.pending    || 0); }), backgroundColor: "rgba(212,88,10,0.75)",  borderRadius: 3 },
+        { label: "In Progress", data: byArea.map(function (d) { return Number(d.inProgress || 0); }), backgroundColor: "rgba(201,168,76,0.75)", borderRadius: 3 },
+        { label: "Completed",   data: byArea.map(function (d) { return Number(d.completed  || 0); }), backgroundColor: "rgba(46,204,113,0.75)", borderRadius: 3 },
+        { label: "Overdue",     data: byArea.map(function (d) { return Number(d.overdue    || 0); }), backgroundColor: "rgba(139,0,0,0.75)",    borderRadius: 3 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: "#b0a898", font: { family: "'Crimson Text', serif", size: 13 }, padding: 14 } },
+        tooltip: { backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8", borderColor: "rgba(139,0,0,0.4)", borderWidth: 1 },
+      },
+      scales: {
+        x: { ticks: { color: "#b0a898", font: { family: "'Crimson Text', serif", size: 11 }, maxRotation: 35, minRotation: 20 }, grid: { color: "rgba(139,0,0,0.1)" } },
+        y: { beginAtZero: true, ticks: { color: "#b0a898", stepSize: 1 }, grid: { color: "rgba(139,0,0,0.1)" } },
+      },
+    },
+  });
 }
 
 // ─── CSV EXPORT ───────────────────────────────────────────────────────────
@@ -598,11 +664,17 @@ function exportTableCSV(tbodyId, filename) {
   if (!tbody) return;
   var thead = tbody.closest("table") && tbody.closest("table").querySelector("thead");
   var headers = [];
-  if (thead) thead.querySelectorAll("th").forEach(function (th) { headers.push(th.textContent.trim()); });
+  if (thead) thead.querySelectorAll("th").forEach(function (th) {
+    var text = th.textContent.trim();
+    if (text !== "Actions") headers.push(text); // skip Actions column
+  });
   var rows = [headers];
   tbody.querySelectorAll("tr").forEach(function (tr) {
     var cells = [];
-    tr.querySelectorAll("td").forEach(function (td) {
+    var tds = tr.querySelectorAll("td");
+    // Skip last cell (Actions) if it contains buttons
+    tds.forEach(function (td, i) {
+      if (td.querySelector("button")) return; // skip action cells
       cells.push('"' + td.textContent.trim().replace(/"/g, '""') + '"');
     });
     if (cells.length) rows.push(cells);
@@ -614,7 +686,6 @@ function exportTableCSV(tbodyId, filename) {
   a.href = url; a.download = filename + "-" + new Date().toISOString().split("T")[0] + ".csv";
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
-function exportPerformanceCSV() { exportTableCSV("tbody-performance", "employee-performance"); }
 
 // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
 async function loadNotifications() {
@@ -668,8 +739,6 @@ function showToast(message, type) {
 }
 
 // ─── SCHEDULE CALENDAR ────────────────────────────────────────────────────
-// FIX: calendar now starts at the earliest task's month if tasks exist before current month,
-// and falls back to current month. Also added navigation hint text.
 async function loadScheduleCalendar() {
   var calendarEl = document.getElementById("calendar");
   if (!calendarEl) return;
@@ -681,7 +750,7 @@ async function loadScheduleCalendar() {
     var today = new Date().toISOString().split("T")[0];
 
     var events = tasks
-      .filter(function (t) { return t.DueDate && !hiddenTaskIds[t.MaintenanceAssignmentID]; })
+      .filter(function (t) { return t.DueDate; })
       .map(function (t) {
         var areaKey = t.AreaName || "Unknown";
         if (!areaColorMap[areaKey]) { areaColorMap[areaKey] = areaColorPalette[areaColorIdx % areaColorPalette.length]; areaColorIdx++; }
@@ -694,9 +763,7 @@ async function loadScheduleCalendar() {
         };
       });
 
-    // FIX: start the calendar on the earliest task date so past data
-    // (e.g. January 2026) is visible immediately without needing to navigate.
-    var allDates = events.map(function (e) { return e.start; }).filter(Boolean).sort();
+    var allDates    = events.map(function (e) { return e.start; }).filter(Boolean).sort();
     var initialDate = allDates.length ? allDates[0] : today;
 
     calendarInstance = new FullCalendar.Calendar(calendarEl, {
@@ -717,23 +784,4 @@ async function loadScheduleCalendar() {
     });
     calendarInstance.render();
   } catch (err) { console.error("loadScheduleCalendar:", err); }
-}
-
-// ─── SORT ─────────────────────────────────────────────────────────────────
-function toggleSort(column) {
-  var activePanel = document.querySelector(".panel.active");
-  if (!activePanel) return;
-  var headers = activePanel.querySelectorAll(".data-table th");
-  headers.forEach(function (th) { th.classList.remove("active-sort","asc","desc"); });
-  if (currentSortCol === column) isAscending = !isAscending;
-  else { currentSortCol = column; isAscending = true; }
-  var clicked = Array.from(headers).find(function (th) { return th.innerText.toLowerCase().includes(column.toLowerCase()); });
-  if (clicked) clicked.classList.add("active-sort", isAscending ? "asc" : "desc");
-  var sorted = allTasksData.slice().sort(function (a, b) {
-    if (column === "MaintenanceAssignmentID") return isAscending ? a[column] - b[column] : b[column] - a[column];
-    var va = (a[column] || "").toString().toLowerCase();
-    var vb = (b[column] || "").toString().toLowerCase();
-    return isAscending ? va.localeCompare(vb) : vb.localeCompare(va);
-  });
-  // re-render in whichever report table is active
 }
