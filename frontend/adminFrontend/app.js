@@ -43,6 +43,36 @@ function showToast(msg, err) {
   }, 3500);
 }
 
+function panelSearchSelector(panelId) {
+  return "#" + panelId + " .table-wrap tbody tr, #" + panelId + " .stat-card, #" + panelId + " .checklist li";
+}
+
+function applyPanelTextFilter(panelId, query) {
+  const q = String(query || "").trim().toLowerCase();
+  document.querySelectorAll(panelSearchSelector(panelId)).forEach(function (el) {
+    const txt = (el.textContent || "").toLowerCase();
+    const visible = !q || txt.indexOf(q) !== -1;
+    el.classList.toggle("hidden-by-filter", !visible);
+  });
+}
+
+function applyReportsFilter() {
+  const panelId = "panel-reports";
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  const searchEl = $("#search-reports");
+  const selectEl = $("#reports-filter-type");
+  const q = String(searchEl && searchEl.value ? searchEl.value : "").trim().toLowerCase();
+  const category = selectEl && selectEl.value ? selectEl.value : "all";
+  panel.querySelectorAll(".stat-card").forEach(function (card) {
+    const txt = (card.textContent || "").toLowerCase();
+    const metricType = card.getAttribute("data-metric-type") || "all";
+    const matchesText = !q || txt.indexOf(q) !== -1;
+    const matchesCategory = category === "all" || metricType === category;
+    card.classList.toggle("hidden-by-filter", !(matchesText && matchesCategory));
+  });
+}
+
 function setBackendStatus(message, options = {}) {
   const wrap = $("#backend-status");
   const text = $("#backend-status-text");
@@ -434,23 +464,24 @@ async function loadReportsPanel() {
     const avg30 =
       avgRaw != null && Number.isFinite(Number(avgRaw)) ? Number(avgRaw).toFixed(2) : "—";
     const cards = [
-      ["Visitors (total)", snap.visitorsTotal],
-      ["Visitors (active accts)", snap.visitorsActive],
-      ["Tickets issued", snap.ticketsTotal],
-      ["Tickets active", snap.ticketsActive],
-      ["Retail transactions", snap.retailTxCount],
-      ["Retail revenue (sum)", snap.retailRevenue.toFixed(2)],
-      ["Incidents (90d)", snap.incidents90d],
-      ["Visitor reviews (total)", snap.visitorReviewsTotal ?? "—"],
-      ["Visitor reviews (30d)", snap.visitorReviewsLast30d ?? "—"],
-      ["Avg visitor rating (30d, 1–10)", avg30],
+      ["Visitors (total)", snap.visitorsTotal, "visitor"],
+      ["Visitors (active accts)", snap.visitorsActive, "visitor"],
+      ["Tickets issued", snap.ticketsTotal, "ticket"],
+      ["Tickets active", snap.ticketsActive, "ticket"],
+      ["Retail transactions", snap.retailTxCount, "retail"],
+      ["Retail revenue (sum)", snap.retailRevenue.toFixed(2), "retail"],
+      ["Incidents (90d)", snap.incidents90d, "incident"],
+      ["Visitor reviews (total)", snap.visitorReviewsTotal ?? "—", "review"],
+      ["Visitor reviews (30d)", snap.visitorReviewsLast30d ?? "—", "review"],
+      ["Avg visitor rating (30d, 1–10)", avg30, "review"],
     ];
     g.innerHTML = cards.map(function (c) {
       return (
-        '<div class="stat-card"><div class="label">' + escapeHtml(c[0]) + '</div><div class="value">' +
+        '<div class="stat-card" data-metric-type="' + escapeHtml(c[2]) + '"><div class="label">' + escapeHtml(c[0]) + '</div><div class="value">' +
         escapeHtml(c[1]) + "</div></div>"
       );
     }).join("");
+    applyReportsFilter();
   }
 }
 
@@ -699,6 +730,23 @@ if (vq) {
         .catch(function (e) { showToast(e.message, true); });
     }
   });
+}
+
+document.querySelectorAll(".panel-search").forEach(function (input) {
+  input.addEventListener("input", function () {
+    const panelId = input.getAttribute("data-panel-target");
+    if (!panelId) return;
+    if (panelId === "panel-reports") {
+      applyReportsFilter();
+      return;
+    }
+    applyPanelTextFilter(panelId, input.value);
+  });
+});
+
+const reportFilterType = $("#reports-filter-type");
+if (reportFilterType) {
+  reportFilterType.addEventListener("change", applyReportsFilter);
 }
 
 async function exportVisitorsCsv() {
