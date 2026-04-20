@@ -42,12 +42,10 @@
         <button class="btn-reset" onclick="loadRideOperations()">↻ Refresh</button>
       </div>
     </div>
-    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Live status of all attractions. Trigger alerts and active maintenance are highlighted automatically.</p>
+    <p style="color:var(--text-dim);margin-bottom:1.5rem;">Live status of all attractions based on current alerts and maintenance records.</p>
 
-    <!-- Summary stat cards -->
     <div id="ops-stat-cards" class="stats-grid" style="margin-bottom:1.5rem;"></div>
 
-    <!-- Filter bar -->
     <div class="report-filters" style="margin-bottom:1.5rem;">
       <label>Area
         <select id="ops-filter-area" onchange="renderOpsTable()">
@@ -82,7 +80,7 @@
     </div>
 
     <div class="table-wrap">
-      <table class="data-table" id="table-ops">
+      <table class="data-table">
         <thead><tr>
           <th>Attraction</th>
           <th>Type</th>
@@ -123,7 +121,7 @@
           <canvas id="chart-status-pie"></canvas>
         </div>
         <div class="chart-card">
-          <h3 class="chart-title">Tasks by Area (all zones)</h3>
+          <h3 class="chart-title">Tasks by Area (active only)</h3>
           <canvas id="chart-area-bar"></canvas>
         </div>
       </div>
@@ -131,9 +129,17 @@
         <label>Status
           <select id="ts-filter-status">
             <option value="">All</option>
-            <option value="Pending">Pending</option>
+            <option value="Pending" selected>Pending</option>
             <option value="In Progress">In Progress</option>
             <option value="Completed">Completed</option>
+          </select>
+        </label>
+        <label>Severity
+          <select id="ts-filter-severity">
+            <option value="">All Severities</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
           </select>
         </label>
         <label>Area <select id="ts-filter-area"><option value="">All Areas</option></select></label>
@@ -259,6 +265,14 @@
             <option value="Completed">Completed</option>
           </select>
         </label>
+        <label>Severity
+          <select name="Severity" id="select-severity">
+            <option value="">None</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+          </select>
+        </label>
         <label>Due Date * <span id="due-date-hint" style="color:var(--text-dim);font-size:0.75rem;">(today or later)</span>
           <input type="date" name="DueDate" id="due-date-input" required>
         </label>
@@ -320,6 +334,14 @@
               <option value="Pending">Pending</option>
               <option value="In Progress">In Progress</option>
               <option value="Completed">Completed</option>
+            </select>
+          </label>
+          <label>Severity
+            <select id="edit-severity">
+              <option value="">None</option>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
             </select>
           </label>
           <label>Due Date <input type="date" id="edit-due-date"></label>
@@ -386,7 +408,7 @@
       <p id="delete-task-preview" class="typewriter-text" style="margin-top:1rem;font-size:0.9rem;"></p>
       <div class="form-actions" style="margin-top:1.5rem;">
         <button class="btn btn-ghost" onclick="closeModal('delete-modal')">Cancel</button>
-        <button class="btn btn-danger" id="confirm-delete-btn" onclick="confirmDelete()">Delete Record</button>
+        <button class="btn btn-danger" onclick="confirmDelete()">Delete Record</button>
       </div>
     </div>
   </div>

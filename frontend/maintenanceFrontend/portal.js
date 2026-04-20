@@ -6,12 +6,12 @@ var token    = localStorage.getItem("token");
 if (!token) window.location.href = "/";
 
 // ─── GLOBAL STATE ─────────────────────────────────────────────────────────
-var allTasksData       = [];
-var allMhData          = [];
-var allOpsData         = [];          // ride operations raw data
-var seenAlertIds       = {};
-var pendingDeleteId    = null;
-var pendingDeleteType  = null;
+var allTasksData        = [];
+var allMhData           = [];
+var allOpsData          = [];
+var seenAlertIds        = {};
+var pendingDeleteId     = null;
+var pendingDeleteType   = null;
 var _dropdownsPopulated = false;
 
 var pieChartInstance    = null;
@@ -53,7 +53,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var dueDateInput = document.getElementById("due-date-input");
   if (dueDateInput) dueDateInput.min = new Date().toISOString().split("T")[0];
 
-  // ── Main tabs ──
+  // Main tabs
   document.querySelectorAll(".tab").forEach(function (tab) {
     tab.addEventListener("click", function () {
       document.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("active"); });
@@ -63,14 +63,14 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!panel) return;
       panel.classList.add("active");
       var t = tab.dataset.tab;
-      if      (t === "operations")   loadRideOperations();
-      else if (t === "reports")      initReports();
-      else if (t === "schedule")     loadScheduleCalendar();
-      else if (t === "notifications")loadNotifications();
+      if      (t === "operations")    loadRideOperations();
+      else if (t === "reports")       initReports();
+      else if (t === "schedule")      loadScheduleCalendar();
+      else if (t === "notifications") loadNotifications();
     });
   });
 
-  // ── Report sub-tabs ──
+  // Report sub-tabs
   document.querySelectorAll(".report-subtab").forEach(function (btn) {
     btn.addEventListener("click", function () {
       document.querySelectorAll(".report-subtab").forEach(function (b) { b.classList.remove("active"); });
@@ -104,17 +104,21 @@ document.addEventListener("DOMContentLoaded", function () {
         await authFetch("/addTask", {
           method: "POST",
           body: JSON.stringify({
-            EmployeeID: fd.get("EmployeeID") || null,
-            AreaID: fd.get("AreaID") || null,
-            AttractionID: fd.get("AttractionID") || null,
+            EmployeeID:      fd.get("EmployeeID")      || null,
+            AreaID:          fd.get("AreaID")          || null,
+            AttractionID:    fd.get("AttractionID")    || null,
             TaskDescription: fd.get("TaskDescription"),
-            Status: fd.get("Status"),
-            DueDate: dueDate || null,
+            Status:          fd.get("Status"),
+            Severity:        fd.get("Severity")        || null,
+            DueDate:         dueDate                   || null,
           }),
         });
         showToast("Task assigned successfully.");
         e.target.reset();
         if (dueDateInput) dueDateInput.min = new Date().toISOString().split("T")[0];
+        // Refresh task summary if reports tab is open
+        var activeReport = document.querySelector(".report-subtab.active");
+        if (activeReport && activeReport.dataset.report === "task-summary") loadTaskSummaryTable();
       } catch (err) { showToast(err.message || "Failed to assign task.", "error"); }
     });
   }
@@ -126,19 +130,24 @@ document.addEventListener("DOMContentLoaded", function () {
       e.preventDefault();
       var id   = document.getElementById("edit-task-id").value;
       var task = allTasksData.find(function (t) { return t.MaintenanceAssignmentID == id; });
+      var newStatus = document.getElementById("edit-status").value;
       try {
         await authFetch("/updateTask", {
           method: "POST",
           body: JSON.stringify({
             MaintenanceAssignmentID: id,
-            EmployeeID:      document.getElementById("edit-employee").value || (task && task.EmployeeID),
-            AreaID:          document.getElementById("edit-area").value     || (task && task.AreaID),
+            EmployeeID:      document.getElementById("edit-employee").value  || (task && task.EmployeeID),
+            AreaID:          document.getElementById("edit-area").value      || (task && task.AreaID),
             TaskDescription: document.getElementById("edit-description").value,
-            Status:          document.getElementById("edit-status").value,
-            DueDate:         document.getElementById("edit-due-date").value || null,
+            Status:          newStatus,
+            Severity:        document.getElementById("edit-severity").value  || null,
+            DueDate:         document.getElementById("edit-due-date").value  || null,
           }),
         });
-        showToast("Task updated."); closeModal("edit-modal"); loadTaskSummaryTable();
+        showToast("Task updated.");
+        closeModal("edit-modal");
+        // If task was marked Completed and default filter hides completed, table auto-refreshes correctly
+        loadTaskSummaryTable();
       } catch (err) { showToast(err.message || "Failed to update task.", "error"); }
     });
   }
@@ -157,8 +166,8 @@ document.addEventListener("DOMContentLoaded", function () {
             EmployeeID:    document.getElementById("edit-mh-employee").value || null,
             Severity:      document.getElementById("edit-mh-severity").value,
             Status:        document.getElementById("edit-mh-status").value,
-            DateStart:     document.getElementById("edit-mh-start").value || null,
-            DateEnd:       document.getElementById("edit-mh-end").value   || null,
+            DateStart:     document.getElementById("edit-mh-start").value    || null,
+            DateEnd:       document.getElementById("edit-mh-end").value      || null,
           }),
         });
         showToast("Maintenance record updated."); closeModal("edit-mh-modal"); loadMaintenanceHistory();
@@ -172,7 +181,6 @@ document.addEventListener("DOMContentLoaded", function () {
   loadNotifications(); loadAlerts();
   setInterval(loadAlerts, 15000);
 
-  // Start on schedule
   var scheduleTab = document.querySelector('[data-tab="schedule"]');
   if (scheduleTab) scheduleTab.click();
 });
@@ -192,7 +200,7 @@ async function populateDropdowns() {
     var areas       = toArray(results[1]);
     var attractions = toArray(results[2]);
 
-    // Deduplicate areas by AreaID (primary key — safest key)
+    // Deduplicate areas by AreaID
     var seenAreaIds = new Set();
     areas = areas.filter(function (a) {
       if (seenAreaIds.has(a.AreaID)) return false;
@@ -232,8 +240,13 @@ function openEditModal(id) {
   document.getElementById("edit-task-id").value     = id;
   document.getElementById("edit-description").value = task.TaskDescription || "";
   document.getElementById("edit-due-date").value    = task.DueDate || "";
+
   var statusSel = document.getElementById("edit-status");
   Array.from(statusSel.options).forEach(function (o) { o.selected = o.value === task.Status; });
+
+  var sevSel = document.getElementById("edit-severity");
+  if (sevSel) Array.from(sevSel.options).forEach(function (o) { o.selected = o.value === (task.Severity || ""); });
+
   if (task.EmployeeID) {
     var empSel = document.getElementById("edit-employee");
     Array.from(empSel.options).forEach(function (o) { o.selected = o.value == task.EmployeeID; });
@@ -302,12 +315,12 @@ function showTaskDetails(employee, description) {
 
 // ─── RIDE OPERATIONS ──────────────────────────────────────────────────────
 var STATUS_META = {
-  "Open":               { label: "Open",              color: "#27ae60", dot: "🟢" },
-  "Closed":             { label: "Closed",             color: "#c0392b", dot: "🔴" },
-  "NeedsMaintenance":   { label: "Needs Maintenance",  color: "#e67e22", dot: "🟠" },
-  "UnderMaintenance":   { label: "Under Maintenance",  color: "#f1c40f", dot: "🟡" },
-  "ClosedDueToWeather": { label: "Closed — Weather",   color: "#3498db", dot: "🔵" },
-  "Restricted":         { label: "Restricted",         color: "#8e44ad", dot: "🟣" },
+  "Open":               { label: "Open",             color: "#27ae60", dot: "🟢" },
+  "Closed":             { label: "Closed",            color: "#c0392b", dot: "🔴" },
+  "NeedsMaintenance":   { label: "Needs Maintenance", color: "#e67e22", dot: "🟠" },
+  "UnderMaintenance":   { label: "Under Maintenance", color: "#f1c40f", dot: "🟡" },
+  "ClosedDueToWeather": { label: "Closed — Weather",  color: "#3498db", dot: "🔵" },
+  "Restricted":         { label: "Restricted",        color: "#8e44ad", dot: "🟣" },
 };
 
 async function loadRideOperations() {
@@ -317,40 +330,38 @@ async function loadRideOperations() {
   tbody.innerHTML = "<tr><td colspan='8' style='text-align:center;color:var(--text-dim);padding:20px;'>Loading…</td></tr>";
   try {
     allOpsData = toArray(await authFetch("/ride-operations"));
-    // Build stat summary
     if (cards) {
-      var total     = allOpsData.length;
-      var open      = allOpsData.filter(function (r) { return r.Status === "Open"; }).length;
-      var needsMaint= allOpsData.filter(function (r) { return r.Status === "NeedsMaintenance" || r.Status === "UnderMaintenance"; }).length;
-      var weather   = allOpsData.filter(function (r) { return r.Status === "ClosedDueToWeather"; }).length;
-      var hasAlerts = allOpsData.filter(function (r) { return r.alerts && r.alerts.length > 0; }).length;
+      var total      = allOpsData.length;
+      var open       = allOpsData.filter(function (r) { return r.Status === "Open"; }).length;
+      var needsMaint = allOpsData.filter(function (r) { return r.Status === "NeedsMaintenance" || r.Status === "UnderMaintenance"; }).length;
+      var weather    = allOpsData.filter(function (r) { return r.Status === "ClosedDueToWeather"; }).length;
+      var hasAlerts  = allOpsData.filter(function (r) { return r.alerts && r.alerts.length > 0; }).length;
       cards.innerHTML =
         '<div class="perf-card"><h3>Total Attractions</h3><p class="stat-number">' + total + "</p></div>"
         + '<div class="perf-card"><h3>Operational</h3><p class="stat-number" style="color:#27ae60">' + open + "</p></div>"
-        + '<div class="perf-card"><h3>Under/Needs Maintenance</h3><p class="stat-number" style="color:var(--ember)">' + needsMaint + "</p></div>"
+        + '<div class="perf-card"><h3>Under / Needs Maintenance</h3><p class="stat-number" style="color:var(--ember)">' + needsMaint + "</p></div>"
         + '<div class="perf-card"><h3>Weather Closures</h3><p class="stat-number" style="color:#3498db">' + weather + "</p></div>"
         + '<div class="perf-card"><h3>Active Trigger Alerts</h3><p class="stat-number" style="color:var(--blood-light)">' + hasAlerts + "</p></div>";
     }
     renderOpsTable();
   } catch (err) {
     console.error("loadRideOperations:", err);
-    if (tbody) tbody.innerHTML = "<tr><td colspan='8' style='text-align:center;color:var(--blood-light);padding:20px;'>Failed to load ride operations.</td></tr>";
+    if (tbody) tbody.innerHTML = "<tr><td colspan='8' style='text-align:center;color:var(--blood-light);padding:20px;'>Failed to load ride operations. Check that your backend is running.</td></tr>";
   }
 }
 
 function renderOpsTable() {
   var tbody = document.getElementById("tbody-ops");
   if (!tbody) return;
-
-  var filterArea    = (document.getElementById("ops-filter-area")    || {}).value || "";
-  var filterType    = (document.getElementById("ops-filter-type")    || {}).value || "";
-  var filterStatus  = (document.getElementById("ops-filter-status")  || {}).value || "";
-  var filterAlerts  = (document.getElementById("ops-filter-alerts")  || {}).value || "";
+  var filterArea   = (document.getElementById("ops-filter-area")   || {}).value || "";
+  var filterType   = (document.getElementById("ops-filter-type")   || {}).value || "";
+  var filterStatus = (document.getElementById("ops-filter-status") || {}).value || "";
+  var filterAlerts = (document.getElementById("ops-filter-alerts") || {}).value || "";
 
   var rows = allOpsData.filter(function (r) {
-    if (filterArea   && String(r.AreaID) !== String(filterArea))   return false;
-    if (filterType   && r.AttractionType !== filterType)           return false;
-    if (filterStatus && r.Status         !== filterStatus)         return false;
+    if (filterArea   && String(r.AreaID) !== String(filterArea)) return false;
+    if (filterType   && r.AttractionType !== filterType)         return false;
+    if (filterStatus && r.Status         !== filterStatus)       return false;
     if (filterAlerts === "1" && (!r.alerts || r.alerts.length === 0)) return false;
     return true;
   });
@@ -366,32 +377,29 @@ function renderOpsTable() {
     var hasAlert = att.alerts && att.alerts.length > 0;
     var hasMaint = att.activeMaintenance && att.activeMaintenance.length > 0;
 
-    // Severity colour
     var sevColor = att.SeverityLevel === "Severe" ? "color:var(--blood-light)"
                  : att.SeverityLevel === "Low"    ? "color:var(--gold)"
                  : "color:var(--text-dim)";
 
-    // Active maintenance summary
     var maintCell = "—";
     if (hasMaint) {
       maintCell = att.activeMaintenance.map(function (m) {
-        return '<span style="color:var(--ember);font-size:0.85rem;">🔧 ' + (m.AssignedEmployee || "Unassigned") + ' · ' + (m.Severity || "—") + ' · since ' + (m.DateStart || "?") + "</span>";
+        return '<span style="color:var(--ember);font-size:0.85rem;">🔧 ' +
+          (m.AssignedEmployee || "Unassigned") + " · " + (m.Severity || "—") + " · since " + (m.DateStart || "?") + "</span>";
       }).join("<br>");
     }
 
-    // Trigger alert summary
     var alertCell = "—";
     if (hasAlert) {
       alertCell = att.alerts.map(function (a) {
         var ac = a.SeverityLevel === "Severe" ? "var(--blood-light)" : "var(--gold)";
-        return '<span style="color:' + ac + ';font-size:0.85rem;">⚠ ' + a.AlertMessage + '</span>';
+        return '<span style="color:' + ac + ';font-size:0.85rem;">⚠ ' + a.AlertMessage + "</span>";
       }).join("<br>");
     }
 
-    // Row highlight classes
     var rowStyle = "";
-    if (hasAlert || att.Status === "NeedsMaintenance")  rowStyle = 'style="background:rgba(139,0,0,0.07);"';
-    else if (att.Status === "ClosedDueToWeather")        rowStyle = 'style="background:rgba(52,152,219,0.06);"';
+    if (hasAlert || att.Status === "NeedsMaintenance") rowStyle = 'style="background:rgba(139,0,0,0.07);"';
+    else if (att.Status === "ClosedDueToWeather")       rowStyle = 'style="background:rgba(52,152,219,0.06);"';
 
     tbody.innerHTML += "<tr " + rowStyle + ">"
       + "<td><strong>" + att.AttractionName + "</strong></td>"
@@ -426,6 +434,28 @@ async function loadTaskSummary() {
     var overdue = Number((payload && payload.overdue) || 0);
     var byArea  = toArray(payload && payload.byArea);
 
+    // Client-side dedup of byArea by AreaName (merges totals) in case server still has some
+    var areaMap = new Map();
+    byArea.forEach(function (row) {
+      var key = (row.AreaName || "").trim().toLowerCase();
+      if (areaMap.has(key)) {
+        var e = areaMap.get(key);
+        e.pending    += Number(row.pending    || 0);
+        e.inProgress += Number(row.inProgress || 0);
+        e.completed  += Number(row.completed  || 0);
+        e.overdue    += Number(row.overdue    || 0);
+      } else {
+        areaMap.set(key, {
+          AreaName:   row.AreaName,
+          pending:    Number(row.pending    || 0),
+          inProgress: Number(row.inProgress || 0),
+          completed:  Number(row.completed  || 0),
+          overdue:    Number(row.overdue    || 0),
+        });
+      }
+    });
+    var dedupedByArea = Array.from(areaMap.values());
+
     var cards = document.getElementById("task-summary-cards");
     if (cards) {
       var total  = stats.reduce(function (s, r) { return s + Number(r.count || 0); }, 0);
@@ -442,7 +472,7 @@ async function loadTaskSummary() {
         + '<div class="perf-card"><h3>Completion Rate</h3><p class="stat-number" style="color:#2ecc71">' + rate + "%</p></div>";
     }
     renderPieChart(stats);
-    renderBarChart(byArea);
+    renderBarChart(dedupedByArea);
     loadTaskSummaryTable();
   } catch (err) { console.error("loadTaskSummary:", err); }
 }
@@ -451,7 +481,9 @@ async function loadTaskSummaryTable() {
   var tbody = document.getElementById("tbody-task-summary");
   if (!tbody) return;
   var params   = new URLSearchParams();
+  // Default: show Pending only (the <select> in HTML has Pending pre-selected)
   var status   = (document.getElementById("ts-filter-status")   || {}).value || "";
+  var severity = (document.getElementById("ts-filter-severity") || {}).value || "";
   var area     = (document.getElementById("ts-filter-area")     || {}).value || "";
   var employee = (document.getElementById("ts-filter-employee") || {}).value || "";
   var from     = (document.getElementById("ts-filter-from")     || {}).value || "";
@@ -459,6 +491,7 @@ async function loadTaskSummaryTable() {
   var overdue  = (document.getElementById("ts-filter-overdue")  || {}).value || "";
   var keyword  = (document.getElementById("ts-filter-keyword")  || {}).value || "";
   if (status)   params.set("status",     status);
+  if (severity) params.set("severity",   severity);
   if (area)     params.set("areaId",     area);
   if (employee) params.set("employeeId", employee);
   if (from)     params.set("from",       from);
@@ -476,11 +509,12 @@ async function loadTaskSummaryTable() {
     rows.forEach(function (t) {
       var sc = "status-" + t.Status.replace(/\s+/g, "").toLowerCase();
       var overdueFlag = t.IsOverdue ? ' <span style="color:var(--blood-light);font-size:0.75rem;">⚠</span>' : "";
+      var sevText = t.Severity ? ' <span style="font-size:0.78rem;color:' + (t.Severity === "High" ? "var(--blood-light)" : t.Severity === "Medium" ? "var(--ember)" : "var(--gold)") + '">[' + t.Severity + ']</span>' : "";
       tbody.innerHTML += "<tr>"
         + "<td>" + t.MaintenanceAssignmentID + "</td>"
         + "<td>" + (t.EmployeeName || "—") + "</td>"
         + "<td>" + (t.AreaName || "—") + "</td>"
-        + "<td>" + (t.TaskDescription || "").substring(0, 50) + "…</td>"
+        + "<td>" + (t.TaskDescription || "").substring(0, 50) + "…" + sevText + "</td>"
         + '<td><span class="status ' + sc + '">' + t.Status + "</span></td>"
         + "<td>" + (t.DueDate || "—") + overdueFlag + "</td>"
         + '<td class="action-cell">'
@@ -559,19 +593,34 @@ async function loadAreaFrequency() {
   try {
     var data = toArray(await authFetch("/area-frequency"));
 
-    // Client-side dedup by AreaID as extra safety net
-    var seen = new Set();
-    data = data.filter(function (r) {
-      if (seen.has(r.AreaID)) return false;
-      seen.add(r.AreaID);
-      return true;
+    // Client-side dedup by AreaName as safety net
+    var areaMap = new Map();
+    data.forEach(function (r) {
+      var key = (r.AreaName || "").trim().toLowerCase();
+      if (areaMap.has(key)) {
+        var e = areaMap.get(key);
+        e.total          += Number(r.total          || 0);
+        e.highSeverity   += Number(r.highSeverity   || 0);
+        e.mediumSeverity += Number(r.mediumSeverity || 0);
+        e.lowSeverity    += Number(r.lowSeverity    || 0);
+      } else {
+        areaMap.set(key, {
+          AreaID: r.AreaID, AreaName: r.AreaName,
+          total:          Number(r.total          || 0),
+          highSeverity:   Number(r.highSeverity   || 0),
+          mediumSeverity: Number(r.mediumSeverity || 0),
+          lowSeverity:    Number(r.lowSeverity    || 0),
+          mostAffectedAttraction: r.mostAffectedAttraction,
+        });
+      }
     });
+    data = Array.from(areaMap.values()).sort(function (a, b) { return b.total - a.total; });
 
-    var grandTotal = data.reduce(function (s, r) { return s + Number(r.total || 0); }, 0);
+    var grandTotal = data.reduce(function (s, r) { return s + r.total; }, 0);
 
     if (cards) {
       var mostAffected = data.length ? data[0] : null;
-      var totalHigh    = data.reduce(function (s, r) { return s + Number(r.highSeverity || 0); }, 0);
+      var totalHigh    = data.reduce(function (s, r) { return s + r.highSeverity; }, 0);
       cards.innerHTML =
         '<div class="perf-card"><h3>Total Maintenance Events</h3><p class="stat-number">' + grandTotal + "</p></div>"
         + '<div class="perf-card"><h3>Most Affected Area</h3><p class="stat-number" style="font-size:1.1rem;color:var(--blood-light)">' + (mostAffected ? mostAffected.AreaName : "—") + "</p></div>"
@@ -588,16 +637,16 @@ async function loadAreaFrequency() {
       return;
     }
     data.forEach(function (row) {
-      var pct = grandTotal > 0 ? ((Number(row.total || 0) / grandTotal) * 100).toFixed(1) : "0.0";
+      var pct = grandTotal > 0 ? ((row.total / grandTotal) * 100).toFixed(1) : "0.0";
       var pctColor = Number(pct) >= 25 ? "color:var(--blood-light);font-weight:700"
                    : Number(pct) >= 15 ? "color:var(--ember);font-weight:600"
                    : "color:var(--gold)";
       tbody.innerHTML += "<tr>"
         + "<td><strong>" + (row.AreaName || "—") + "</strong></td>"
-        + "<td>" + (row.total || 0) + "</td>"
-        + '<td style="color:var(--blood-light)">' + (row.highSeverity   || 0) + "</td>"
-        + '<td style="color:var(--ember)">'       + (row.mediumSeverity || 0) + "</td>"
-        + '<td style="color:var(--gold)">'        + (row.lowSeverity    || 0) + "</td>"
+        + "<td>" + row.total + "</td>"
+        + '<td style="color:var(--blood-light)">' + row.highSeverity   + "</td>"
+        + '<td style="color:var(--ember)">'       + row.mediumSeverity + "</td>"
+        + '<td style="color:var(--gold)">'        + row.lowSeverity    + "</td>"
         + '<td style="' + pctColor + '">' + pct + "%</td>"
         + "<td>" + (row.mostAffectedAttraction || "—") + "</td>"
         + "</tr>";
@@ -612,14 +661,12 @@ function renderFreqBarChart(data, grandTotal) {
   if (freqBarInstance) { freqBarInstance.destroy(); freqBarInstance = null; }
   if (!data || !data.length) return;
   ctx.style.maxHeight = "300px";
-  var pcts = data.map(function (d) {
-    return grandTotal > 0 ? parseFloat(((Number(d.total || 0) / grandTotal) * 100).toFixed(1)) : 0;
-  });
   freqBarInstance = new Chart(ctx, {
     type: "bar",
     data: {
       labels: data.map(function (d) { return d.AreaName; }),
-      datasets: [{ label: "% of All Maintenance Events", data: pcts,
+      datasets: [{ label: "% of All Maintenance Events",
+        data: data.map(function (d) { return grandTotal > 0 ? parseFloat(((d.total / grandTotal) * 100).toFixed(1)) : 0; }),
         backgroundColor: data.map(function (d, i) {
           return ["rgba(139,0,0,0.8)","rgba(212,88,10,0.8)","rgba(201,168,76,0.8)","rgba(46,204,113,0.8)","rgba(41,128,185,0.8)","rgba(142,68,211,0.8)"][i % 6];
         }), borderRadius: 4 }],
@@ -629,7 +676,7 @@ function renderFreqBarChart(data, grandTotal) {
       plugins: {
         legend: { display: false },
         tooltip: { backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8",
-          callbacks: { label: function (ctx) { return ctx.parsed.y + "% of maintenance events"; } } },
+          callbacks: { label: function (c) { return c.parsed.y + "% of maintenance events"; } } },
       },
       scales: {
         x: { ticks: { color: "#b0a898", maxRotation: 35, minRotation: 20, font: { size: 11 } }, grid: { color: "rgba(139,0,0,0.1)" } },
@@ -643,9 +690,9 @@ function renderSeverityPieChart(data) {
   var ctx = document.getElementById("chart-severity-pie");
   if (!ctx) return;
   if (severityPieInstance) { severityPieInstance.destroy(); severityPieInstance = null; }
-  var totalHigh   = data.reduce(function (s, r) { return s + Number(r.highSeverity   || 0); }, 0);
-  var totalMedium = data.reduce(function (s, r) { return s + Number(r.mediumSeverity || 0); }, 0);
-  var totalLow    = data.reduce(function (s, r) { return s + Number(r.lowSeverity    || 0); }, 0);
+  var totalHigh   = data.reduce(function (s, r) { return s + r.highSeverity;   }, 0);
+  var totalMedium = data.reduce(function (s, r) { return s + r.mediumSeverity; }, 0);
+  var totalLow    = data.reduce(function (s, r) { return s + r.lowSeverity;    }, 0);
   severityPieInstance = new Chart(ctx, {
     type: "doughnut",
     data: { labels: ["High","Medium","Low"], datasets: [{
@@ -697,10 +744,10 @@ function renderBarChart(byArea) {
     data: {
       labels: byArea.map(function (d) { return d.AreaName; }),
       datasets: [
-        { label: "Pending",     data: byArea.map(function (d) { return Number(d.pending    || 0); }), backgroundColor: "rgba(212,88,10,0.75)",  borderRadius: 3 },
-        { label: "In Progress", data: byArea.map(function (d) { return Number(d.inProgress || 0); }), backgroundColor: "rgba(201,168,76,0.75)", borderRadius: 3 },
-        { label: "Completed",   data: byArea.map(function (d) { return Number(d.completed  || 0); }), backgroundColor: "rgba(46,204,113,0.75)", borderRadius: 3 },
-        { label: "Overdue",     data: byArea.map(function (d) { return Number(d.overdue    || 0); }), backgroundColor: "rgba(139,0,0,0.75)",    borderRadius: 3 },
+        { label: "Pending",     data: byArea.map(function (d) { return d.pending    || 0; }), backgroundColor: "rgba(212,88,10,0.75)",  borderRadius: 3 },
+        { label: "In Progress", data: byArea.map(function (d) { return d.inProgress || 0; }), backgroundColor: "rgba(201,168,76,0.75)", borderRadius: 3 },
+        { label: "Completed",   data: byArea.map(function (d) { return d.completed  || 0; }), backgroundColor: "rgba(46,204,113,0.75)", borderRadius: 3 },
+        { label: "Overdue",     data: byArea.map(function (d) { return d.overdue    || 0; }), backgroundColor: "rgba(139,0,0,0.75)",    borderRadius: 3 },
       ],
     },
     options: { responsive: true, maintainAspectRatio: false,
