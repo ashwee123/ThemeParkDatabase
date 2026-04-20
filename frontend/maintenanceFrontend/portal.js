@@ -10,42 +10,27 @@ if (!token) window.location.href = "/";
 var allTasksData    = [];
 var currentSortCol  = "";
 var isAscending     = true;
-var seenAlertIds    = {};        // plain object instead of Set — broader browser support
+var seenAlertIds    = {};
 var hiddenTaskIds   = {};
 var pendingDeleteId = null;
 
 var pieChartInstance   = null;
 var barChartInstance   = null;
-var awBarChartInstance = null;
 var calendarInstance   = null;
 
 // ─── SAFE HELPERS ─────────────────────────────────────────────────────────
-
-/** Always returns an array. Never throws. */
 function toArray(val) {
   if (Array.isArray(val)) return val;
   return [];
 }
 
-/**
- * Unwraps the server envelope { success: true, data: <payload> }.
- * Returns the raw payload. If the server returned a plain array or object
- * without wrapping, returns it as-is.
- */
 function unwrap(body) {
   if (body === null || body === undefined) return null;
-  // Envelope shape: { success: true/false, data: <payload> }
   if (typeof body === "object" && "success" in body) return body.data ?? null;
-  // Plain payload (array or object) returned directly
   return body;
 }
 
 // ─── AUTH FETCH ───────────────────────────────────────────────────────────
-/**
- * Makes an authenticated request to the API.
- * Returns the UNWRAPPED payload (array, object, etc.).
- * Throws an Error on network failure or non-OK HTTP status.
- */
 async function authFetch(path, opts) {
   opts = opts || {};
   var headers = Object.assign(
@@ -78,7 +63,6 @@ async function authFetch(path, opts) {
 // ─── BOOT ─────────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", function () {
 
-  // Set min date on due-date input
   var dueDateInput = document.getElementById("due-date-input");
   if (dueDateInput) dueDateInput.min = new Date().toISOString().split("T")[0];
 
@@ -121,7 +105,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // ── Populate dropdowns from DB
   populateDropdowns();
 
   // ── Assign form submit
@@ -181,17 +164,15 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // ── Logout button
   var logoutBtn = document.getElementById("btn-logout");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
-  // ── Initial data loads
   loadTasks();
   loadNotifications();
   loadAlerts();
   setInterval(loadAlerts, 15000);
 
-  // ── Default to Schedule tab
+  // Default to Schedule tab
   var scheduleTab = document.querySelector('[data-tab="schedule"]');
   if (scheduleTab) scheduleTab.click();
 });
@@ -223,10 +204,33 @@ async function populateDropdowns() {
     fillSelect("edit-employee", employees, "EmployeeID", function (e) { return e.Name + " (" + (e.Position || "Staff") + ")"; });
     fillSelect("edit-area",     areas,     "AreaID",     function (a) { return a.AreaName; }, true);
 
-    // Report filter dropdowns
-    fillSelect("ts-filter-area",       areas,       "AreaID",       function (a) { return a.AreaName; }, true);
-    fillSelect("ts-filter-employee",   employees,   "EmployeeID",   function (e) { return e.Name; }, true);
-    fillSelect("mh-filter-attraction", attractions, "AttractionID", function (a) { return a.AttractionName; }, true);
+    // Task summary filters
+    fillSelect("ts-filter-area",     areas,     "AreaID",     function (a) { return a.AreaName; }, true);
+    fillSelect("ts-filter-employee", employees, "EmployeeID", function (e) { return e.Name; }, true);
+
+    // Maintenance history filters — area + employee
+    fillSelect("mh-filter-attraction",   attractions, "AttractionID", function (a) { return a.AttractionName; }, true);
+    fillSelect("mh-filter-area",         areas,       "AreaID",       function (a) { return a.AreaName; }, true);
+    fillSelect("mh-filter-employee-mh",  employees,   "EmployeeID",   function (e) { return e.Name; }, true);
+
+    // Performance filters
+    fillSelect("perf-filter-area", areas, "AreaID", function (a) { return a.AreaName; }, true);
+
+    // Populate position dropdown from employees
+    var positions = [];
+    employees.forEach(function (e) {
+      if (e.Position && positions.indexOf(e.Position) === -1) positions.push(e.Position);
+    });
+    positions.sort();
+    var perfPosSel = document.getElementById("perf-filter-position");
+    if (perfPosSel) {
+      positions.forEach(function (p) {
+        var opt = document.createElement("option");
+        opt.value = p;
+        opt.textContent = p;
+        perfPosSel.appendChild(opt);
+      });
+    }
 
   } catch (err) { console.error("populateDropdowns:", err); }
 }
@@ -253,10 +257,8 @@ async function loadTasks() {
 }
 
 function renderTables(dataList) {
-  var tbodyAll   = document.getElementById("tbody-tasks");
-  var tbodySched = document.getElementById("tbody-active-schedule");
-  if (tbodyAll)   tbodyAll.innerHTML   = "";
-  if (tbodySched) tbodySched.innerHTML = "";
+  var tbodyAll = document.getElementById("tbody-tasks");
+  if (tbodyAll) tbodyAll.innerHTML = "";
 
   var visible = toArray(dataList).filter(function (t) { return !hiddenTaskIds[t.MaintenanceAssignmentID]; });
 
@@ -283,8 +285,7 @@ function renderTables(dataList) {
       + '<button class="btn btn-danger btn-small" onclick="openDeleteModal(' + task.MaintenanceAssignmentID + ')">Delete</button>'
       + "</td></tr>";
 
-    if (tbodyAll)   tbodyAll.innerHTML   += row;
-    if (tbodySched && task.Status !== "Completed") tbodySched.innerHTML += row;
+    if (tbodyAll) tbodyAll.innerHTML += row;
   });
 }
 
@@ -351,10 +352,24 @@ async function loadEmployeePerformance() {
   try {
     var data = toArray(await authFetch("/employee-performance"));
 
-    var totalStaff     = data.length;
-    var totalCompleted = data.reduce(function (s, r) { return s + Number(r.completed  || 0); }, 0);
-    var totalOverdue   = data.reduce(function (s, r) { return s + Number(r.overdue    || 0); }, 0);
-    var totalTasks     = data.reduce(function (s, r) { return s + Number(r.totalTasks || 0); }, 0);
+    // Apply client-side filters
+    var filterArea     = (document.getElementById("perf-filter-area")     || {}).value || "";
+    var filterPosition = (document.getElementById("perf-filter-position") || {}).value || "";
+    var filterMinRate  = parseInt((document.getElementById("perf-filter-min-rate") || {}).value || "0", 10) || 0;
+
+    var filtered = data.filter(function (row) {
+      if (filterArea && String(row.AreaID) !== String(filterArea)) return false;
+      if (filterPosition && row.Position !== filterPosition) return false;
+      var total = Number(row.totalTasks || 0);
+      var rate  = total > 0 ? Math.round((Number(row.completed || 0) / total) * 100) : 0;
+      if (filterMinRate > 0 && rate < filterMinRate) return false;
+      return true;
+    });
+
+    var totalStaff     = filtered.length;
+    var totalCompleted = filtered.reduce(function (s, r) { return s + Number(r.completed  || 0); }, 0);
+    var totalOverdue   = filtered.reduce(function (s, r) { return s + Number(r.overdue    || 0); }, 0);
+    var totalTasks     = filtered.reduce(function (s, r) { return s + Number(r.totalTasks || 0); }, 0);
     var avgRate        = totalTasks ? Math.round((totalCompleted / totalTasks) * 100) : 0;
 
     if (cards) {
@@ -366,12 +381,12 @@ async function loadEmployeePerformance() {
     }
 
     tbody.innerHTML = "";
-    if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-dim);padding:20px;">No employee data.</td></tr>';
+    if (!filtered.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-dim);padding:20px;">No employee data matches filters.</td></tr>';
       return;
     }
 
-    data.forEach(function (row) {
+    filtered.forEach(function (row) {
       var total = Number(row.totalTasks || 0);
       var rate  = total > 0 ? Math.round((Number(row.completed || 0) / total) * 100) : 0;
       var rc    = rate >= 75 ? "#2ecc71" : rate >= 40 ? "var(--gold)" : "var(--blood-light)";
@@ -400,25 +415,23 @@ function initReports() {
 function loadReportByKey(key) {
   if      (key === "task-summary")        loadTaskSummary();
   else if (key === "maintenance-history") loadMaintenanceHistory();
-  else if (key === "area-workload")       loadAreaWorkload();
 }
 
 // ─── REPORT: TASK SUMMARY ─────────────────────────────────────────────────
 async function loadTaskSummary() {
   try {
     var payload = await authFetch("/task-summary");
-    // payload = { stats: [...], overdue: N, byArea: [...] }
     var stats   = toArray(payload && payload.stats);
     var overdue = Number((payload && payload.overdue) || 0);
     var byArea  = toArray(payload && payload.byArea);
 
     var cards = document.getElementById("task-summary-cards");
     if (cards) {
-      var total   = stats.reduce(function (s, r) { return s + Number(r.count || 0); }, 0);
-      var done    = stats.find(function (r) { return r.Status === "Completed"; });
-      var inProg  = stats.find(function (r) { return r.Status === "In Progress"; });
-      var pend    = stats.find(function (r) { return r.Status === "Pending"; });
-      var rate    = total ? Math.round((Number((done && done.count) || 0) / total) * 100) : 0;
+      var total  = stats.reduce(function (s, r) { return s + Number(r.count || 0); }, 0);
+      var done   = stats.find(function (r) { return r.Status === "Completed"; });
+      var inProg = stats.find(function (r) { return r.Status === "In Progress"; });
+      var pend   = stats.find(function (r) { return r.Status === "Pending"; });
+      var rate   = total ? Math.round((Number((done && done.count) || 0) / total) * 100) : 0;
 
       cards.innerHTML =
         '<div class="perf-card"><h3>Total Tasks</h3><p class="stat-number">' + total + "</p></div>"
@@ -440,16 +453,18 @@ async function loadTaskSummaryTable() {
   if (!tbody) return;
 
   var params = new URLSearchParams();
-  var status   = (document.getElementById("ts-filter-status")   || {}).value || "";
-  var area     = (document.getElementById("ts-filter-area")     || {}).value || "";
-  var employee = (document.getElementById("ts-filter-employee") || {}).value || "";
-  var from     = (document.getElementById("ts-filter-from")     || {}).value || "";
-  var to       = (document.getElementById("ts-filter-to")       || {}).value || "";
-  if (status)   params.set("status",     status);
-  if (area)     params.set("areaId",     area);
-  if (employee) params.set("employeeId", employee);
-  if (from)     params.set("from",       from);
-  if (to)       params.set("to",         to);
+  var status   = (document.getElementById("ts-filter-status")  || {}).value || "";
+  var area     = (document.getElementById("ts-filter-area")    || {}).value || "";
+  var employee = (document.getElementById("ts-filter-employee")|| {}).value || "";
+  var from     = (document.getElementById("ts-filter-from")    || {}).value || "";
+  var to       = (document.getElementById("ts-filter-to")      || {}).value || "";
+  var overdue  = (document.getElementById("ts-filter-overdue") || {}).value || "";
+  if (status)  params.set("status",     status);
+  if (area)    params.set("areaId",     area);
+  if (employee)params.set("employeeId", employee);
+  if (from)    params.set("from",       from);
+  if (to)      params.set("to",         to);
+  if (overdue) params.set("overdue",    overdue);
 
   try {
     var rows = toArray(await authFetch("/tasks-filtered?" + params.toString()));
@@ -529,29 +544,39 @@ async function loadMaintenanceHistory() {
   if (!tbody) return;
 
   var params = new URLSearchParams();
-  var sev  = (document.getElementById("mh-filter-severity")   || {}).value || "";
-  var stat = (document.getElementById("mh-filter-status")     || {}).value || "";
-  var att  = (document.getElementById("mh-filter-attraction") || {}).value || "";
-  var from = (document.getElementById("mh-filter-from")       || {}).value || "";
-  var to   = (document.getElementById("mh-filter-to")         || {}).value || "";
-  if (sev)  params.set("severity",     sev);
-  if (stat) params.set("status",       stat);
-  if (att)  params.set("attractionId", att);
-  if (from) params.set("startDate",    from);
-  if (to)   params.set("endDate",      to);
+  var sev      = (document.getElementById("mh-filter-severity")     || {}).value || "";
+  var stat     = (document.getElementById("mh-filter-status")       || {}).value || "";
+  var att      = (document.getElementById("mh-filter-attraction")   || {}).value || "";
+  var areaId   = (document.getElementById("mh-filter-area")         || {}).value || "";
+  var empId    = (document.getElementById("mh-filter-employee-mh")  || {}).value || "";
+  var from     = (document.getElementById("mh-filter-from")         || {}).value || "";
+  var to       = (document.getElementById("mh-filter-to")           || {}).value || "";
+  var ongoing  = (document.getElementById("mh-filter-ongoing")      || {}).value || "";
+  if (sev)    params.set("severity",     sev);
+  if (stat)   params.set("status",       stat);
+  if (att)    params.set("attractionId", att);
+  if (areaId) params.set("areaId",       areaId);
+  if (empId)  params.set("employeeId",   empId);
+  if (from)   params.set("startDate",    from);
+  if (to)     params.set("endDate",      to);
 
   try {
     var rows = toArray(await authFetch("/maintenance-report?" + params.toString()));
 
+    // Client-side ongoing filter (DateEnd is null/empty)
+    if (ongoing === "1") {
+      rows = rows.filter(function (r) { return !r.DateEnd; });
+    }
+
     if (cards) {
       var total   = rows.length;
       var high    = rows.filter(function (r) { return r.Severity === "High"; }).length;
-      var ongoing = rows.filter(function (r) { return !r.DateEnd; }).length;
+      var ongoingCount = rows.filter(function (r) { return !r.DateEnd; }).length;
       var done    = rows.filter(function (r) { return r.Status === "Completed"; }).length;
       cards.innerHTML =
         '<div class="perf-card"><h3>Total Records</h3><p class="stat-number">' + total + "</p></div>"
         + '<div class="perf-card"><h3>High Severity</h3><p class="stat-number" style="color:var(--blood-light)">' + high + "</p></div>"
-        + '<div class="perf-card"><h3>Ongoing</h3><p class="stat-number" style="color:var(--gold)">' + ongoing + "</p></div>"
+        + '<div class="perf-card"><h3>Ongoing</h3><p class="stat-number" style="color:var(--gold)">' + ongoingCount + "</p></div>"
         + '<div class="perf-card"><h3>Completed</h3><p class="stat-number" style="color:#2ecc71">' + done + "</p></div>";
     }
 
@@ -577,71 +602,44 @@ async function loadMaintenanceHistory() {
   } catch (err) { console.error("loadMaintenanceHistory:", err); }
 }
 
-// ─── REPORT: AREA WORKLOAD ────────────────────────────────────────────────
-async function loadAreaWorkload() {
-  var tbody = document.getElementById("tbody-area-workload");
-  var cards = document.getElementById("aw-summary-cards");
+// ─── CSV EXPORT ───────────────────────────────────────────────────────────
+/**
+ * Reads a rendered tbody and exports its visible rows to a CSV download.
+ * Reads column headers from the closest thead.
+ */
+function exportTableCSV(tbodyId, filename) {
+  var tbody = document.getElementById(tbodyId);
   if (!tbody) return;
+  var thead = tbody.closest("table") && tbody.closest("table").querySelector("thead");
+  var headers = [];
+  if (thead) {
+    thead.querySelectorAll("th").forEach(function (th) { headers.push(th.textContent.trim()); });
+  }
 
-  try {
-    var rows = toArray(await authFetch("/area-workload"));
+  var rows = [headers];
+  tbody.querySelectorAll("tr").forEach(function (tr) {
+    var cells = [];
+    tr.querySelectorAll("td").forEach(function (td) {
+      var val = td.textContent.trim().replace(/"/g, '""');
+      cells.push('"' + val + '"');
+    });
+    if (cells.length) rows.push(cells);
+  });
 
-    if (cards) {
-      var totalAll   = rows.reduce(function (s, r) { return s + Number(r.total  || 0); }, 0);
-      var overdueAll = rows.reduce(function (s, r) { return s + Number(r.overdue || 0); }, 0);
-      var busiest    = rows[0];
-      cards.innerHTML =
-        '<div class="perf-card"><h3>Total Tasks (All Areas)</h3><p class="stat-number">' + totalAll + "</p></div>"
-        + '<div class="perf-card"><h3>Busiest Area</h3><p class="stat-number" style="font-size:1.2rem">' + ((busiest && busiest.AreaName) || "—") + "</p></div>"
-        + '<div class="perf-card"><h3>Overdue (All Areas)</h3><p class="stat-number" style="color:var(--blood-light)">' + overdueAll + "</p></div>";
-    }
+  var csv = rows.map(function (r) { return r.join(","); }).join("\r\n");
+  var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement("a");
+  a.href = url;
+  a.download = filename + "-" + new Date().toISOString().split("T")[0] + ".csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
-    tbody.innerHTML = "";
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:20px;">No area data.</td></tr>';
-    } else {
-      rows.forEach(function (row) {
-        tbody.innerHTML +=
-          "<tr>"
-          + "<td>" + row.AreaName + "</td>"
-          + "<td>" + (row.total      || 0) + "</td>"
-          + '<td style="color:var(--ember)">'       + (row.pending    || 0) + "</td>"
-          + '<td style="color:var(--gold)">'        + (row.inProgress || 0) + "</td>"
-          + '<td style="color:#2ecc71">'            + (row.completed  || 0) + "</td>"
-          + '<td style="color:var(--blood-light)">' + (row.overdue    || 0) + "</td>"
-          + "</tr>";
-      });
-    }
-
-    // Bar chart
-    var ctx = document.getElementById("chart-area-workload-bar");
-    if (ctx && rows.length) {
-      if (awBarChartInstance) { awBarChartInstance.destroy(); awBarChartInstance = null; }
-      awBarChartInstance = new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels: rows.map(function (d) { return d.AreaName; }),
-          datasets: [
-            { label: "Pending",     data: rows.map(function (d) { return Number(d.pending    || 0); }), backgroundColor: "rgba(212,88,10,0.75)",  borderRadius: 3 },
-            { label: "In Progress", data: rows.map(function (d) { return Number(d.inProgress || 0); }), backgroundColor: "rgba(201,168,76,0.75)", borderRadius: 3 },
-            { label: "Completed",   data: rows.map(function (d) { return Number(d.completed  || 0); }), backgroundColor: "rgba(46,204,113,0.75)", borderRadius: 3 },
-            { label: "Overdue",     data: rows.map(function (d) { return Number(d.overdue    || 0); }), backgroundColor: "rgba(139,0,0,0.75)",    borderRadius: 3 },
-          ],
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { labels: { color: "#b0a898", font: { family: "'Crimson Text', serif", size: 13 } } },
-            tooltip: { backgroundColor: "#211a14", titleColor: "#c9a84c", bodyColor: "#d6cdb8", borderColor: "rgba(139,0,0,0.4)", borderWidth: 1 },
-          },
-          scales: {
-            x: { ticks: { color: "#b0a898", font: { family: "'Crimson Text', serif" } }, grid: { color: "rgba(139,0,0,0.1)" } },
-            y: { beginAtZero: true, ticks: { color: "#b0a898", stepSize: 1 }, grid: { color: "rgba(139,0,0,0.1)" } },
-          },
-        },
-      });
-    }
-  } catch (err) { console.error("loadAreaWorkload:", err); }
+function exportPerformanceCSV() {
+  exportTableCSV("tbody-performance", "employee-performance");
 }
 
 // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
@@ -652,8 +650,6 @@ async function loadNotifications() {
 
   try {
     var payload = await authFetch("/notifications");
-    // Server sends { success:true, data: { notifications: [...] } }
-    // After unwrap: payload = { notifications: [...] }
     var notifications = toArray(payload && payload.notifications);
 
     var badge = document.getElementById("notif-badge");
@@ -719,17 +715,29 @@ async function loadScheduleCalendar() {
     var tasks = toArray(await authFetch("/tasks"));
     if (calendarInstance) { calendarInstance.destroy(); calendarInstance = null; }
 
-    var areaColors = { "Zone A": "#8b0000", "rides zone": "#c0392b", "food court": "#d4580a", "kids area": "#c9a84c" };
+    // Use a broader color palette so all 6 zones get distinct colours
+    var areaColorPalette = [
+      "#8b0000", "#c0392b", "#d4580a", "#c9a84c", "#2980b9", "#27ae60",
+      "#8e44ad", "#16a085", "#e67e22", "#2c3e50"
+    ];
+    var areaColorMap = {};
+    var areaColorIdx = 0;
+
     var today = new Date().toISOString().split("T")[0];
 
     var events = tasks
       .filter(function (t) { return t.DueDate && !hiddenTaskIds[t.MaintenanceAssignmentID]; })
       .map(function (t) {
+        var areaKey = t.AreaName || "Unknown";
+        if (!areaColorMap[areaKey]) {
+          areaColorMap[areaKey] = areaColorPalette[areaColorIdx % areaColorPalette.length];
+          areaColorIdx++;
+        }
         return {
           id:    t.MaintenanceAssignmentID,
           title: (t.TaskDescription || "Task").substring(0, 28) + " · " + (t.EmployeeName || ""),
           start: t.DueDate,
-          color: areaColors[t.AreaName] || "#5a4a3a",
+          color: areaColorMap[areaKey],
           extendedProps: { task: t },
         };
       });
