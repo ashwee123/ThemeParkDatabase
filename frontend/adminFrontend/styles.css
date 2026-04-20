@@ -98,26 +98,6 @@ main {
 .panel { display: none; }
 .panel.active { display: block; }
 
-.report-kpi-alerts {
-  margin-bottom: 1rem;
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius);
-  border: 1px solid rgba(201, 168, 76, 0.35);
-  background: rgba(139, 0, 0, 0.12);
-}
-.report-kpi-alert {
-  font-size: 0.95rem;
-  margin: 0.35rem 0;
-  padding-left: 0.5rem;
-  border-left: 3px solid var(--gold);
-}
-.report-kpi-alert--crit {
-  border-left-color: var(--blood-light);
-}
-.report-kpi-alert--warn {
-  border-left-color: var(--ember);
-}
-
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -132,6 +112,14 @@ main {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+}
+
+.admin-inline-form {
+  margin-bottom: 0.75rem;
+}
+
+.admin-inline-form .input-search {
+  max-width: 12rem;
 }
 
 .toolbar h2, .subheading {
@@ -164,14 +152,6 @@ code { color: var(--gold); }
   text-transform: uppercase;
 }
 .data-table tbody tr:hover { background: rgba(139, 0, 0, 0.08); }
-.data-table input[type="text"],
-.data-table input[type="url"],
-.data-table input[type="number"],
-.data-table input[type="time"],
-.data-table textarea {
-  width: 100%;
-  max-width: min(18rem, 100%);
-}
 .num { font-variant-numeric: tabular-nums; }
 
 .card {
@@ -252,25 +232,6 @@ input:focus, select:focus, textarea:focus {
 .area-block h3 { color: var(--bone); margin-bottom: 0.45rem; }
 
 .hidden { display: none !important; }
-
-.backend-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
-  margin-bottom: 1rem;
-  padding: 0.75rem 0.9rem;
-  border-radius: var(--radius);
-  border: 1px solid rgba(201, 168, 76, 0.35);
-  background: rgba(201, 168, 76, 0.08);
-  color: var(--bone);
-}
-
-.backend-status.error {
-  border-color: rgba(255, 100, 100, 0.45);
-  background: rgba(40, 0, 0, 0.35);
-  color: #ffb8b8;
-}
 
 .toast {
   position: fixed;
