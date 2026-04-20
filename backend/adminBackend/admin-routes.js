@@ -148,8 +148,7 @@ export async function listIncidents(limit = 100) {
      FROM incidentreport i
      LEFT JOIN employee e ON e.EmployeeID = i.EmployeeID
      ORDER BY i.ReportDate DESC
-     LIMIT ?`,
-    [lim]
+     LIMIT ${lim}`
   );
   return rows.map((r) => ({
     ...r,
@@ -163,8 +162,7 @@ export async function listRecentWeather(limit = 30) {
     `SELECT WeatherID, WeatherDate, HighTemp, LowTemp, SeverityLevel, AttractionOperationStatus
      FROM weather
      ORDER BY WeatherDate DESC, WeatherID DESC
-     LIMIT ?`,
-    [lim]
+     LIMIT ${lim}`
   );
   return rows.map((r) => ({
     ...r,
@@ -200,17 +198,17 @@ export async function listVisitors({ q = "", limit = 200 } = {}) {
   const cols = "VisitorID, Name, Email, Phone, Gender, Age, IsActive, CreatedAt";
   const colsNoCreated = "VisitorID, Name, Email, Phone, Gender, Age, IsActive";
   const sql = hasTerm
-    ? `SELECT ${cols} FROM visitor WHERE Name LIKE ? OR Email LIKE ? OR Phone LIKE ? ORDER BY VisitorID DESC LIMIT ?`
-    : `SELECT ${cols} FROM visitor ORDER BY VisitorID DESC LIMIT ?`;
-  const params = hasTerm ? [term, term, term, lim] : [lim];
+    ? `SELECT ${cols} FROM visitor WHERE Name LIKE ? OR Email LIKE ? OR Phone LIKE ? ORDER BY VisitorID DESC LIMIT ${lim}`
+    : `SELECT ${cols} FROM visitor ORDER BY VisitorID DESC LIMIT ${lim}`;
+  const params = hasTerm ? [term, term, term] : [];
   let rows;
   try {
     [rows] = await pool.execute(sql, params);
   } catch (e) {
     if (!String(e.message || "").includes("Unknown column 'CreatedAt'")) throw e;
     const sql2 = hasTerm
-      ? `SELECT ${colsNoCreated} FROM visitor WHERE Name LIKE ? OR Email LIKE ? OR Phone LIKE ? ORDER BY VisitorID DESC LIMIT ?`
-      : `SELECT ${colsNoCreated} FROM visitor ORDER BY VisitorID DESC LIMIT ?`;
+      ? `SELECT ${colsNoCreated} FROM visitor WHERE Name LIKE ? OR Email LIKE ? OR Phone LIKE ? ORDER BY VisitorID DESC LIMIT ${lim}`
+      : `SELECT ${colsNoCreated} FROM visitor ORDER BY VisitorID DESC LIMIT ${lim}`;
     [rows] = await pool.execute(sql2, params);
   }
   return rows.map((r) => ({
@@ -236,8 +234,7 @@ export async function listTicketsAdmin(limit = 250) {
   try {
     const [rows] = await pool.execute(
       `SELECT ${baseSelect.replace("t.TicketType", "t.TicketType, t.DiscountFor")} ${join}
-       ORDER BY t.TicketNumber DESC LIMIT ?`,
-      [lim]
+       ORDER BY t.TicketNumber DESC LIMIT ${lim}`
     );
     return rows.map((r) => ({
       ...r,
@@ -248,8 +245,7 @@ export async function listTicketsAdmin(limit = 250) {
   } catch (e) {
     if (!String(e.message || "").includes("DiscountFor")) throw e;
     const [rows] = await pool.execute(
-      `SELECT ${baseSelect} ${join} ORDER BY t.TicketNumber DESC LIMIT ?`,
-      [lim]
+      `SELECT ${baseSelect} ${join} ORDER BY t.TicketNumber DESC LIMIT ${lim}`
     );
     return rows.map((r) => ({
       ...r,
@@ -268,8 +264,7 @@ export async function listShiftsAdmin(limit = 200) {
      FROM shift s
      LEFT JOIN employee e ON e.EmployeeID = s.EmployeeID
      ORDER BY s.ShiftDate DESC, s.ShiftID DESC
-     LIMIT ?`,
-    [lim]
+     LIMIT ${lim}`
   );
   return rows.map((r) => ({
     ...r,
@@ -288,8 +283,7 @@ export async function listNotificationLog(limit = 100) {
      LEFT JOIN retailitem ri ON ri.ItemID = n.ItemID
      LEFT JOIN retailplace rp ON rp.RetailID = ri.RetailID
      ORDER BY n.CreatedAt DESC
-     LIMIT ?`,
-    [lim]
+     LIMIT ${lim}`
   );
   return rows.map((r) => ({
     ...r,
@@ -359,8 +353,7 @@ export async function listVisitorReviewsReport(limit) {
      LEFT JOIN visitor v ON v.VisitorID = r.VisitorID
      WHERE r.IsActive = 1
      ORDER BY r.ReviewID DESC
-     LIMIT ?`,
-    [lim]
+     LIMIT ${lim}`
   );
   return rows.map((r) => ({
     ...r,
