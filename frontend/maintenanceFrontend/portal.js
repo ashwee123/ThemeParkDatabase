@@ -694,13 +694,14 @@ async function loadScheduleCalendar() {
         };
       });
 
-    // FIX: find the earliest task date so we can show all historical data
-    // The calendar defaults to today but users can navigate to Jan 2026 etc.
-    // initialDate stays as today — user navigates via prev/next.
-    // We do NOT restrict dates; FullCalendar shows all events on their date.
+    // FIX: start the calendar on the earliest task date so past data
+    // (e.g. January 2026) is visible immediately without needing to navigate.
+    var allDates = events.map(function (e) { return e.start; }).filter(Boolean).sort();
+    var initialDate = allDates.length ? allDates[0] : today;
+
     calendarInstance = new FullCalendar.Calendar(calendarEl, {
       initialView: "dayGridMonth",
-      initialDate: today,   // starts on current month; use prev arrow to go to Jan 2026
+      initialDate: initialDate,
       events: events,
       height: "auto",
       headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listWeek" },
@@ -715,16 +716,6 @@ async function loadScheduleCalendar() {
       dayMaxEvents: 3,
     });
     calendarInstance.render();
-
-    // FIX: add a hint below the calendar about navigating to past months
-    var hint = document.getElementById("calendar-nav-hint");
-    if (!hint) {
-      hint = document.createElement("p");
-      hint.id = "calendar-nav-hint";
-      hint.style.cssText = "color:var(--text-dim);font-size:0.82rem;margin-top:0.5rem;";
-      hint.textContent = "Use the ← arrow to navigate to previous months (e.g. January 2026).";
-      calendarEl.parentNode.insertBefore(hint, calendarEl.nextSibling);
-    }
   } catch (err) { console.error("loadScheduleCalendar:", err); }
 }
 
