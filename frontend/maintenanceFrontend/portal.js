@@ -192,7 +192,9 @@ function fillSelect(id, data, valueKey, labelFn, addBlank = false) {
 async function loadTasks() {
   try {
     const res = await authFetch("/tasks");
-    allTasksData = await res.json();
+    allTasksData = (await res.json()).filter(r =>
+      allowedEmployeeIDs.has(r.EmployeeID)
+    );
     renderTables(allTasksData);
   } catch (err) { console.error(err); }
 }
