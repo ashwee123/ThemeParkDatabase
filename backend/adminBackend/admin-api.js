@@ -21,10 +21,6 @@ import {
   getReportSnapshot,
   listVisitorReviewsReport,
   updateAttractionStatus,
-  listHrManagers,
-  createHrManager,
-  createEmployee,
-  createVisitor,
 } from "./admin-routes.js";
 
 function sendJson(res, status, data, extra = {}) {
@@ -39,7 +35,7 @@ function sendJson(res, status, data, extra = {}) {
 
 const cors = {
   "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
-  "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, PATCH, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
@@ -88,10 +84,6 @@ export async function handleAdminApi(req, res, url) {
       sendJson(res, 200, await listEmployees(), h);
       return;
     }
-    if (method === "GET" && pathname === "/api/hr-managers") {
-      sendJson(res, 200, await listHrManagers(), h);
-      return;
-    }
     if (method === "GET" && pathname === "/api/alerts") {
       sendJson(res, 200, await listActiveAlerts(), h);
       return;
@@ -118,42 +110,6 @@ export async function handleAdminApi(req, res, url) {
       const q = url.searchParams.get("q") || "";
       const limit = url.searchParams.get("limit");
       sendJson(res, 200, await listVisitors({ q, limit }), h);
-      return;
-    }
-
-    if (method === "POST" && pathname === "/api/employees") {
-      const body = await readJsonBody(req);
-      try {
-        const row = await createEmployee(body);
-        sendJson(res, 201, row, h);
-      } catch (e) {
-        const code = e && e.statusCode === 400 ? 400 : 500;
-        sendJson(res, code, { error: String(e && e.message ? e.message : e) }, h);
-      }
-      return;
-    }
-
-    if (method === "POST" && pathname === "/api/hr-managers") {
-      const body = await readJsonBody(req);
-      try {
-        const row = await createHrManager(body);
-        sendJson(res, 201, row, h);
-      } catch (e) {
-        const code = e && e.statusCode === 400 ? 400 : 500;
-        sendJson(res, code, { error: String(e && e.message ? e.message : e) }, h);
-      }
-      return;
-    }
-
-    if (method === "POST" && pathname === "/api/visitors") {
-      const body = await readJsonBody(req);
-      try {
-        const row = await createVisitor(body);
-        sendJson(res, 201, row, h);
-      } catch (e) {
-        const code = e && e.statusCode === 400 ? 400 : 500;
-        sendJson(res, code, { error: String(e && e.message ? e.message : e) }, h);
-      }
       return;
     }
     if (method === "GET" && pathname === "/api/tickets/admin") {
@@ -239,8 +195,6 @@ export async function handleAdminApi(req, res, url) {
     sendJson(res, 500, { error: "Server error", detail: String(e.message) }, h);
   }
 }
-
-
 
 
 
