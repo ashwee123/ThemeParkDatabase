@@ -1,4 +1,3 @@
-// maintenanceBackend/server.js
 const http = require("http");
 const url = require("url");
 const db = require("./db");
@@ -12,10 +11,9 @@ const ROLES = {
   MAINTENANCE_MANAGER: "maintenance_manager"
 };
 
-// ─── HELPERS ───────────────────────────────────────────────
 function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, { "Content-Type": "application/json" });
-  return res.end(JSON.stringify(data));
+  res.end(JSON.stringify(data));
 }
 
 function verifyToken(req) {
@@ -32,7 +30,6 @@ function verifyToken(req) {
   }
 }
 
-// ✅ FIX: allow BOTH admin + manager
 function requireRole(req, res) {
   const user = verifyToken(req);
 
@@ -65,7 +62,6 @@ function getBody(req) {
   });
 }
 
-// ─── SERVER ───────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
 
@@ -79,7 +75,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    // ───────── LOGIN ─────────
+    // LOGIN
     if (parsedUrl.pathname === "/login" && req.method === "POST") {
       const { email, password } = await getBody(req);
 
@@ -94,7 +90,7 @@ const server = http.createServer(async (req, res) => {
 
       const manager = rows[0];
 
-      let match = manager.ManagerPassword.startsWith("$2b$")
+      const match = manager.ManagerPassword.startsWith("$2b$")
         ? await bcrypt.compare(password, manager.ManagerPassword)
         : password === manager.ManagerPassword;
 
@@ -113,7 +109,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { token, role: manager.Role });
     }
 
-    // ───────── TASKS ─────────
+    // TASKS
     if (parsedUrl.pathname === "/tasks" && req.method === "GET") {
       const user = requireRole(req, res);
       if (!user) return;
@@ -134,7 +130,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, rows);
     }
 
-    // ───────── EMPLOYEES ─────────
+    // EMPLOYEES
     if (parsedUrl.pathname === "/employees" && req.method === "GET") {
       const user = requireRole(req, res);
       if (!user) return;
@@ -146,7 +142,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, rows);
     }
 
-    // ───────── AREAS ─────────
+    // AREAS
     if (parsedUrl.pathname === "/areas" && req.method === "GET") {
       const user = requireRole(req, res);
       if (!user) return;
@@ -158,7 +154,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, rows);
     }
 
-    // ───────── ATTRACTIONS ─────────
+    // ATTRACTIONS
     if (parsedUrl.pathname === "/attractions" && req.method === "GET") {
       const user = requireRole(req, res);
       if (!user) return;
@@ -175,61 +171,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, rows);
     }
 
-    // ───────── AREA WORKLOAD ─────────
-    if (parsedUrl.pathname === "/area-workload" && req.method === "GET") {
-      const user = requireRole(req, res);
-      if (!user) return;
-
-      const [rows] = await db.query(`
-        SELECT a.AreaName,
-               COUNT(*) AS total,
-               SUM(m.Status='Pending') AS pending,
-               SUM(m.Status='In Progress') AS inProgress,
-               SUM(m.Status='Completed') AS completed
-        FROM maintenanceassignment m
-        JOIN area a ON m.AreaID = a.AreaID
-        GROUP BY a.AreaID
-        ORDER BY total DESC
-      `);
-
-      return sendJson(res, 200, rows);
-    }
-
-    // ───────── TASK SUMMARY ─────────
-    if (parsedUrl.pathname === "/task-summary" && req.method === "GET") {
-      const user = requireRole(req, res);
-      if (!user) return;
-
-      const [stats] = await db.query(`
-        SELECT Status, COUNT(*) AS count
-        FROM maintenanceassignment
-        GROUP BY Status
-      `);
-
-      const [byArea] = await db.query(`
-        SELECT a.AreaName,
-               SUM(m.Status='Pending') AS pending,
-               SUM(m.Status='In Progress') AS inProgress,
-               SUM(m.Status='Completed') AS completed
-        FROM maintenanceassignment m
-        LEFT JOIN area a ON m.AreaID = a.AreaID
-        GROUP BY a.AreaID
-      `);
-
-      const [overdue] = await db.query(`
-        SELECT COUNT(*) AS overdue
-        FROM maintenanceassignment
-        WHERE DueDate < CURDATE() AND Status != 'Completed'
-      `);
-
-      return sendJson(res, 200, {
-        stats,
-        byArea,
-        overdue: overdue[0].overdue
-      });
-    }
-
-    // ───────── ALERTS ─────────
+    // ALERTS
     if (parsedUrl.pathname === "/alerts" && req.method === "GET") {
       const user = requireRole(req, res);
       if (!user) return;
@@ -244,21 +186,19 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, rows);
     }
 
-    // ───────── NOTIFICATIONS ─────────
+    // NOTIFICATIONS (FIXED → ARRAY)
     if (parsedUrl.pathname === "/notifications" && req.method === "GET") {
       const user = requireRole(req, res);
       if (!user) return;
 
-      return sendJson(res, 200, {
-        notifications: [
-          {
-            type: "weather",
-            severity: "high",
-            title: "Weather Alert",
-            detail: "Storm warning active"
-          }
-        ]
-      });
+      return sendJson(res, 200, [
+        {
+          type: "weather",
+          severity: "high",
+          title: "Weather Alert",
+          detail: "Storm warning active"
+        }
+      ]);
     }
 
     res.writeHead(404);
