@@ -398,14 +398,19 @@ function renderOpsTable() {
     var alertCell = "—";
     if (hasAlert) {
       alertCell = att.alerts.map(function (a) {
-        var ac = a.SeverityLevel === "Severe" ? "var(--blood-light)" : "var(--gold)";
-        return '<span style="color:' + ac + ';font-size:0.85rem;">⚠ ' + a.AlertMessage + "</span>";
-      }).join("<br>");
+        var sevLabel = a.SeverityLevel === "Severe" ? "CRITICAL" : "HIGH";
+        var sevColor = a.SeverityLevel === "Severe" ? "var(--blood-light)" : "var(--gold)";
+        return '<div style="margin-bottom:6px;padding:5px 7px;background:rgba(139,0,0,0.07);border-left:3px solid ' + sevColor + ';border-radius:3px;">'
+          + '<span style="color:' + sevColor + ';font-size:0.82rem;font-weight:600;">🔧 ' + a.AlertMessage + '</span><br>'
+          + '<span style="color:var(--text-dim);font-size:0.74rem;">flagged at ' + (a.CreatedAt || "—") + '</span>'
+          + ' <span style="background:' + sevColor + ';color:#fff;font-size:0.68rem;padding:1px 6px;border-radius:3px;font-weight:700;vertical-align:middle;">' + sevLabel + '</span>'
+          + '</div>';
+      }).join("");
     }
 
     var rowStyle = "";
-    if (hasAlert || att.Status === "NeedsMaintenance") rowStyle = 'style="background:rgba(139,0,0,0.07);"';
-    else if (att.Status === "ClosedDueToWeather")       rowStyle = 'style="background:rgba(52,152,219,0.06);"';
+    if (att.Status === "ClosedDueToWeather")                                  rowStyle = 'style="background:rgba(52,152,219,0.06);"';
+    else if (hasAlert || att.Status === "NeedsMaintenance" || att.Status === "UnderMaintenance") rowStyle = 'style="background:rgba(139,0,0,0.07);"';
 
     tbody.innerHTML += "<tr " + rowStyle + ">"
       + "<td><strong>" + att.AttractionName + "</strong></td>"

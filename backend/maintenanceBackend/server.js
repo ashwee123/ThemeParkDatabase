@@ -543,6 +543,9 @@ const server = http.createServer(async (req, res) => {
         SELECT att.AttractionName, att.AttractionType, att.Status, att.SeverityLevel, a.AreaName
         FROM attraction att LEFT JOIN area a ON att.AreaID = a.AreaID
         WHERE att.Status IN ('NeedsMaintenance','UnderMaintenance','Closed')
+          AND att.AttractionID NOT IN (
+            SELECT DISTINCT AttractionID FROM maintenancealert WHERE Handled = 'No'
+          )
         ORDER BY FIELD(att.SeverityLevel,'Severe','Low','None'), att.AttractionName
       `);
       shutdownRides.forEach((r) => {
