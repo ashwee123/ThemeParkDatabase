@@ -53,6 +53,27 @@ function resolveAreaID(req, decoded, callback) {
     return callback(null);
 }
 
+function explainPriceConstraint(errorMessage) {
+    const msg = String(errorMessage || "");
+    if (!msg) {
+        return "Price values failed validation";
+    }
+
+    if (
+        msg.includes("CHECK constraint failed")
+        || msg.includes("CONSTRAINT")
+        || msg.includes("constraint")
+    ) {
+        return "Invalid price relationship. Ensure Buy Price <= Sell Price and Discount Price is between Buy and Sell (or blank).";
+    }
+
+    if (msg.includes("Out of range value")) {
+        return "One or more prices are out of the allowed numeric range.";
+    }
+
+    return msg;
+}
+
 module.exports = function registerRoutes(req, res, url, sendJSON, parseBody) {
     const path    = url.pathname;
     const decoded = verifyToken(req, sendJSON, res);
@@ -130,7 +151,7 @@ module.exports = function registerRoutes(req, res, url, sendJSON, parseBody) {
                 if (!body) return sendJSON(res, 400, { error: "Invalid request body" });
                 const { itemName, buyPrice, sellPrice, discountPrice, quantity, threshold, retailID } = body;
                 queries.addItem(itemName, buyPrice, sellPrice, discountPrice, quantity, threshold, retailID, (err) => {
-                    if (err) return sendJSON(res, 500, { error: err.message });
+                    if (err) return sendJSON(res, 400, { error: explainPriceConstraint(err.message) });
                     sendJSON(res, 200, { message: "Item added successfully" });
                 });
             });
@@ -164,7 +185,7 @@ module.exports = function registerRoutes(req, res, url, sendJSON, parseBody) {
                 if (!body) return sendJSON(res, 400, { error: "Invalid request body" });
                 const { itemID, buyPrice, sellPrice, discountPrice } = body;
                 queries.updatePrices(itemID, buyPrice, sellPrice, discountPrice, (err) => {
-                    if (err) return sendJSON(res, 500, { error: err.message });
+                    if (err) return sendJSON(res, 400, { error: explainPriceConstraint(err.message) });
                     sendJSON(res, 200, { message: "Prices updated successfully" });
                 });
             });
