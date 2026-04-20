@@ -465,8 +465,6 @@ async function loadTaskSummary() {
       var total  = stats.reduce(function (s, r) { return s + Number(r.count || 0); }, 0);
       var inProg = stats.find(function (r) { return r.Status === "In Progress"; });
       var pend   = stats.find(function (r) { return r.Status === "Pending"; });
-      var done   = stats.find(function (r) { return r.Status === "Completed"; });
-      var rate   = total ? Math.round((Number((done && done.count) || 0) / total) * 100) : 0;
       cards.innerHTML =
         '<div class="perf-card"><h3>Total Tasks</h3><p class="stat-number">' + total + "</p></div>"
         + '<div class="perf-card"><h3>In Progress</h3><p class="stat-number" style="color:var(--gold)">' + ((inProg && inProg.count) || 0) + "</p></div>"
@@ -540,7 +538,6 @@ async function loadMaintenanceHistory() {
   if (!tbody) return;
   var params  = new URLSearchParams();
   var sev     = (document.getElementById("mh-filter-severity")    || {}).value || "";
-  var stat    = (document.getElementById("mh-filter-status")      || {}).value || "";
   var att     = (document.getElementById("mh-filter-attraction")  || {}).value || "";
   var areaId  = (document.getElementById("mh-filter-area")        || {}).value || "";
   var empId   = (document.getElementById("mh-filter-employee-mh") || {}).value || "";
@@ -548,7 +545,6 @@ async function loadMaintenanceHistory() {
   var to      = (document.getElementById("mh-filter-to")          || {}).value || "";
   var keyword = (document.getElementById("mh-filter-keyword")     || {}).value || "";
   if (sev)    params.set("severity",     sev);
-  if (stat)   params.set("status",       stat);
   if (att)    params.set("attractionId", att);
   if (areaId) params.set("areaId",       areaId);
   if (empId)  params.set("employeeId",   empId);
@@ -562,7 +558,6 @@ async function loadMaintenanceHistory() {
       var total        = rows.length;
       var high         = rows.filter(function (r) { return r.Severity === "High"; }).length;
       var ongoingCount = rows.filter(function (r) { return !r.DateEnd; }).length;
-      var done         = rows.filter(function (r) { return r.Status === "Completed"; }).length;
       cards.innerHTML =
         '<div class="perf-card"><h3>Total Records</h3><p class="stat-number">' + total + "</p></div>"
         + '<div class="perf-card"><h3>High Severity</h3><p class="stat-number" style="color:var(--blood-light)">' + high + "</p></div>"
@@ -847,35 +842,79 @@ function showToast(message, type) {
 }
 
 // ─── SCHEDULE CALENDAR ────────────────────────────────────────────────────
+// REPLACE the entire loadScheduleCalendar function:
 async function loadScheduleCalendar() {
   var calendarEl = document.getElementById("calendar");
   if (!calendarEl) return;
   try {
-    var tasks = toArray(await authFetch("/tasks"));
+    // Fetch both task assignments and maintenance history in parallel
+    var results = await Promise.all([
+      authFetch("/tasks"),
+      authFetch("/maintenance-report"),
+    ]);
+    var tasks    = toArray(results[0]);
+    var history  = toArray(results[1]);
+
     if (calendarInstance) { calendarInstance.destroy(); calendarInstance = null; }
+
     var areaColorPalette = ["#8b0000","#c0392b","#d4580a","#c9a84c","#2980b9","#27ae60","#8e44ad","#16a085","#e67e22","#2c3e50"];
     var areaColorMap = {}, areaColorIdx = 0;
     var today = new Date().toISOString().split("T")[0];
-    var events = tasks
+
+    function getAreaColor(areaKey) {
+      if (!areaColorMap[areaKey]) {
+        areaColorMap[areaKey] = areaColorPalette[areaColorIdx % areaColorPalette.length];
+        areaColorIdx++;
+      }
+      return areaColorMap[areaKey];
+    }
+
+    // Task assignment events (due date)
+    var taskEvents = tasks
       .filter(function (t) { return t.DueDate; })
       .map(function (t) {
-        var areaKey = t.AreaName || "Unknown";
-        if (!areaColorMap[areaKey]) { areaColorMap[areaKey] = areaColorPalette[areaColorIdx % areaColorPalette.length]; areaColorIdx++; }
-        return { id: t.MaintenanceAssignmentID,
+        return {
+          id: "task-" + t.MaintenanceAssignmentID,
           title: (t.TaskDescription || "Task").substring(0, 28) + " · " + (t.EmployeeName || ""),
-          start: t.DueDate, color: areaColorMap[areaKey], extendedProps: { task: t } };
+          start: t.DueDate,
+          color: getAreaColor(t.AreaName || "Unknown"),
+          extendedProps: { task: t, type: "task" },
+        };
       });
-    var allDates = events.map(function (e) { return e.start; }).filter(Boolean).sort();
-    var initialDate = allDates.length ? allDates[0] : today;
+
+    // Maintenance history events (date start)
+    var historyEvents = history
+      .filter(function (r) { return r.DateStart; })
+      .map(function (r) {
+        return {
+          id: "mh-" + r.MaintenanceID,
+          title: (r.AttractionName || "Maintenance") + " · " + (r.EmployeeName || ""),
+          start: r.DateStart,
+          end:   r.DateEnd   || undefined,
+          color: getAreaColor(r.AreaName || "Unknown"),
+          borderColor: "#555",
+          extendedProps: { task: r, type: "maintenance" },
+        };
+      });
+
+    var events = taskEvents.concat(historyEvents);
+
     calendarInstance = new FullCalendar.Calendar(calendarEl, {
-      initialView: "dayGridMonth", initialDate: initialDate, events: events, height: "auto",
+      initialView: "dayGridMonth",
+      initialDate: today,           // always open on today
+      events: events,
+      height: "auto",
       headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,listWeek" },
       buttonText: { today: "Today", month: "Month", list: "List" },
       eventClick: function (info) {
         var t = info.event.extendedProps.task;
-        showTaskDetails(t.EmployeeName || "Unknown", t.TaskDescription || "");
+        var name = t.EmployeeName || t.AssignedEmployee || "Unknown";
+        var desc = t.TaskDescription || (t.AttractionName + (t.Status ? " — " + t.Status : ""));
+        showTaskDetails(name, desc);
       },
-      eventDidMount: function (info) { if (info.event.startStr === today) info.el.classList.add("fc-event-today"); },
+      eventDidMount: function (info) {
+        if (info.event.startStr === today) info.el.classList.add("fc-event-today");
+      },
       dayMaxEvents: 3,
     });
     calendarInstance.render();

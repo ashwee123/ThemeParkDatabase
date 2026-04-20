@@ -418,10 +418,11 @@ const server = http.createServer(async (req, res) => {
         SELECT
           a.AreaID,
           a.AreaName,
-          COUNT(m.MaintenanceID)                 AS total,
-          COALESCE(SUM(m.Severity='High'),   0)  AS highSeverity,
-          COALESCE(SUM(m.Severity='Medium'), 0)  AS mediumSeverity,
-          COALESCE(SUM(m.Severity='Low'),    0)  AS lowSeverity,
+          COUNT(DISTINCT m.MaintenanceID)                  AS historyTotal,
+          COUNT(DISTINCT t.MaintenanceAssignmentID)         AS taskTotal,
+          COALESCE(SUM(m.Severity='High'),   0)            AS highSeverity,
+          COALESCE(SUM(m.Severity='Medium'), 0)            AS mediumSeverity,
+          COALESCE(SUM(m.Severity='Low'),    0)            AS lowSeverity,
           (
             SELECT att2.AttractionName
             FROM maintenance m2
@@ -434,8 +435,9 @@ const server = http.createServer(async (req, res) => {
         FROM area a
         LEFT JOIN attraction att ON att.AreaID     = a.AreaID
         LEFT JOIN maintenance m  ON m.AttractionID = att.AttractionID
+        LEFT JOIN maintenanceassignment t ON t.AreaID = a.AreaID
         GROUP BY a.AreaID, a.AreaName
-        ORDER BY total DESC
+        ORDER BY (COUNT(DISTINCT m.MaintenanceID) + COUNT(DISTINCT t.MaintenanceAssignmentID)) DESC
       `);
 
       // Merge rows with the same area name (duplicate area name entries in DB)
@@ -444,7 +446,7 @@ const server = http.createServer(async (req, res) => {
         const key = (row.AreaName || "").trim().toLowerCase();
         if (areaMap.has(key)) {
           const e = areaMap.get(key);
-          e.total          += Number(row.total);
+          e.total          += Number(row.historyTotal) + Number(row.taskTotal);  // ← change this line
           e.highSeverity   += Number(row.highSeverity);
           e.mediumSeverity += Number(row.mediumSeverity);
           e.lowSeverity    += Number(row.lowSeverity);
@@ -453,7 +455,7 @@ const server = http.createServer(async (req, res) => {
         } else {
           areaMap.set(key, {
             AreaID: row.AreaID, AreaName: row.AreaName,
-            total: Number(row.total),
+            total:          Number(row.historyTotal) + Number(row.taskTotal),  // combined
             highSeverity:   Number(row.highSeverity),
             mediumSeverity: Number(row.mediumSeverity),
             lowSeverity:    Number(row.lowSeverity),
