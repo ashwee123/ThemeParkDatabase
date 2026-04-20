@@ -36,6 +36,17 @@ import {
   listAdminSessionLog,
   revokeAdminSessionLog,
   parseAccessPolicyFromSettings,
+  ensureAdminAccessSchema,
+  validateAdminSessionRequest,
+  insertAdminSessionRow,
+  updateSessionMfaVerified,
+  listIpBlocklist,
+  insertIpBlocklistRow,
+  deleteIpBlocklistRow,
+  runLogRetentionPurge,
+  markNotificationRead,
+  createCrossPortalIncidentLink,
+  insertBreakGlassEvent,
 } from "./admin-routes.js";
 import { getPool } from "./db.js";
 import { buildSnapshotPdf } from "./report-pdf.js";
@@ -45,7 +56,10 @@ function reqMeta(req) {
   const xf = h["x-forwarded-for"] || h["X-Forwarded-For"];
   const ip = xf ? String(xf).split(",")[0].trim() : req.socket && req.socket.remoteAddress ? String(req.socket.remoteAddress) : "";
   const ua = h["user-agent"] || h["User-Agent"] || "";
-  return { clientIp: ip.slice(0, 80), userAgent: String(ua).slice(0, 512) };
+  const sidRaw = h["x-admin-session-id"] || h["X-Admin-Session-Id"];
+  const sid = sidRaw != null && String(sidRaw).trim() !== "" ? Number(sidRaw) : null;
+  const sessionLogId = Number.isInteger(sid) && sid > 0 ? sid : null;
+  return { clientIp: ip.slice(0, 80), userAgent: String(ua).slice(0, 512), sessionLogId };
 }
 
 function sendJson(res, status, data, extra = {}) {
@@ -60,8 +74,8 @@ function sendJson(res, status, data, extra = {}) {
 
 function getCorsHeaders(req) {
   const configured = String(process.env.CORS_ORIGIN || "").trim();
-  const allowMethods = "GET, POST, PATCH, OPTIONS";
-  const allowHeaders = "Content-Type, Authorization";
+  const allowMethods = "GET, POST, PATCH, DELETE, OPTIONS";
+  const allowHeaders = "Content-Type, Authorization, X-Admin-Session-Id";
   if (!configured) {
     return {
       "Access-Control-Allow-Origin": "*",
@@ -118,6 +132,31 @@ export async function handleAdminApi(req, res, url) {
   const h = { ...cors };
 
   try {
+    await ensureAdminAccessSchema();
+
+    const enforceSession = process.env.ADMIN_ENFORCE_SESSION === "1";
+    const enforceMfaEnv = process.env.ADMIN_ENFORCE_MFA === "1";
+    const sessionExempt =
+      pathname === "/api/access/sessions/validate" ||
+      (method === "POST" && pathname === "/api/access/sessions") ||
+      (process.env.ADMIN_ENFORCE_SESSION_ALLOW_SUMMARY === "1" && pathname === "/api/summary");
+    if (enforceSession && pathname.startsWith("/api/") && !sessionExempt) {
+      const settings = await getSystemSettings();
+      const pol = parseAccessPolicyFromSettings(settings);
+      const v = await validateAdminSessionRequest(req, { requireMfa: enforceMfaEnv || pol.mfaRequired });
+      if (!v.ok) {
+        await insertAdminAuditLog({
+          action: "api_session_denied",
+          targetType: "api",
+          detailJson: { path: pathname, method, code: v.code },
+          actionResult: "denied",
+          ...reqMeta(req),
+        });
+        sendJson(res, 401, { error: v.reason, code: v.code }, h);
+        return;
+      }
+    }
+
     if (method === "GET" && pathname === "/api/summary") {
       sendJson(res, 200, await getSummary(), h);
       return;
@@ -152,6 +191,21 @@ export async function handleAdminApi(req, res, url) {
       if (body.sessionNotes !== undefined) patch.accessSessionNotes = String(body.sessionNotes ?? "");
       if (body.suspiciousIpWatchlist !== undefined) {
         patch.accessSuspiciousIpWatchlist = String(body.suspiciousIpWatchlist ?? "");
+      }
+      if (body.mfaTiers !== undefined) {
+        patch.accessMfaTierJson = JSON.stringify(body.mfaTiers);
+      }
+      if (body.tokenTtlByPortal !== undefined) {
+        patch.accessTokenTtlPolicyJson = JSON.stringify(body.tokenTtlByPortal);
+      }
+      if (body.retentionAuditLogDays !== undefined) {
+        patch.retentionAuditLogDays = String(body.retentionAuditLogDays ?? "");
+      }
+      if (body.retentionSessionLogDays !== undefined) {
+        patch.retentionSessionLogDays = String(body.retentionSessionLogDays ?? "");
+      }
+      if (body.breakGlassProcedureNotes !== undefined) {
+        patch.breakGlassProcedureNotes = String(body.breakGlassProcedureNotes ?? "");
       }
       await patchSystemSettings(patch);
       await insertAdminAuditLog({
@@ -192,6 +246,187 @@ export async function handleAdminApi(req, res, url) {
         return;
       }
       sendJson(res, 200, { ok: true, SessionLogID: sid }, h);
+      return;
+    }
+    if (method === "POST" && pathname === "/api/access/sessions") {
+      const body = await readJsonBody(req);
+      const id = await insertAdminSessionRow(body, reqMeta(req));
+      await insertAdminAuditLog({
+        action: "session_row_created",
+        targetType: "session",
+        targetId: String(id),
+        detailJson: { portal: body && body.portal, eventType: body && body.eventType },
+        ...reqMeta(req),
+      });
+      sendJson(res, 201, { ok: true, SessionLogID: id }, h);
+      return;
+    }
+    if (method === "GET" && pathname === "/api/access/sessions/validate") {
+      const enforceMfaEnv = process.env.ADMIN_ENFORCE_MFA === "1";
+      const settings = await getSystemSettings();
+      const pol = parseAccessPolicyFromSettings(settings);
+      const v = await validateAdminSessionRequest(req, { requireMfa: enforceMfaEnv || pol.mfaRequired });
+      if (!v.ok) {
+        sendJson(res, 401, { ok: false, error: v.reason, code: v.code }, h);
+        return;
+      }
+      sendJson(
+        res,
+        200,
+        {
+          ok: true,
+          sessionLogId: v.sessionLogId,
+          ttlSeconds: v.ttlSeconds,
+          portal: v.row.Portal,
+          mfaVerifiedAt: v.row.MfaVerifiedAt,
+          mfaMethod: v.row.MfaMethod,
+          mfaTiers: pol.mfaTiers,
+        },
+        h
+      );
+      return;
+    }
+    const mfaSess = pathname.match(/^\/api\/access\/sessions\/(\d+)\/mfa$/);
+    if (mfaSess && method === "PATCH") {
+      const body = await readJsonBody(req);
+      const sid = parseInt(mfaSess[1], 10);
+      const methodName = body && body.method != null ? String(body.method) : "unknown";
+      const ok = await updateSessionMfaVerified(sid, methodName);
+      await insertAdminAuditLog({
+        action: ok ? "session_mfa_verified" : "session_mfa_verify_failed",
+        targetType: "session",
+        targetId: String(sid),
+        detailJson: { method: methodName },
+        ...reqMeta(req),
+      });
+      if (!ok) {
+        sendJson(res, 404, { error: "Session not found or revoked" }, h);
+        return;
+      }
+      sendJson(res, 200, { ok: true, SessionLogID: sid, method: methodName }, h);
+      return;
+    }
+    if (method === "GET" && pathname === "/api/access/ip-blocklist") {
+      sendJson(res, 200, await listIpBlocklist(), h);
+      return;
+    }
+    if (method === "POST" && pathname === "/api/access/ip-blocklist") {
+      const body = await readJsonBody(req);
+      const id = await insertIpBlocklistRow(body);
+      if (!id) {
+        sendJson(res, 400, { error: "Body needs cidr (IP or CIDR)" }, h);
+        return;
+      }
+      await insertAdminAuditLog({
+        action: "ip_blocklist_added",
+        targetType: "admin_ip_blocklist",
+        targetId: String(id),
+        detailJson: { cidr: body && body.cidr, blockMode: body && body.blockMode },
+        ...reqMeta(req),
+      });
+      sendJson(res, 201, { ok: true, BlockID: id }, h);
+      return;
+    }
+    const ipBlockDel = pathname.match(/^\/api\/access\/ip-blocklist\/(\d+)$/);
+    if (ipBlockDel && method === "DELETE") {
+      const bid = parseInt(ipBlockDel[1], 10);
+      const ok = await deleteIpBlocklistRow(bid);
+      await insertAdminAuditLog({
+        action: ok ? "ip_blocklist_deleted" : "ip_blocklist_delete_failed",
+        targetType: "admin_ip_blocklist",
+        targetId: String(bid),
+        ...reqMeta(req),
+      });
+      if (!ok) {
+        sendJson(res, 404, { error: "Not found" }, h);
+        return;
+      }
+      sendJson(res, 200, { ok: true }, h);
+      return;
+    }
+    if (method === "POST" && pathname === "/api/audit/sensitive-read") {
+      const body = await readJsonBody(req);
+      const action = body && body.action != null ? String(body.action).slice(0, 120) : "sensitive_read";
+      await insertAdminAuditLog({
+        action,
+        targetType: body && body.targetType != null ? String(body.targetType).slice(0, 80) : null,
+        targetId: body && body.targetId != null ? String(body.targetId).slice(0, 120) : null,
+        detailJson:
+          body && body.detail && typeof body.detail === "object"
+            ? body.detail
+            : { resource: body && body.resource, note: body && body.note },
+        actionResult: "read",
+        ...reqMeta(req),
+      });
+      sendJson(res, 200, { ok: true }, h);
+      return;
+    }
+    if (method === "POST" && pathname === "/api/system/purge-retention-logs") {
+      const secret = process.env.ADMIN_LOG_PURGE_SECRET || "";
+      const body = await readJsonBody(req);
+      const hdr = req.headers && (req.headers["x-purge-secret"] || req.headers["X-Purge-Secret"]);
+      const provided = (body && body.secret) || hdr || "";
+      if (!secret || String(provided) !== secret) {
+        sendJson(res, 403, { error: "Forbidden" }, h);
+        return;
+      }
+      const out = await runLogRetentionPurge();
+      await insertAdminAuditLog({
+        action: "retention_purge_ran",
+        targetType: "system",
+        detailJson: out,
+        ...reqMeta(req),
+      });
+      sendJson(res, 200, { ok: true, ...out }, h);
+      return;
+    }
+    if (method === "POST" && pathname === "/api/access/break-glass") {
+      const body = await readJsonBody(req);
+      const id = await insertBreakGlassEvent(body);
+      await insertAdminAuditLog({
+        action: "break_glass_requested",
+        targetType: "break_glass",
+        targetId: id != null ? String(id) : null,
+        detailJson: { requestedBy: body && body.requestedBy, reason: body && body.reason },
+        ...reqMeta(req),
+      });
+      sendJson(res, 201, { ok: true, EventID: id }, h);
+      return;
+    }
+    if (method === "POST" && pathname === "/api/incidents/cross-link") {
+      const body = await readJsonBody(req);
+      const out = await createCrossPortalIncidentLink(body);
+      if (!out) {
+        sendJson(res, 400, { error: "Need sourceTable and sourceId" }, h);
+        return;
+      }
+      await insertAdminAuditLog({
+        action: "cross_portal_incident_linked",
+        targetType: "admin_cross_incident_link",
+        detailJson: out,
+        ...reqMeta(req),
+      });
+      sendJson(res, 201, { ok: true, ...out }, h);
+      return;
+    }
+    const notifRead = pathname.match(/^\/api\/notifications\/(\d+)\/read$/);
+    if (notifRead && method === "PATCH") {
+      const body = await readJsonBody(req);
+      const nid = parseInt(notifRead[1], 10);
+      const aid = body && body.linkedAuditLogId != null ? Number(body.linkedAuditLogId) : null;
+      const ok = await markNotificationRead(nid, aid);
+      await insertAdminAuditLog({
+        action: ok ? "notification_marked_read" : "notification_mark_read_failed",
+        targetType: "notificationlog",
+        targetId: String(nid),
+        detailJson: { linkedAuditLogId: aid },
+        ...reqMeta(req),
+      });
+      if (!ok) {
+        sendJson(res, 404, { error: "Notification not found or table missing columns" }, h);
+        return;
+      }
+      sendJson(res, 200, { ok: true, NotificationID: nid }, h);
       return;
     }
     const empAccessPatch = pathname.match(/^\/api\/access\/employees\/(\d+)$/);

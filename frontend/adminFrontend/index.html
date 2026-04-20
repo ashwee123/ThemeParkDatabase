@@ -88,48 +88,111 @@
 
       <div class="card" style="margin-bottom:1.25rem;">
         <h3 class="subheading" style="margin-top:0;">Organization access policy</h3>
-        <p class="hint">MFA and least-privilege role <em>slots</em> per portal are stored in <code>admin_system_settings</code>. Enforce MFA at your IdP or API gateway. Role slots describe which archetypes each portal may grant.</p>
+        <p class="hint">Policy JSON lives in <code>admin_system_settings</code>. <strong>Database enforcement:</strong> set env <code>ADMIN_ENFORCE_SESSION=1</code> so every <code>/api/*</code> call must send <code>X-Admin-Session-Id</code> matching <code>admin_session_log.SessionLogID</code>, with <code>MfaVerifiedAt</code> within the session TTL when MFA is required (<code>ADMIN_ENFORCE_MFA=1</code> or policy checkbox). Optional: <code>ADMIN_SESSION_TTL_SEC</code> overrides TTL. Record MFA with <code>PATCH /api/access/sessions/:id/mfa</code> (method: totp, sms, webauthn, email_otp).</p>
         <form id="form-access-policy">
           <label class="select-label" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
             <input type="checkbox" id="access-mfa-required" />
-            <span>Require MFA for admin / staff console sign-in (configure enforcement in IdP or gateway)</span>
+            <span>Require MFA for protected API calls (paired with DB session row + <code>MfaVerifiedAt</code>)</span>
           </label>
           <h4 class="subheading" style="font-size:0.95rem;margin-top:0.75rem;">Least-privilege role slots (per portal)</h4>
+          <p class="hint" style="margin:0 0 6px;"><strong>Auditor</strong> is read-only across portals (no mutations via your auth layer). HR split uses <strong>HR access</strong> on each employee row below (<code>HrAccessLevel</code>: manager vs admin).</p>
           <div class="table-wrap" style="margin-bottom:0.5rem;">
             <table class="data-table" id="table-access-portal-roles">
               <thead>
-                <tr><th>Portal</th><th>Viewer</th><th>Operator</th><th>Admin</th></tr>
+                <tr><th>Portal</th><th>Viewer</th><th>Operator</th><th>Admin</th><th>Auditor</th></tr>
               </thead>
               <tbody id="tbody-access-portal-roles"></tbody>
             </table>
           </div>
-          <p class="hint" style="margin:0 0 6px;">Effective <code>portalRoles</code> object stored as <code>accessPortalRolesJson</code> (read-only snapshot; use the table above and <strong>Save organization policy</strong> to change).</p>
+          <p class="hint" style="margin:0 0 6px;">Effective <code>portalRoles</code> → <code>accessPortalRolesJson</code>.</p>
           <pre id="access-portal-roles-json" style="max-height:14rem;overflow:auto;font-size:0.82rem;margin:0 0 1rem;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.28);white-space:pre-wrap;word-break:break-word;"></pre>
+          <label class="select-label">
+            <span>Per-portal MFA methods (JSON → <code>accessMfaTierJson</code>) — stricter portals list allowed methods</span>
+            <textarea id="access-mfa-tier-json" rows="5" class="font-mono" placeholder='{ "admin": ["totp","webauthn"], "visitor": ["email_otp"] }'></textarea>
+          </label>
+          <label class="select-label">
+            <span>Token idle TTL seconds by portal (JSON → <code>accessTokenTtlPolicyJson</code>)</span>
+            <textarea id="access-token-ttl-json" rows="4" class="font-mono" placeholder='{ "default": 1800, "visitor": 14400 }'></textarea>
+          </label>
           <label class="select-label">
             <span>Password reset / IdP integration notes</span>
             <textarea id="access-password-reset-notes" rows="2" placeholder="Central IdP URL, reset email template IDs, webhook secrets…"></textarea>
           </label>
           <label class="select-label">
-            <span>Session &amp; risk notes (gateway, token TTL, geo rules)</span>
-            <textarea id="access-session-notes" rows="2" placeholder="OIDC client IDs, revoke endpoint, anomaly detection…"></textarea>
+            <span>Session &amp; risk notes (gateway, geo, anomaly vendors)</span>
+            <textarea id="access-session-notes" rows="2" placeholder="OIDC client IDs, revoke endpoint, SIEM correlation IDs…"></textarea>
           </label>
           <label class="select-label">
-            <span>Suspicious IP watchlist (comma or newline separated — match in gateway logs)</span>
+            <span>Suspicious IP watchlist (also feeds session <code>RiskScore</code> heuristics)</span>
             <textarea id="access-suspicious-ips" rows="2" placeholder="203.0.113.50, 198.51.100.0/24"></textarea>
+          </label>
+          <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:0.75rem;">
+            <label class="select-label" style="flex:1;min-width:10rem;">
+              <span>Retention: audit log days (<code>retentionAuditLogDays</code>)</span>
+              <input type="number" id="retention-audit-days" min="1" max="3650" placeholder="e.g. 365" />
+            </label>
+            <label class="select-label" style="flex:1;min-width:10rem;">
+              <span>Retention: session log days (<code>retentionSessionLogDays</code>)</span>
+              <input type="number" id="retention-session-days" min="1" max="3650" placeholder="e.g. 90" />
+            </label>
+          </div>
+          <p class="hint" style="margin:0 0 0.75rem;">Purge job: <code>POST /api/system/purge-retention-logs</code> with header <code>X-Purge-Secret</code> matching env <code>ADMIN_LOG_PURGE_SECRET</code>.</p>
+          <label class="select-label">
+            <span>Break-glass procedure (stored text + <code>POST /api/access/break-glass</code> for events)</span>
+            <textarea id="break-glass-notes" rows="3" placeholder="Who may request, approver, rollback SLA, mandatory review…"></textarea>
           </label>
           <button type="submit" class="btn" id="btn-access-policy-save">Save organization policy</button>
         </form>
       </div>
 
+      <div class="card" style="margin-bottom:1.25rem;">
+        <h3 class="subheading" style="margin-top:0;">Session binding &amp; MFA (this browser)</h3>
+        <p class="hint">Values are stored in <code>localStorage</code> and sent as <code>X-Admin-Session-Id</code> on admin API calls. Create a row, then record MFA so enforcement can pass.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
+          <input type="text" id="session-bind-id" class="input-search" style="max-width:12rem;" placeholder="SessionLogID" autocomplete="off" />
+          <button type="button" class="btn btn-ghost" id="btn-session-bind-save">Save binding</button>
+          <button type="button" class="btn" id="btn-session-create-test">Register test session</button>
+          <button type="button" class="btn btn-ghost" id="btn-session-mfa-totp">Record MFA (totp)</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:1.25rem;">
+        <h3 class="subheading" style="margin-top:0;">IP / CIDR blocklist (<code>admin_ip_blocklist</code>)</h3>
+        <p class="hint">Structured list with block vs flag and expiry — replace ad-hoc comma fields for queries and automation.</p>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>ID</th><th>CIDR</th><th>Mode</th><th>Reason</th><th>Added by</th><th>Expires</th><th></th></tr>
+            </thead>
+            <tbody id="tbody-ip-blocklist"></tbody>
+          </table>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end;margin-top:0.75rem;">
+          <label class="select-label" style="margin:0;">
+            <span>CIDR / IP</span>
+            <input type="text" id="ip-block-cidr" placeholder="198.51.100.0/24" style="min-width:12rem;" />
+          </label>
+          <label class="select-label" style="margin:0;">
+            <span>Mode</span>
+            <select id="ip-block-mode"><option value="flag">flag</option><option value="block">block</option></select>
+          </label>
+          <label class="select-label" style="margin:0;flex:1;min-width:10rem;">
+            <span>Reason</span>
+            <input type="text" id="ip-block-reason" placeholder="Scanner / known VPN" />
+          </label>
+          <button type="button" class="btn" id="btn-ip-block-add">Add</button>
+        </div>
+      </div>
+
       <h3 class="subheading">Internal staff directory (<code>employee</code> + <code>admin_employee_access</code>)</h3>
-      <p class="hint">Deactivate accounts or set a default role tier (applies across portals; wire your auth service to honor <code>admin_employee_access</code>). Password reset records an audit event — connect your mailer in each backend.</p>
+      <p class="hint">Role tier, optional <strong>HR access</strong> split (manager vs admin), <strong>scope areas</strong> JSON for zone-limited operators, <strong>role expiry</strong> for seasonal staff. <code>ApprovedByEmployeeID</code> is available for SoD workflows via API. Offboarding webhook fires on deactivate when URL is set.</p>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
             <tr>
               <th>ID</th><th>Name</th><th>Position</th><th>Salary</th><th>Hire</th><th>Mgr</th>
               <th>Area ID</th><th>Area</th>
-              <th>Active</th><th>Default role</th><th>Access updated</th><th></th>
+              <th>Active</th><th>Default role</th><th>HR</th><th>Role expires</th><th>Scope areas</th><th>Access updated</th><th></th>
             </tr>
           </thead>
           <tbody id="tbody-internal-users"></tbody>
@@ -137,12 +200,13 @@
       </div>
 
       <h3 class="subheading">Session activity (<code>admin_session_log</code>)</h3>
-      <p class="hint">Populate this table from your IdP login callback or API gateway. Revoke marks the row and writes <code>admin_audit_log</code>.</p>
+      <p class="hint"><code>MfaVerifiedAt</code> / <code>MfaMethod</code> satisfy DB MFA checks; <code>RiskScore</code> uses watchlist heuristics. Revoke writes audit.</p>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
             <tr>
-              <th>ID</th><th>When</th><th>Event</th><th>Portal</th><th>Subject</th><th>Token ID</th><th>IP</th><th>User agent</th><th>Revoked</th><th></th>
+              <th>ID</th><th>When</th><th>Event</th><th>Portal</th><th>Subject</th><th>Token ID</th><th>IP</th>
+              <th>MFA at</th><th>MFA method</th><th>Risk</th><th>User agent</th><th>Revoked</th><th></th>
             </tr>
           </thead>
           <tbody id="tbody-access-sessions"></tbody>
@@ -150,12 +214,13 @@
       </div>
 
       <h3 class="subheading">Admin audit log (<code>admin_audit_log</code>)</h3>
-      <p class="hint">Mutating admin API actions are recorded here (policy saves, visitor toggles, ride status, maintenance alerts, system settings, etc.).</p>
+      <p class="hint">Mutations, sensitive reads via <code>POST /api/audit/sensitive-read</code>, session denials, and structured <code>DetailJson</code>. Linked to <code>SessionLogID</code> when header is sent.</p>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
             <tr>
-              <th>ID</th><th>When</th><th>Action</th><th>Actor</th><th>Target type</th><th>Target ID</th><th>Detail</th><th>Client IP</th><th>User agent</th>
+              <th>ID</th><th>When</th><th>Action</th><th>Actor</th><th>Target type</th><th>Target ID</th><th>Detail / JSON</th>
+              <th>Session</th><th>Result</th><th>Client IP</th><th>User agent</th>
             </tr>
           </thead>
           <tbody id="tbody-admin-audit"></tbody>
@@ -163,10 +228,11 @@
       </div>
 
       <h3 class="subheading">Retail notification log (<code>notificationlog</code>)</h3>
+      <p class="hint"><code>ReadAt</code>, <code>Severity</code>, optional <code>LinkedAuditLogID</code> when managers act.</p>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
-            <tr><th>ID</th><th>Manager ID</th><th>Item ID</th><th>Message</th><th>Shop</th><th>Item</th><th>When</th></tr>
+            <tr><th>ID</th><th>Mgr</th><th>Item</th><th>Severity</th><th>Message</th><th>Shop</th><th>Item name</th><th>When</th><th>Read</th><th>Audit link</th><th></th></tr>
           </thead>
           <tbody id="tbody-admin-notifications"></tbody>
         </table>

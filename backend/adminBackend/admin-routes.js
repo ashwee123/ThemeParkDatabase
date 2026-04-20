@@ -1,4 +1,8 @@
+import { randomUUID } from "crypto";
 import { getPool } from "./db.js";
+import { runAdminSchemaUpgrades } from "./admin-schema-upgrades.js";
+
+let adminAccessSchemaReady = false;
 
 function rowDate(d) {
   if (d == null) return null;
@@ -137,7 +141,7 @@ async function ensureAdminEmployeeAccessTable() {
 
 /** Staff directory with optional row in admin_employee_access (defaults: active, viewer). */
 export async function listEmployeesWithAccess({ q = "" } = {}) {
-  await ensureAdminEmployeeAccessTable();
+  await ensureAdminAccessSchema();
   const pool = getPool();
   const raw = String(q || "").trim();
   const hasTerm = raw.length > 0;
@@ -145,7 +149,13 @@ export async function listEmployeesWithAccess({ q = "" } = {}) {
   let sql = `SELECT e.EmployeeID, e.Name, e.Position, e.Salary, e.HireDate, e.ManagerID, e.AreaID, a.AreaName,
             IFNULL(x.IsActive, 1) AS AccessIsActive,
             IFNULL(NULLIF(TRIM(x.DefaultAccessRole), ''), 'viewer') AS AccessRole,
-            x.UpdatedAt AS AccessUpdatedAt
+            x.UpdatedAt AS AccessUpdatedAt,
+            x.DeactivationReason,
+            x.ApprovedByEmployeeID,
+            x.RoleExpiresAt,
+            x.HrAccessLevel,
+            x.ScopeAreaIdsJson,
+            x.OffboardingWebhookUrl
      FROM employee e
      LEFT JOIN area a ON a.AreaID = e.AreaID
      LEFT JOIN admin_employee_access x ON x.EmployeeID = e.EmployeeID`;
@@ -167,17 +177,21 @@ export async function listEmployeesWithAccess({ q = "" } = {}) {
     AccessIsActive: Number(r.AccessIsActive) === 1 ? 1 : 0,
     AccessRole: String(r.AccessRole || "viewer"),
     AccessUpdatedAt: r.AccessUpdatedAt != null ? rowDateTime(r.AccessUpdatedAt) : null,
+    RoleExpiresAt: r.RoleExpiresAt != null ? rowDate(r.RoleExpiresAt) : null,
+    HrAccessLevel: r.HrAccessLevel != null ? String(r.HrAccessLevel) : "none",
+    ScopeAreaIdsJson: r.ScopeAreaIdsJson != null ? String(r.ScopeAreaIdsJson) : null,
   }));
 }
 
 export async function patchEmployeeAccess(employeeId, body) {
-  await ensureAdminEmployeeAccessTable();
+  await ensureAdminAccessSchema();
   const id = Number(employeeId);
   if (!Number.isInteger(id) || id < 1) return false;
   const b = body && typeof body === "object" ? body : {};
   const [empRows] = await getPool().execute("SELECT 1 FROM employee WHERE EmployeeID = ? LIMIT 1", [id]);
   if (!empRows.length) return false;
-  const roles = new Set(["viewer", "operator", "admin"]);
+  const roles = new Set(["viewer", "operator", "admin", "auditor"]);
+  const hrLevels = new Set(["none", "hr_manager", "hr_admin"]);
   let isActive = undefined;
   if (b.isActive !== undefined && b.isActive !== null) {
     isActive = b.isActive === true || b.isActive === 1 ? 1 : 0;
@@ -188,13 +202,21 @@ export async function patchEmployeeAccess(employeeId, body) {
     if (!roles.has(r)) return false;
     role = r;
   }
-  if (isActive === undefined && role === undefined) return false;
+  const hasExt =
+    b.deactivationReason !== undefined ||
+    b.approvedByEmployeeId !== undefined ||
+    b.roleExpiresAt !== undefined ||
+    b.hrAccessLevel !== undefined ||
+    b.scopeAreaIds !== undefined ||
+    b.offboardingWebhookUrl !== undefined;
+  if (isActive === undefined && role === undefined && !hasExt) return false;
   const pool = getPool();
   const [cur] = await pool.execute(
     "SELECT IsActive, DefaultAccessRole FROM admin_employee_access WHERE EmployeeID = ?",
     [id]
   );
-  const nextActive = isActive !== undefined ? isActive : cur.length ? Number(cur[0].IsActive) : 1;
+  const prevActive = cur.length ? Number(cur[0].IsActive) : 1;
+  const nextActive = isActive !== undefined ? isActive : prevActive;
   const nextRole =
     role !== undefined ? role : cur.length ? String(cur[0].DefaultAccessRole || "viewer") : "viewer";
   await pool.execute(
@@ -203,6 +225,86 @@ export async function patchEmployeeAccess(employeeId, body) {
      ON DUPLICATE KEY UPDATE IsActive = VALUES(IsActive), DefaultAccessRole = VALUES(DefaultAccessRole)`,
     [id, nextActive, nextRole]
   );
+
+  const sets = [];
+  const vals = [];
+  if (b.deactivationReason !== undefined) {
+    sets.push("DeactivationReason = ?");
+    vals.push(b.deactivationReason != null ? String(b.deactivationReason).slice(0, 600) : null);
+  }
+  if (b.approvedByEmployeeId !== undefined) {
+    const aid = Number(b.approvedByEmployeeId);
+    sets.push("ApprovedByEmployeeID = ?");
+    vals.push(Number.isInteger(aid) && aid > 0 ? aid : null);
+  }
+  if (b.roleExpiresAt !== undefined) {
+    const d = String(b.roleExpiresAt || "").trim();
+    sets.push("RoleExpiresAt = ?");
+    vals.push(d ? d.slice(0, 32) : null);
+  }
+  if (b.hrAccessLevel !== undefined) {
+    const hl = String(b.hrAccessLevel || "none").trim().toLowerCase();
+    if (!hrLevels.has(hl)) return false;
+    sets.push("HrAccessLevel = ?");
+    vals.push(hl);
+  }
+  if (b.scopeAreaIds !== undefined) {
+    let j = null;
+    if (b.scopeAreaIds === null) {
+      j = null;
+    } else if (Array.isArray(b.scopeAreaIds)) {
+      j = JSON.stringify(b.scopeAreaIds.map((x) => Number(x)).filter((x) => Number.isInteger(x) && x > 0));
+    } else if (typeof b.scopeAreaIds === "string" && b.scopeAreaIds.trim()) {
+      j = b.scopeAreaIds.trim().slice(0, 4000);
+    }
+    sets.push("ScopeAreaIdsJson = ?");
+    vals.push(j);
+  }
+  if (b.offboardingWebhookUrl !== undefined) {
+    sets.push("OffboardingWebhookUrl = ?");
+    vals.push(b.offboardingWebhookUrl != null ? String(b.offboardingWebhookUrl).slice(0, 500) : null);
+  }
+  if (sets.length) {
+    vals.push(id);
+    await pool.execute(`UPDATE admin_employee_access SET ${sets.join(", ")} WHERE EmployeeID = ?`, vals);
+  }
+
+  if (prevActive === 1 && nextActive === 0) {
+    let hook = null;
+    if (b.offboardingWebhookUrl != null && String(b.offboardingWebhookUrl).trim()) {
+      hook = String(b.offboardingWebhookUrl).trim();
+    } else {
+      const [[row]] = await pool.execute(
+        "SELECT OffboardingWebhookUrl FROM admin_employee_access WHERE EmployeeID = ?",
+        [id]
+      );
+      if (row && row.OffboardingWebhookUrl) hook = String(row.OffboardingWebhookUrl).trim();
+    }
+    if (hook && /^https?:\/\//i.test(hook)) {
+      try {
+        const payload = JSON.stringify({
+          event: "employee_deactivated",
+          employeeId: id,
+          at: new Date().toISOString(),
+          reason: b.deactivationReason != null ? String(b.deactivationReason) : null,
+        });
+        const ac = new AbortController();
+        const to = setTimeout(() => ac.abort(), 8000);
+        try {
+          await fetch(hook, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: payload,
+            signal: ac.signal,
+          });
+        } finally {
+          clearTimeout(to);
+        }
+      } catch (e) {
+        console.warn("offboarding webhook:", e && e.message ? e.message : e);
+      }
+    }
+  }
   return true;
 }
 
@@ -526,19 +628,35 @@ export async function listShiftsAdmin({ limit = 500, q = "" } = {}) {
 
 export async function listNotificationLog(limit = 100) {
   const lim = Math.min(300, Math.max(1, Number(limit) || 100));
-  const [rows] = await getPool().execute(
-    `SELECT n.NotificationID, n.ManagerID, n.ItemID, n.Message, n.CreatedAt,
+  await ensureAdminAccessSchema();
+  const pool = getPool();
+  const sqlExt = `SELECT n.NotificationID, n.ManagerID, n.ItemID, n.Message, n.CreatedAt,
+            n.ReadAt, n.Severity, n.LinkedAuditLogID,
             ri.ItemName, rp.RetailName
      FROM notificationlog n
      LEFT JOIN retailitem ri ON ri.ItemID = n.ItemID
      LEFT JOIN retailplace rp ON rp.RetailID = ri.RetailID
      ORDER BY n.CreatedAt DESC
-     LIMIT ?`,
-    [lim]
-  );
+     LIMIT ?`;
+  const sqlBase = `SELECT n.NotificationID, n.ManagerID, n.ItemID, n.Message, n.CreatedAt,
+            ri.ItemName, rp.RetailName
+     FROM notificationlog n
+     LEFT JOIN retailitem ri ON ri.ItemID = n.ItemID
+     LEFT JOIN retailplace rp ON rp.RetailID = ri.RetailID
+     ORDER BY n.CreatedAt DESC
+     LIMIT ?`;
+  let rows;
+  try {
+    ;[rows] = await pool.execute(sqlExt, [lim]);
+  } catch {
+    ;[rows] = await pool.execute(sqlBase, [lim]);
+  }
   return rows.map((r) => ({
     ...r,
     CreatedAt: rowDateTime(r.CreatedAt),
+    ReadAt: r.ReadAt != null ? rowDateTime(r.ReadAt) : null,
+    Severity: r.Severity != null ? String(r.Severity) : "info",
+    LinkedAuditLogID: r.LinkedAuditLogID != null ? Number(r.LinkedAuditLogID) : null,
   }));
 }
 
@@ -734,14 +852,19 @@ const SYSTEM_SETTING_KEYS = new Set([
   "accessPasswordResetNotes",
   "accessSessionNotes",
   "accessSuspiciousIpWatchlist",
+  "accessMfaTierJson",
+  "accessTokenTtlPolicyJson",
+  "retentionAuditLogDays",
+  "retentionSessionLogDays",
+  "breakGlassProcedureNotes",
 ]);
 
 const DEFAULT_PORTAL_ROLES = {
-  visitor: { viewer: true, operator: true, admin: false },
-  retail: { viewer: true, operator: true, admin: false },
-  employee: { viewer: true, operator: true, admin: false },
-  hr: { viewer: true, operator: true, admin: false },
-  maintenance: { viewer: true, operator: true, admin: false },
+  visitor: { viewer: true, operator: true, admin: false, auditor: false },
+  retail: { viewer: true, operator: true, admin: false, auditor: false },
+  employee: { viewer: true, operator: true, admin: false, auditor: false },
+  hr: { viewer: true, operator: true, admin: false, auditor: false },
+  maintenance: { viewer: true, operator: true, admin: false, auditor: false },
 };
 
 async function ensureAdminAuditLogTable() {
@@ -771,21 +894,41 @@ export async function insertAdminAuditLog({
   detail = null,
   clientIp = null,
   userAgent = null,
+  sessionLogId = null,
+  actionResult = null,
+  detailJson = null,
 } = {}) {
   try {
-    await ensureAdminAuditLogTable();
+    await ensureAdminAccessSchema();
     if (!action) return;
+    let detailStr = null;
+    let detailJsonStr = null;
+    if (detailJson != null && typeof detailJson === "object") {
+      detailJsonStr = JSON.stringify(detailJson);
+      detailStr = detailJsonStr;
+    } else if (detail != null) {
+      detailStr = typeof detail === "string" ? detail : JSON.stringify(detail);
+      if (typeof detail === "object") detailJsonStr = detailStr;
+    }
+    const sid =
+      sessionLogId != null && Number.isInteger(Number(sessionLogId)) && Number(sessionLogId) > 0
+        ? Number(sessionLogId)
+        : null;
+    const ar = actionResult != null ? String(actionResult).slice(0, 24) : null;
     await getPool().execute(
-      `INSERT INTO admin_audit_log (Action, Actor, TargetType, TargetId, Detail, ClientIp, UserAgent)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO admin_audit_log (Action, Actor, TargetType, TargetId, Detail, ClientIp, UserAgent, SessionLogID, DetailJson, ActionResult)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         String(action).slice(0, 120),
         actor != null ? String(actor).slice(0, 160) : null,
         targetType != null ? String(targetType).slice(0, 80) : null,
         targetId != null ? String(targetId).slice(0, 120) : null,
-        detail != null ? String(detail) : null,
+        detailStr,
         clientIp != null ? String(clientIp).slice(0, 80) : null,
         userAgent != null ? String(userAgent).slice(0, 512) : null,
+        sid,
+        detailJsonStr,
+        ar,
       ]
     );
   } catch (e) {
@@ -795,10 +938,11 @@ export async function insertAdminAuditLog({
 
 export async function listAdminAuditLog(limit = 200) {
   try {
-    await ensureAdminAuditLogTable();
+    await ensureAdminAccessSchema();
     const lim = Math.min(500, Math.max(1, Number(limit) || 200));
     const [rows] = await getPool().execute(
-      `SELECT AuditLogID, CreatedAt, Action, Actor, TargetType, TargetId, Detail, ClientIp, UserAgent
+      `SELECT AuditLogID, CreatedAt, Action, Actor, TargetType, TargetId, Detail, ClientIp, UserAgent,
+              SessionLogID, DetailJson, ActionResult
        FROM admin_audit_log ORDER BY AuditLogID DESC LIMIT ?`,
       [lim]
     );
@@ -831,10 +975,11 @@ async function ensureAdminSessionLogTable() {
 
 export async function listAdminSessionLog(limit = 100) {
   try {
-    await ensureAdminSessionLogTable();
+    await ensureAdminAccessSchema();
     const lim = Math.min(300, Math.max(1, Number(limit) || 100));
     const [rows] = await getPool().execute(
-      `SELECT SessionLogID, CreatedAt, EventType, Portal, Subject, TokenId, IpAddress, UserAgent, RevokedAt
+      `SELECT SessionLogID, CreatedAt, EventType, Portal, Subject, TokenId, IpAddress, UserAgent, RevokedAt,
+              MfaVerifiedAt, MfaMethod, RiskScore, IdleTtlSeconds
        FROM admin_session_log ORDER BY SessionLogID DESC LIMIT ?`,
       [lim]
     );
@@ -842,6 +987,9 @@ export async function listAdminSessionLog(limit = 100) {
       ...r,
       CreatedAt: rowDateTime(r.CreatedAt),
       RevokedAt: r.RevokedAt ? rowDateTime(r.RevokedAt) : null,
+      MfaVerifiedAt: r.MfaVerifiedAt ? rowDateTime(r.MfaVerifiedAt) : null,
+      RiskScore: r.RiskScore != null ? Number(r.RiskScore) : null,
+      IdleTtlSeconds: r.IdleTtlSeconds != null ? Number(r.IdleTtlSeconds) : null,
     }));
   } catch {
     return [];
@@ -859,6 +1007,242 @@ export async function revokeAdminSessionLog(sessionLogId) {
   return result.affectedRows > 0;
 }
 
+export async function ensureAdminAccessSchema() {
+  if (adminAccessSchemaReady) return;
+  await ensureAdminEmployeeAccessTable();
+  await ensureAdminAuditLogTable();
+  await ensureAdminSessionLogTable();
+  await ensureAdminSettingsTable();
+  await runAdminSchemaUpgrades();
+  adminAccessSchemaReady = true;
+}
+
+function computeSessionRiskScore(clientIp, policy) {
+  const ip = String(clientIp || "").trim();
+  let score = 12;
+  const watch = String(policy.suspiciousIpWatchlist || "");
+  if (ip && (watch.includes(ip) || watch.split(/[\s,]+/).some((p) => p && ip.startsWith(p.replace(/\/.*$/, ""))))) {
+    score += 55;
+  }
+  return Math.min(100, score);
+}
+
+export function resolveSessionTtlSeconds(sessionRow, policy) {
+  const envTtl = Number(process.env.ADMIN_SESSION_TTL_SEC);
+  if (Number.isFinite(envTtl) && envTtl > 0) return Math.floor(envTtl);
+  if (sessionRow && sessionRow.IdleTtlSeconds != null && Number(sessionRow.IdleTtlSeconds) > 0) {
+    return Number(sessionRow.IdleTtlSeconds);
+  }
+  const portal = String((sessionRow && sessionRow.Portal) || "admin").toLowerCase();
+  const map = policy.tokenTtlByPortal || {};
+  const sec = map[portal] ?? map.default;
+  if (sec != null && Number(sec) > 0) return Number(sec);
+  if (portal === "visitor" || portal === "retail") return 7200;
+  return 1800;
+}
+
+export async function validateAdminSessionRequest(req, { requireMfa } = {}) {
+  await ensureAdminAccessSchema();
+  const h = req.headers || {};
+  const sidRaw = h["x-admin-session-id"] || h["X-Admin-Session-Id"];
+  if (!sidRaw || !String(sidRaw).trim()) {
+    return { ok: false, code: "no_session", reason: "Missing X-Admin-Session-Id" };
+  }
+  const sid = Number(sidRaw);
+  if (!Number.isInteger(sid) || sid < 1) {
+    return { ok: false, code: "invalid_session", reason: "Invalid session id" };
+  }
+  const pool = getPool();
+  const [rows] = await pool.execute(
+    `SELECT SessionLogID, CreatedAt, RevokedAt, Portal, MfaVerifiedAt, MfaMethod, IdleTtlSeconds
+     FROM admin_session_log WHERE SessionLogID = ?`,
+    [sid]
+  );
+  if (!rows.length) return { ok: false, code: "unknown_session", reason: "Session not found" };
+  const row = rows[0];
+  if (row.RevokedAt) return { ok: false, code: "revoked", reason: "Session revoked" };
+  const settings = await getSystemSettings();
+  const policy = parseAccessPolicyFromSettings(settings);
+  const ttlSec = resolveSessionTtlSeconds(row, policy);
+  const ageMs = Date.now() - new Date(row.CreatedAt).getTime();
+  if (ageMs > ttlSec * 1000) return { ok: false, code: "expired", reason: "Session past TTL" };
+  const mfaNeeded = !!requireMfa || policy.mfaRequired;
+  if (mfaNeeded) {
+    if (!row.MfaVerifiedAt) {
+      return { ok: false, code: "mfa_required", reason: "MFA not recorded on session (set MfaVerifiedAt via /api/access/sessions/:id/mfa)" };
+    }
+    const mfaAge = Date.now() - new Date(row.MfaVerifiedAt).getTime();
+    if (mfaAge > ttlSec * 1000) {
+      return { ok: false, code: "mfa_stale", reason: "MFA verification older than session TTL" };
+    }
+  }
+  return { ok: true, row, sessionLogId: sid, ttlSeconds: ttlSec };
+}
+
+export async function insertAdminSessionRow(body, meta = {}) {
+  await ensureAdminAccessSchema();
+  const b = body && typeof body === "object" ? body : {};
+  const eventType = String(b.eventType || "login").slice(0, 80);
+  const portal = b.portal != null ? String(b.portal).slice(0, 40) : null;
+  const subject = b.subject != null ? String(b.subject).slice(0, 200) : null;
+  const tokenId = b.tokenId != null ? String(b.tokenId).slice(0, 120) : null;
+  const clientIp = meta.clientIp != null ? String(meta.clientIp).slice(0, 80) : null;
+  const userAgent = meta.userAgent != null ? String(meta.userAgent).slice(0, 512) : null;
+  const settings = await getSystemSettings();
+  const policy = parseAccessPolicyFromSettings(settings);
+  const risk = computeSessionRiskScore(clientIp, policy);
+  const fakeRow = { Portal: portal, IdleTtlSeconds: b.idleTtlSeconds != null ? Number(b.idleTtlSeconds) : null };
+  const idleTtl = Number.isFinite(fakeRow.IdleTtlSeconds) && fakeRow.IdleTtlSeconds > 0
+    ? Math.floor(fakeRow.IdleTtlSeconds)
+    : resolveSessionTtlSeconds(fakeRow, policy);
+  const pool = getPool();
+  const [result] = await pool.execute(
+    `INSERT INTO admin_session_log (EventType, Portal, Subject, TokenId, IpAddress, UserAgent, RiskScore, IdleTtlSeconds)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [eventType, portal, subject, tokenId, clientIp, userAgent, risk, idleTtl]
+  );
+  return result.insertId;
+}
+
+export async function updateSessionMfaVerified(sessionLogId, method) {
+  await ensureAdminAccessSchema();
+  const id = Number(sessionLogId);
+  if (!Number.isInteger(id) || id < 1) return false;
+  const m = String(method || "unknown").slice(0, 40);
+  const pool = getPool();
+  const [r] = await pool.execute(
+    `UPDATE admin_session_log SET MfaVerifiedAt = CURRENT_TIMESTAMP, MfaMethod = ?
+     WHERE SessionLogID = ? AND RevokedAt IS NULL`,
+    [m, id]
+  );
+  return r.affectedRows > 0;
+}
+
+export async function listIpBlocklist() {
+  await ensureAdminAccessSchema();
+  try {
+    const [rows] = await getPool().execute(
+      `SELECT BlockID, Cidr, Reason, AddedBy, ExpiresAt, BlockMode, CreatedAt
+       FROM admin_ip_blocklist
+       ORDER BY BlockID DESC
+       LIMIT 500`
+    );
+    return rows.map((r) => ({
+      ...r,
+      CreatedAt: rowDateTime(r.CreatedAt),
+      ExpiresAt: r.ExpiresAt ? rowDateTime(r.ExpiresAt) : null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function insertIpBlocklistRow(body) {
+  await ensureAdminAccessSchema();
+  const b = body && typeof body === "object" ? body : {};
+  const cidr = b.cidr != null ? String(b.cidr).trim().slice(0, 80) : "";
+  if (!cidr) return null;
+  const reason = b.reason != null ? String(b.reason).slice(0, 600) : null;
+  const addedBy = b.addedBy != null ? String(b.addedBy).slice(0, 160) : null;
+  const blockMode = b.blockMode === "block" ? "block" : "flag";
+  let expiresAt = null;
+  if (b.expiresAt != null && String(b.expiresAt).trim()) {
+    const d = new Date(String(b.expiresAt));
+    if (!Number.isNaN(d.getTime())) expiresAt = d;
+  }
+  const [r] = await getPool().execute(
+    `INSERT INTO admin_ip_blocklist (Cidr, Reason, AddedBy, ExpiresAt, BlockMode) VALUES (?, ?, ?, ?, ?)`,
+    [cidr, reason, addedBy, expiresAt, blockMode]
+  );
+  return r.insertId;
+}
+
+export async function deleteIpBlocklistRow(blockId) {
+  await ensureAdminAccessSchema();
+  const id = Number(blockId);
+  if (!Number.isInteger(id) || id < 1) return false;
+  const [r] = await getPool().execute("DELETE FROM admin_ip_blocklist WHERE BlockID = ?", [id]);
+  return r.affectedRows > 0;
+}
+
+export async function runLogRetentionPurge() {
+  await ensureAdminAccessSchema();
+  const settings = await getSystemSettings();
+  const policy = parseAccessPolicyFromSettings(settings);
+  const auditDays = Number(policy.retentionAuditLogDays);
+  const sessDays = Number(policy.retentionSessionLogDays);
+  const pool = getPool();
+  let auditDeleted = 0;
+  let sessDeleted = 0;
+  if (Number.isFinite(auditDays) && auditDays > 0) {
+    const [r] = await pool.execute(
+      `DELETE FROM admin_audit_log WHERE CreatedAt < DATE_SUB(NOW(), INTERVAL ? DAY)`,
+      [Math.floor(auditDays)]
+    );
+    auditDeleted = r.affectedRows || 0;
+  }
+  if (Number.isFinite(sessDays) && sessDays > 0) {
+    const [r2] = await pool.execute(
+      `DELETE FROM admin_session_log WHERE CreatedAt < DATE_SUB(NOW(), INTERVAL ? DAY)`,
+      [Math.floor(sessDays)]
+    );
+    sessDeleted = r2.affectedRows || 0;
+  }
+  return { auditDeleted, sessDeleted };
+}
+
+export async function markNotificationRead(notificationId, linkedAuditLogId = null) {
+  await ensureAdminAccessSchema();
+  const nid = Number(notificationId);
+  if (!Number.isInteger(nid) || nid < 1) return false;
+  const aid = linkedAuditLogId != null ? Number(linkedAuditLogId) : null;
+  const pool = getPool();
+  try {
+    const [r] = await pool.execute(
+      `UPDATE notificationlog SET ReadAt = CURRENT_TIMESTAMP, LinkedAuditLogID = ?
+       WHERE NotificationID = ?`,
+      [Number.isInteger(aid) && aid > 0 ? aid : null, nid]
+    );
+    return r.affectedRows > 0;
+  } catch {
+    return false;
+  }
+}
+
+export async function createCrossPortalIncidentLink(body) {
+  await ensureAdminAccessSchema();
+  const b = body && typeof body === "object" ? body : {};
+  const groupKey = b.groupKey != null && String(b.groupKey).trim()
+    ? String(b.groupKey).trim().slice(0, 64)
+    : randomUUID().replace(/-/g, "").slice(0, 32);
+  const sourceTable = b.sourceTable != null ? String(b.sourceTable).slice(0, 80) : "";
+  const sourceId = b.sourceId != null ? String(b.sourceId).slice(0, 64) : "";
+  if (!sourceTable || !sourceId) return null;
+  const note = b.note != null ? String(b.note).slice(0, 500) : null;
+  const [r] = await getPool().execute(
+    `INSERT INTO admin_cross_incident_link (GroupKey, SourceTable, SourceId, Note) VALUES (?, ?, ?, ?)`,
+    [groupKey, sourceTable, sourceId, note]
+  );
+  return { linkId: r.insertId, groupKey };
+}
+
+export async function insertBreakGlassEvent(body) {
+  await ensureAdminAccessSchema();
+  const b = body && typeof body === "object" ? body : {};
+  const requestedBy = b.requestedBy != null ? String(b.requestedBy).slice(0, 160) : null;
+  const reason = b.reason != null ? String(b.reason).slice(0, 600) : null;
+  let elevatedUntil = null;
+  if (b.elevatedUntil != null && String(b.elevatedUntil).trim()) {
+    const d = new Date(String(b.elevatedUntil));
+    if (!Number.isNaN(d.getTime())) elevatedUntil = d;
+  }
+  const [r] = await getPool().execute(
+    `INSERT INTO admin_break_glass_log (RequestedBy, Reason, ElevatedUntil) VALUES (?, ?, ?)`,
+    [requestedBy, reason, elevatedUntil]
+  );
+  return r.insertId;
+}
+
 export function parseAccessPolicyFromSettings(settings) {
   const s = settings && typeof settings === "object" ? settings : {};
   let portalRoles = { ...DEFAULT_PORTAL_ROLES };
@@ -873,6 +1257,7 @@ export function parseAccessPolicyFromSettings(settings) {
               viewer: !!p[portal].viewer,
               operator: !!p[portal].operator,
               admin: !!p[portal].admin,
+              auditor: !!p[portal].auditor,
             };
           }
         }
@@ -881,12 +1266,52 @@ export function parseAccessPolicyFromSettings(settings) {
   } catch {
     /* keep defaults */
   }
+  let mfaTiers = {
+    admin: ["totp", "webauthn"],
+    hr: ["totp", "webauthn", "sms"],
+    maintenance: ["totp", "webauthn", "sms"],
+    retail: ["totp", "sms", "email_otp"],
+    employee: ["totp", "sms"],
+    visitor: ["email_otp", "sms"],
+  };
+  try {
+    const t = s.accessMfaTierJson;
+    if (t && String(t).trim()) {
+      const o = JSON.parse(String(t));
+      if (o && typeof o === "object") mfaTiers = { ...mfaTiers, ...o };
+    }
+  } catch {
+    /* keep defaults */
+  }
+  let tokenTtlByPortal = { default: 1800, admin: 1800, hr: 1800, maintenance: 3600, retail: 7200, employee: 7200, visitor: 14400 };
+  try {
+    const t = s.accessTokenTtlPolicyJson;
+    if (t && String(t).trim()) {
+      const o = JSON.parse(String(t));
+      if (o && typeof o === "object") tokenTtlByPortal = { ...tokenTtlByPortal, ...o };
+    }
+  } catch {
+    /* keep defaults */
+  }
+  const retentionAuditLogDays =
+    s.retentionAuditLogDays != null && String(s.retentionAuditLogDays).trim() !== ""
+      ? Number(s.retentionAuditLogDays)
+      : null;
+  const retentionSessionLogDays =
+    s.retentionSessionLogDays != null && String(s.retentionSessionLogDays).trim() !== ""
+      ? Number(s.retentionSessionLogDays)
+      : null;
   return {
     mfaRequired: s.accessMfaRequired === "1" || s.accessMfaRequired === "true",
     portalRoles,
+    mfaTiers,
+    tokenTtlByPortal,
+    retentionAuditLogDays: Number.isFinite(retentionAuditLogDays) ? retentionAuditLogDays : null,
+    retentionSessionLogDays: Number.isFinite(retentionSessionLogDays) ? retentionSessionLogDays : null,
     passwordResetNotes: s.accessPasswordResetNotes != null ? String(s.accessPasswordResetNotes) : "",
     sessionNotes: s.accessSessionNotes != null ? String(s.accessSessionNotes) : "",
     suspiciousIpWatchlist: s.accessSuspiciousIpWatchlist != null ? String(s.accessSuspiciousIpWatchlist) : "",
+    breakGlassProcedureNotes: s.breakGlassProcedureNotes != null ? String(s.breakGlassProcedureNotes) : "",
   };
 }
 

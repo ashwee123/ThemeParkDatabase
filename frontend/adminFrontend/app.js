@@ -120,9 +120,20 @@ async function ensureApiReady(force) {
   }
 }
 
+function adminSessionHeaders() {
+  const h = {};
+  try {
+    const sid = typeof localStorage !== "undefined" ? localStorage.getItem("adminSessionLogId") : null;
+    if (sid && String(sid).trim()) h["X-Admin-Session-Id"] = String(sid).trim();
+  } catch (e) {
+    /* ignore */
+  }
+  return h;
+}
+
 async function apiGet(path) {
   await ensureApiReady(false);
-  const res = await fetch(API + path, { credentials: fetchCredentials() });
+  const res = await fetch(API + path, { credentials: fetchCredentials(), headers: adminSessionHeaders() });
   const text = await res.text();
   let data = null;
   if (text) {
@@ -140,9 +151,8 @@ async function apiGet(path) {
 
 async function apiPatch(path, body) {
   await ensureApiReady(false);
-  const opts = { method: "PATCH", credentials: fetchCredentials() };
+  const opts = { method: "PATCH", credentials: fetchCredentials(), headers: { "Content-Type": "application/json", ...adminSessionHeaders() } };
   if (body !== undefined) {
-    opts.headers = { "Content-Type": "application/json" };
     opts.body = JSON.stringify(body);
   }
   const res = await fetch(API + path, opts);
@@ -160,7 +170,11 @@ async function apiPatch(path, body) {
 
 async function apiPost(path, body) {
   await ensureApiReady(false);
-  const opts = { method: "POST", credentials: fetchCredentials(), headers: { "Content-Type": "application/json" } };
+  const opts = {
+    method: "POST",
+    credentials: fetchCredentials(),
+    headers: { "Content-Type": "application/json", ...adminSessionHeaders() },
+  };
   opts.body = JSON.stringify(body != null ? body : {});
   const res = await fetch(API + path, opts);
   const text = await res.text();
@@ -168,6 +182,24 @@ async function apiPost(path, body) {
   if (text) {
     try { data = JSON.parse(text); }
     catch (e) { data = { error: text }; }
+  }
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  apiReady = true;
+  setBackendStatus("", { visible: false });
+  return data;
+}
+
+async function apiDelete(path) {
+  await ensureApiReady(false);
+  const res = await fetch(API + path, { method: "DELETE", credentials: fetchCredentials(), headers: adminSessionHeaders() });
+  const text = await res.text();
+  let data = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      data = { error: text };
+    }
   }
   if (!res.ok) throw new Error(data.error || res.statusText);
   apiReady = true;
@@ -418,14 +450,14 @@ const ACCESS_PORTALS = [
   { id: "hr", label: "HR" },
   { id: "maintenance", label: "Maintenance" },
 ];
-const ACCESS_ROLES = ["viewer", "operator", "admin"];
+const ACCESS_ROLES = ["viewer", "operator", "admin", "auditor"];
 
 function renderAccessPortalMatrix(portalRoles) {
   const tb = $("#tbody-access-portal-roles");
   if (!tb) return;
   const pr = portalRoles && typeof portalRoles === "object" ? portalRoles : {};
   tb.innerHTML = ACCESS_PORTALS.map(function (p) {
-    const row = pr[p.id] || { viewer: true, operator: true, admin: false };
+    const row = pr[p.id] || { viewer: true, operator: true, admin: false, auditor: false };
     const cells = ACCESS_ROLES.map(function (role) {
       const id = "policy-" + p.id + "-" + role;
       const checked = row[role] ? " checked" : "";
@@ -459,7 +491,7 @@ function renderAccessPortalMatrix(portalRoles) {
 function readAccessPortalMatrix() {
   const out = {};
   ACCESS_PORTALS.forEach(function (p) {
-    out[p.id] = { viewer: false, operator: false, admin: false };
+    out[p.id] = { viewer: false, operator: false, admin: false, auditor: false };
     ACCESS_ROLES.forEach(function (role) {
       const el = document.getElementById("policy-" + p.id + "-" + role);
       if (el) out[p.id][role] = !!el.checked;
@@ -479,6 +511,16 @@ function renderInternalStaffDirectory(rows) {
       const sel = roleName === role ? " selected" : "";
       return '<option value="' + escapeHtml(roleName) + '"' + sel + ">" + escapeHtml(roleName) + "</option>";
     }).join("");
+    const hrLevel = r.HrAccessLevel != null ? String(r.HrAccessLevel) : "none";
+    const hrOpts = ["none", "hr_manager", "hr_admin"].map(function (h) {
+      const sel = hrLevel === h ? " selected" : "";
+      return '<option value="' + escapeHtml(h) + '"' + sel + ">" + escapeHtml(h.replace("hr_", "")) + "</option>";
+    }).join("");
+    const scopeVal =
+      r.ScopeAreaIdsJson != null && String(r.ScopeAreaIdsJson).trim() !== ""
+        ? String(r.ScopeAreaIdsJson).trim()
+        : "";
+    const expVal = r.RoleExpiresAt != null ? String(r.RoleExpiresAt).slice(0, 10) : "";
     return (
       "<tr data-employee-id=\"" + escapeHtml(r.EmployeeID) + "\">" +
       '<td class="num">' + escapeHtml(r.EmployeeID) + "</td>" +
@@ -497,12 +539,21 @@ function renderInternalStaffDirectory(rows) {
       '<select class="employee-access-role">' +
       opts +
       "</select></td>" +
+      "<td><select class=\"employee-hr-level\">" +
+      hrOpts +
+      "</select></td>" +
+      '<td><input type="date" class="employee-role-expires" value="' +
+      escapeHtml(expVal) +
+      '" title="Role assignment expiry (contractors / seasonal)" /></td>' +
+      '<td><input type="text" class="employee-scope-areas" value="' +
+      escapeHtml(scopeVal) +
+      "\" placeholder='[1,2]' title='JSON array of area IDs' style=\"max-width:6rem\" /></td>" +
       "<td>" + escapeHtml(r.AccessUpdatedAt || "—") + "</td>" +
       '<td><button type="button" class="btn btn-small btn-ghost btn-employee-pw-reset">Reset password…</button></td>' +
       "</tr>"
     );
   }).join("");
-  if (!rows.length) tb.innerHTML = '<tr><td colspan="12" class="hint">No rows</td></tr>';
+  if (!rows.length) tb.innerHTML = '<tr><td colspan="15" class="hint">No rows</td></tr>';
 }
 
 function renderAccessSessions(rows) {
@@ -512,9 +563,12 @@ function renderAccessSessions(rows) {
     const revoked = r.RevokedAt ? escapeHtml(r.RevokedAt) : "—";
     const canRev = !r.RevokedAt;
     const tok = r.TokenId != null && String(r.TokenId).trim() !== "" ? escapeHtml(r.TokenId) : "—";
+    const mfaAt = r.MfaVerifiedAt ? escapeHtml(r.MfaVerifiedAt) : "—";
+    const mfaM = r.MfaMethod ? escapeHtml(r.MfaMethod) : "—";
+    const risk = r.RiskScore != null && r.RiskScore !== "" ? escapeHtml(r.RiskScore) : "—";
     const ua =
       r.UserAgent != null && String(r.UserAgent).trim() !== ""
-        ? '<span style="display:block;max-width:16rem;white-space:pre-wrap;word-break:break-word;font-size:0.85em;">' +
+        ? '<span style="display:block;max-width:14rem;white-space:pre-wrap;word-break:break-word;font-size:0.85em;">' +
           escapeHtml(r.UserAgent) +
           "</span>"
         : "—";
@@ -527,6 +581,9 @@ function renderAccessSessions(rows) {
       "<td>" + escapeHtml(r.Subject || "—") + "</td>" +
       "<td>" + tok + "</td>" +
       "<td>" + escapeHtml(r.IpAddress || "—") + "</td>" +
+      "<td>" + mfaAt + "</td>" +
+      "<td>" + mfaM + "</td>" +
+      "<td>" + risk + "</td>" +
       "<td>" + ua + "</td>" +
       "<td>" + revoked + "</td>" +
       "<td>" +
@@ -541,7 +598,7 @@ function renderAccessSessions(rows) {
   }).join("");
   if (!rows.length) {
     tb.innerHTML =
-      '<tr><td colspan="10" class="hint">No session rows yet — forward IdP / gateway logins to <code>admin_session_log</code>.</td></tr>';
+      '<tr><td colspan="13" class="hint">No session rows yet — POST to <code>/api/access/sessions</code> from your IdP callback or use <strong>Register test session</strong> below.</td></tr>';
   }
 }
 
@@ -549,13 +606,14 @@ function renderAdminAudit(rows) {
   const tb = $("#tbody-admin-audit");
   if (!tb) return;
   tb.innerHTML = rows.map(function (r) {
-    const detail = String(r.Detail || "");
+    const rawDetail = r.DetailJson != null && String(r.DetailJson).trim() !== "" ? r.DetailJson : r.Detail;
+    const detail = String(rawDetail || "");
     const detailCell =
-      '<td style="white-space:pre-wrap;word-break:break-word;max-width:28rem;">' +
+      '<td style="white-space:pre-wrap;word-break:break-word;max-width:22rem;">' +
       escapeHtml(detail || "—") +
       "</td>";
     const uaCell =
-      '<td style="white-space:pre-wrap;word-break:break-word;max-width:14rem;font-size:0.85em;">' +
+      '<td style="white-space:pre-wrap;word-break:break-word;max-width:12rem;font-size:0.85em;">' +
       escapeHtml(r.UserAgent || "—") +
       "</td>";
     return (
@@ -567,12 +625,38 @@ function renderAdminAudit(rows) {
       "<td>" + escapeHtml(r.TargetType || "—") + "</td>" +
       "<td>" + escapeHtml(r.TargetId != null && r.TargetId !== "" ? r.TargetId : "—") + "</td>" +
       detailCell +
+      '<td class="num">' + escapeHtml(r.SessionLogID != null ? r.SessionLogID : "—") + "</td>" +
+      "<td>" + escapeHtml(r.ActionResult || "—") + "</td>" +
       "<td>" + escapeHtml(r.ClientIp || "—") + "</td>" +
       uaCell +
       "</tr>"
     );
   }).join("");
-  if (!rows.length) tb.innerHTML = '<tr><td colspan="9" class="hint">No audit rows yet.</td></tr>';
+  if (!rows.length) tb.innerHTML = '<tr><td colspan="11" class="hint">No audit rows yet.</td></tr>';
+}
+
+function renderIpBlocklist(rows) {
+  const tb = $("#tbody-ip-blocklist");
+  if (!tb) return;
+  tb.innerHTML = rows
+    .map(function (r) {
+      return (
+        "<tr>" +
+        '<td class="num">' + escapeHtml(r.BlockID) + "</td>" +
+        "<td>" + escapeHtml(r.Cidr) + "</td>" +
+        "<td>" + escapeHtml(r.BlockMode || "flag") + "</td>" +
+        "<td>" + escapeHtml(r.Reason || "—") + "</td>" +
+        "<td>" + escapeHtml(r.AddedBy || "—") + "</td>" +
+        "<td>" + escapeHtml(r.ExpiresAt || "—") + "</td>" +
+        "<td>" +
+        '<button type="button" class="btn btn-small btn-ghost btn-ip-block-del" data-block-id="' +
+        escapeHtml(r.BlockID) +
+        '">Remove</button></td>' +
+        "</tr>"
+      );
+    })
+    .join("");
+  if (!rows.length) tb.innerHTML = '<tr><td colspan="7" class="hint">No CIDR rows — use the form below.</td></tr>';
 }
 
 async function loadUsersPanel() {
@@ -581,6 +665,7 @@ async function loadUsersPanel() {
   let policy;
   let audit;
   let sessions;
+  let ipbl;
   try {
     const pack = await Promise.all([
       apiGet("/employees"),
@@ -588,12 +673,14 @@ async function loadUsersPanel() {
       apiGet("/access/policy"),
       apiGet("/audit-log?limit=500"),
       apiGet("/access/sessions?limit=300"),
+      apiGet("/access/ip-blocklist"),
     ]);
     emps = pack[0];
     notes = pack[1];
     policy = pack[2];
     audit = pack[3];
     sessions = pack[4];
+    ipbl = pack[5];
   } catch (e) {
     showToast(e.message, true);
     return;
@@ -607,6 +694,24 @@ async function loadUsersPanel() {
   if (sn) sn.value = policy.sessionNotes || "";
   const sip = $("#access-suspicious-ips");
   if (sip) sip.value = policy.suspiciousIpWatchlist || "";
+  const mfaTier = $("#access-mfa-tier-json");
+  if (mfaTier) mfaTier.value = JSON.stringify(policy.mfaTiers || {}, null, 2);
+  const tokPol = $("#access-token-ttl-json");
+  if (tokPol) tokPol.value = JSON.stringify(policy.tokenTtlByPortal || {}, null, 2);
+  const retA = $("#retention-audit-days");
+  if (retA) retA.value = policy.retentionAuditLogDays != null ? String(policy.retentionAuditLogDays) : "";
+  const retS = $("#retention-session-days");
+  if (retS) retS.value = policy.retentionSessionLogDays != null ? String(policy.retentionSessionLogDays) : "";
+  const bg = $("#break-glass-notes");
+  if (bg) bg.value = policy.breakGlassProcedureNotes || "";
+  const bind = $("#session-bind-id");
+  if (bind) {
+    try {
+      bind.value = localStorage.getItem("adminSessionLogId") || "";
+    } catch (e) {
+      bind.value = "";
+    }
+  }
   renderAccessPortalMatrix(policy.portalRoles);
   const preRoles = $("#access-portal-roles-json");
   if (preRoles) {
@@ -616,6 +721,7 @@ async function loadUsersPanel() {
   renderInternalStaffDirectory(emps);
   renderAccessSessions(sessions);
   renderAdminAudit(audit);
+  renderIpBlocklist(ipbl || []);
 
   const tn = $("#tbody-admin-notifications");
   if (tn) {
@@ -625,14 +731,21 @@ async function loadUsersPanel() {
           '<td class="num">' + escapeHtml(r.NotificationID) + "</td>" +
           '<td class="num">' + escapeHtml(r.ManagerID != null ? r.ManagerID : "—") + "</td>" +
           '<td class="num">' + escapeHtml(r.ItemID != null ? r.ItemID : "—") + "</td>" +
+          "<td>" + escapeHtml(r.Severity || "info") + "</td>" +
           "<td>" + escapeHtml(r.Message) + "</td>" +
           "<td>" + escapeHtml(r.RetailName || "—") + "</td>" +
           "<td>" + escapeHtml(r.ItemName || "—") + "</td>" +
           "<td>" + escapeHtml(r.CreatedAt) + "</td>" +
+          "<td>" + escapeHtml(r.ReadAt || "—") + "</td>" +
+          '<td class="num">' + escapeHtml(r.LinkedAuditLogID != null ? r.LinkedAuditLogID : "—") + "</td>" +
+          "<td>" +
+          '<button type="button" class="btn btn-small btn-ghost btn-notif-read" data-notif-id="' +
+          escapeHtml(r.NotificationID) +
+          '">Mark read</button></td>' +
         "</tr>"
       );
     }).join("");
-    if (!notes.length) tn.innerHTML = '<tr><td colspan="7" class="hint">No notification log rows</td></tr>';
+    if (!notes.length) tn.innerHTML = '<tr><td colspan="11" class="hint">No notification log rows</td></tr>';
   }
 }
 
@@ -649,6 +762,30 @@ if (panelUsers) {
         sessionNotes: ($("#access-session-notes") && $("#access-session-notes").value) || "",
         suspiciousIpWatchlist: ($("#access-suspicious-ips") && $("#access-suspicious-ips").value) || "",
       };
+      const jMfa = $("#access-mfa-tier-json");
+      if (jMfa && jMfa.value.trim()) {
+        try {
+          body.mfaTiers = JSON.parse(jMfa.value);
+        } catch (e) {
+          showToast("MFA tier JSON is invalid", true);
+          return;
+        }
+      }
+      const jTtl = $("#access-token-ttl-json");
+      if (jTtl && jTtl.value.trim()) {
+        try {
+          body.tokenTtlByPortal = JSON.parse(jTtl.value);
+        } catch (e) {
+          showToast("Token TTL JSON is invalid", true);
+          return;
+        }
+      }
+      const ra = $("#retention-audit-days");
+      if (ra && ra.value.trim()) body.retentionAuditLogDays = Number(ra.value);
+      const rs = $("#retention-session-days");
+      if (rs && rs.value.trim()) body.retentionSessionLogDays = Number(rs.value);
+      const bg = $("#break-glass-notes");
+      if (bg) body.breakGlassProcedureNotes = bg.value || "";
       apiPatch("/access/policy", body)
         .then(function () {
           showToast("Organization policy saved");
@@ -696,8 +833,154 @@ if (panelUsers) {
         .catch(function (e) {
           showToast(e.message, true);
         });
+      return;
+    }
+    if (ev.target.id === "btn-session-bind-save") {
+      const inp = $("#session-bind-id");
+      const v = inp && inp.value.trim();
+      try {
+        if (v) {
+          localStorage.setItem("adminSessionLogId", v);
+          showToast("Session id stored — sent as X-Admin-Session-Id on API calls");
+        } else {
+          localStorage.removeItem("adminSessionLogId");
+          showToast("Session binding cleared");
+        }
+      } catch (e) {
+        showToast("Storage error", true);
+      }
+      return;
+    }
+    if (ev.target.id === "btn-session-create-test") {
+      apiPost("/access/sessions", {
+        eventType: "idp_callback",
+        portal: "admin",
+        subject: "admin-ui test session",
+      })
+        .then(function (r) {
+          if (r && r.SessionLogID) {
+            try {
+              localStorage.setItem("adminSessionLogId", String(r.SessionLogID));
+            } catch (e) {
+              /* ignore */
+            }
+          }
+          showToast("Session row created — use “Record MFA (totp)” or PATCH /api/access/sessions/:id/mfa");
+          return loadUsersPanel();
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+        });
+      return;
+    }
+    if (ev.target.id === "btn-session-mfa-totp") {
+      let sid = null;
+      try {
+        sid = localStorage.getItem("adminSessionLogId");
+      } catch (e) {
+        /* ignore */
+      }
+      if (!sid) {
+        showToast("Bind or create a session first", true);
+        return;
+      }
+      apiPatch("/access/sessions/" + sid + "/mfa", { method: "totp" })
+        .then(function () {
+          showToast("MFA recorded on session " + sid);
+          return loadUsersPanel();
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+        });
+      return;
+    }
+    const ipDel = ev.target.closest(".btn-ip-block-del");
+    if (ipDel && ipDel.dataset.blockId) {
+      apiDelete("/access/ip-blocklist/" + ipDel.dataset.blockId)
+        .then(function () {
+          showToast("CIDR removed");
+          return loadUsersPanel();
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+        });
+      return;
+    }
+    if (ev.target.id === "btn-ip-block-add") {
+      const cidrEl = $("#ip-block-cidr");
+      const modeEl = $("#ip-block-mode");
+      const reasonEl = $("#ip-block-reason");
+      const cidr = cidrEl && cidrEl.value.trim();
+      if (!cidr) {
+        showToast("Enter CIDR or IP", true);
+        return;
+      }
+      apiPost("/access/ip-blocklist", {
+        cidr: cidr,
+        blockMode: modeEl && modeEl.value === "block" ? "block" : "flag",
+        reason: reasonEl ? reasonEl.value : "",
+      })
+        .then(function () {
+          showToast("Blocklist row added");
+          if (cidrEl) cidrEl.value = "";
+          return loadUsersPanel();
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+        });
+      return;
+    }
+    const nr = ev.target.closest(".btn-notif-read");
+    if (nr && nr.dataset.notifId) {
+      apiPatch("/notifications/" + nr.dataset.notifId + "/read", {})
+        .then(function () {
+          showToast("Marked read");
+          return loadUsersPanel();
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+        });
+      return;
     }
   });
+
+  panelUsers.addEventListener(
+    "blur",
+    function (ev) {
+      if (!ev.target.classList.contains("employee-scope-areas")) return;
+      const tr = ev.target.closest("tr[data-employee-id]");
+      const eid = tr && tr.dataset.employeeId;
+      if (!eid) return;
+      const raw = ev.target.value.trim();
+      let payload;
+      if (!raw) payload = { scopeAreaIds: null };
+      else {
+        try {
+          const ids = JSON.parse(raw);
+          if (!Array.isArray(ids)) throw new Error("not array");
+          payload = { scopeAreaIds: ids };
+        } catch (e) {
+          showToast("Scope must be JSON array of area IDs, e.g. [1, 2]", true);
+          return;
+        }
+      }
+      apiPatch("/access/employees/" + eid, payload)
+        .then(function () {
+          showToast("Scope areas updated");
+          return Promise.all([apiGet("/employees"), apiGet("/audit-log?limit=500")]);
+        })
+        .then(function (pair) {
+          if (pair) {
+            renderInternalStaffDirectory(pair[0]);
+            renderAdminAudit(pair[1]);
+          }
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+        });
+    },
+    true
+  );
 
   panelUsers.addEventListener("change", function (ev) {
     const tr = ev.target.closest("tr[data-employee-id]");
@@ -705,9 +988,53 @@ if (panelUsers) {
     if (!eid) return;
     if (ev.target.classList.contains("employee-access-active")) {
       const active = ev.target.checked;
-      apiPatch("/access/employees/" + eid, { isActive: active })
+      const payload = { isActive: active };
+      if (!active) {
+        const reason = window.prompt(
+          "Deactivation reason (optional; e.g. resignation, termination, security incident):"
+        );
+        if (reason != null && String(reason).trim()) payload.deactivationReason = String(reason).trim();
+      }
+      apiPatch("/access/employees/" + eid, payload)
         .then(function () {
           showToast("Employee #" + eid + " updated");
+          return Promise.all([apiGet("/employees"), apiGet("/audit-log?limit=500")]);
+        })
+        .then(function (pair) {
+          if (pair) {
+            renderInternalStaffDirectory(pair[0]);
+            renderAdminAudit(pair[1]);
+          }
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+          loadUsersPanel().catch(function () {});
+        });
+      return;
+    }
+    if (ev.target.classList.contains("employee-hr-level")) {
+      apiPatch("/access/employees/" + eid, { hrAccessLevel: ev.target.value })
+        .then(function () {
+          showToast("HR access level updated");
+          return Promise.all([apiGet("/employees"), apiGet("/audit-log?limit=500")]);
+        })
+        .then(function (pair) {
+          if (pair) {
+            renderInternalStaffDirectory(pair[0]);
+            renderAdminAudit(pair[1]);
+          }
+        })
+        .catch(function (e) {
+          showToast(e.message, true);
+          loadUsersPanel().catch(function () {});
+        });
+      return;
+    }
+    if (ev.target.classList.contains("employee-role-expires")) {
+      const v = ev.target.value;
+      apiPatch("/access/employees/" + eid, { roleExpiresAt: v || null })
+        .then(function () {
+          showToast("Role expiry updated");
           return Promise.all([apiGet("/employees"), apiGet("/audit-log?limit=500")]);
         })
         .then(function (pair) {
