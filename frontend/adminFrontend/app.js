@@ -154,12 +154,32 @@ document.querySelectorAll(".tab").forEach(function (btn) {
 });
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
+/** Coerce /api/summary JSON into safe numbers for the stat grid. */
+function normalizeSummaryPayload(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  function n(v) {
+    const x = Number(v);
+    return Number.isFinite(x) ? x : 0;
+  }
+  return {
+    employees: n(raw.employees),
+    visitorsActive: n(raw.visitorsActive),
+    attractions: n(raw.attractions),
+    rides: n(raw.rides),
+    openAlerts: n(raw.openAlerts),
+    pendingMaint: n(raw.pendingMaint),
+    retailItems: n(raw.retailItems),
+    lowStock: n(raw.lowStock),
+    incidents30d: n(raw.incidents30d),
+  };
+}
+
 async function loadDashboard() {
   const grid = $("#stat-grid");
   if (!grid) return;
-  let s;
+  let raw;
   try {
-    s = await apiGet("/summary");
+    raw = await apiGet("/summary");
   } catch (e) {
     const msg = String(e && e.message ? e.message : e);
     grid.innerHTML =
@@ -167,6 +187,15 @@ async function loadDashboard() {
       escapeHtml(msg) +
       "</p><p class=\"hint\">If you opened this from Vercel, the API must be live on your Render homepage service (<code>/api/summary</code>) and the database reachable.</p>";
     showToast(msg, true);
+    return;
+  }
+  const s = normalizeSummaryPayload(raw);
+  if (!s) {
+    grid.innerHTML =
+      '<p class="api-error" role="alert"><strong>Could not load dashboard.</strong><br />' +
+      "The server returned an unexpected response (expected a JSON object from <code>/api/summary</code>).</p>" +
+      '<p class="hint">Do not point the admin UI at a path that returns HTML (e.g. a wrong <code>admin-api-origin</code> or a non-API URL).</p>';
+    showToast("Invalid summary response", true);
     return;
   }
   const cards = [
@@ -285,12 +314,18 @@ function fillHrManagersTable(rows) {
 }
 
 async function loadHrPanel() {
-  const [emps, shifts, vrevs, mgrs] = await Promise.all([
+  const [emps, shifts, vrevs] = await Promise.all([
     apiGet("/employees"),
     apiGet("/shifts"),
     apiGet("/reports/visitor-reviews?limit=200"),
-    apiGet("/hr-managers"),
   ]);
+  let mgrs = [];
+  try {
+    const m = await apiGet("/hr-managers");
+    mgrs = Array.isArray(m) ? m : [];
+  } catch (e) {
+    /* Older APIs without GET /api/hr-managers — keep rest of HR tab working */
+  }
   fillHrManagersTable(mgrs);
   fillEmployeeTable("#tbody-hr-staff", emps);
   const ts = $("#tbody-shifts");
@@ -788,4 +823,12 @@ async function exportIncidentsCsv() {
 });
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
-loadDashboard().catch(function (e) { showToast(e.message, true); });
+function bootAdmin() {
+  loadDashboard().catch(function (e) { showToast(e.message, true); });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bootAdmin);
+} else {
+  bootAdmin();
+}
