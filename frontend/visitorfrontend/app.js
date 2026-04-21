@@ -362,9 +362,9 @@ function clearToken() {
 
 function logoutVisitor() {
   clearToken();
-  showStatus("Logged out successfully.");
-  showAuth(true);
-  $("visitorBadge").textContent = "Guest";
+  localStorage.removeItem("loggedIn");
+  localStorage.removeItem("userEmail");
+  window.location.href = "/";
 }
 
 function showStatus(msg, isErr = false) {

@@ -387,6 +387,25 @@ function setTabsSignedIn(signedIn) {
   $("#btn-sign-out").classList.toggle("hidden", !signedIn);
 }
 
+function signOutEmployeeSession() {
+  const id = getCurrentEmployeeId();
+  if (id != null) setOpenClock(id, null);
+  setCurrentEmployeeId(null);
+  cachedEmployeeDetail = null;
+  $("#select-employee-id").value = "";
+  setTabsSignedIn(false);
+  updateHeader();
+  activateTab("session");
+}
+
+function logoutEmployeePortalToHomepage() {
+  signOutEmployeeSession();
+  localStorage.removeItem("loggedIn");
+  localStorage.removeItem("token");
+  localStorage.removeItem("userEmail");
+  window.location.href = "/";
+}
+
 function activateTab(name) {
   document.querySelectorAll(".tab").forEach((b) => {
     const on = b.getAttribute("data-tab") === name;
@@ -518,14 +537,7 @@ function wireSession() {
   });
 
   $("#btn-sign-out").addEventListener("click", () => {
-    const id = getCurrentEmployeeId();
-    if (id != null) setOpenClock(id, null);
-    setCurrentEmployeeId(null);
-    cachedEmployeeDetail = null;
-    $("#select-employee-id").value = "";
-    setTabsSignedIn(false);
-    updateHeader();
-    activateTab("session");
+    signOutEmployeeSession();
     showToast("Signed out.");
   });
 }
@@ -640,6 +652,7 @@ async function init() {
   wireRefresh();
   wireClock();
   wireIncident();
+  $("#btn-logout-employee").addEventListener("click", logoutEmployeePortalToHomepage);
 
   const id = getCurrentEmployeeId();
   if (id != null) {
