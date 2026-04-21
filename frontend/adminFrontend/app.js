@@ -488,6 +488,16 @@ if (retryBackendBtn) {
   });
 }
 
+const adminLogoutBtn = $("#btn-logout-admin");
+if (adminLogoutBtn) {
+  adminLogoutBtn.addEventListener("click", function () {
+    localStorage.removeItem("token");
+    localStorage.removeItem("loggedIn");
+    localStorage.removeItem("userEmail");
+    window.location.href = "/";
+  });
+}
+
 function downloadCsv(filename, rows, columns) {
   function escCell(v) {
     const s = String(v ?? "");

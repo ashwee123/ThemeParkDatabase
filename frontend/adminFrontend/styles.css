@@ -46,6 +46,13 @@ body {
   background: linear-gradient(180deg, rgba(10, 8, 6, 0.97) 0%, rgba(10, 8, 6, 0.8) 100%);
 }
 
+.site-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .site-header h1 {
   font-family: "Creepster", cursive;
   font-size: clamp(2.2rem, 5vw, 3.4rem);

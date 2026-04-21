@@ -17,6 +17,13 @@ function isHrAuthenticated() {
     return localStorage.getItem("loggedIn") === "true" || Boolean(localStorage.getItem("token"));
 }
 
+function logoutHrPortal() {
+    localStorage.removeItem("loggedIn");
+    localStorage.removeItem("token");
+    localStorage.removeItem("userEmail");
+    window.location.href = "/";
+}
+
 function formatDateOnly(value) {
     if (!value) return "—";
     const s = String(value);
@@ -562,6 +569,8 @@ document.querySelectorAll(".tab").forEach(btn => {
         if (panelId === "reports") loadDataReports();
     };
 });
+
+document.getElementById("btn-logout-hr")?.addEventListener("click", logoutHrPortal);
 
 /* ================= INITIALIZATION ================= */
 window.onload = () => {
